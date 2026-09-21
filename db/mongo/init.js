@@ -1,11 +1,7 @@
 // Seleciona o banco
 db = db.getSiblingDB("nurseflow");
 
-
-// =====================================
 // COLLECTION USUARIOS
-// =====================================
-
 db.createCollection("usuarios", {
 
     validator: {
@@ -20,7 +16,7 @@ db.createCollection("usuarios", {
                 "senha",
                 "cpf",
                 "telefone",
-                "tipo_usuario"
+                "tipoUsuario"
             ],
 
             properties: {
@@ -30,7 +26,8 @@ db.createCollection("usuarios", {
                 },
 
                 email:{
-                    bsonType:"string"
+                    bsonType:"string",
+                    pattern:"^.+@.+\\..+$"
                 },
 
                 senha:{
@@ -38,14 +35,16 @@ db.createCollection("usuarios", {
                 },
 
                 cpf:{
-                    bsonType:"string"
+                    bsonType:"string",
+                    pattern:"^[0-9]{11}$"
                 },
 
                 telefone:{
                     bsonType:"string"
                 },
 
-                tipo_usuario:{
+                tipoUsuario:{
+                    bsonType:"string",
                     enum:[
                         "administrador",
                         "enfermeiro"
@@ -57,11 +56,7 @@ db.createCollection("usuarios", {
 });
 
 
-
-// =====================================
 // COLLECTION ADMINISTRADORES
-// =====================================
-
 db.createCollection("administradores", {
 
     validator:{
@@ -71,12 +66,12 @@ db.createCollection("administradores", {
             bsonType:"object",
 
             required:[
-                "usuario_id"
+                "usuarioId"
             ],
 
             properties:{
 
-                usuario_id:{
+                usuarioId:{
                     bsonType:"objectId"
                 },
 
@@ -89,11 +84,7 @@ db.createCollection("administradores", {
 });
 
 
-
-// =====================================
 // COLLECTION ENFERMEIROS
-// =====================================
-
 db.createCollection("enfermeiros", {
 
     validator:{
@@ -104,9 +95,9 @@ db.createCollection("enfermeiros", {
 
             required:[
 
-                "usuario_id",
-                "registro_profissional",
-                "tipo_vinculo",
+                "usuarioId",
+                "coren",
+                "tipoVinculo",
                 "status"
 
             ],
@@ -114,23 +105,31 @@ db.createCollection("enfermeiros", {
             properties:{
 
 
-                usuario_id:{
+                usuarioId:{
                     bsonType:"objectId"
                 },
 
-
-                registro_profissional:{
+                coren:{
                     bsonType:"string"
                 },
-
-
-                tipo_vinculo:{
-                    bsonType:"string"
-                },
-
 
                 status:{
-                    bsonType:"string"
+                    bsonType:"string",
+                    enum:[
+                        "ativo",
+                        "afastado",
+                        "ferias",
+                        "desligado"
+                    ]
+                },
+
+                tipoVinculo:{
+                    bsonType:"string",
+                    enum:[
+                        "concursado",
+                        "clt",
+                        "rpa"
+                    ]
                 }
 
             }
@@ -142,12 +141,8 @@ db.createCollection("enfermeiros", {
 });
 
 
-
-// =====================================
-// COLLECTION DISPONIBILIDADES
-// =====================================
-
-db.createCollection("disponibilidades",{
+// COLLECTION RESTRIÇÕES
+db.createCollection("restricoes",{
 
     validator:{
 
@@ -157,10 +152,11 @@ db.createCollection("disponibilidades",{
 
             required:[
 
-                "enfermeiro_id",
-                "dia_semana",
-                "horario_inicio",
-                "horario_fim"
+                "enfermeiroId",
+                "administradorCriadorId",
+                "diaSemana",
+                "horarioInicio",
+                "horarioFim"
 
             ],
 
@@ -168,27 +164,31 @@ db.createCollection("disponibilidades",{
             properties:{
 
 
-                enfermeiro_id:{
+                enfermeiroId:{
+                    bsonType:"objectId"
+                },
+
+                administradorCriadorId:{
                     bsonType:"objectId"
                 },
 
 
-                tipo_restricao:{
+                tipoRestricao:{
                     bsonType:"string"
                 },
 
 
-                dia_semana:{
+                diaSemana:{
                     bsonType:"string"
                 },
 
 
-                horario_inicio:{
+                horarioInicio:{
                     bsonType:"string"
                 },
 
 
-                horario_fim:{
+                horarioFim:{
                     bsonType:"string"
                 }
 
@@ -201,11 +201,7 @@ db.createCollection("disponibilidades",{
 });
 
 
-
-// =====================================
 // COLLECTION ESCALAS
-// =====================================
-
 db.createCollection("escalas",{
 
     validator:{
@@ -216,7 +212,7 @@ db.createCollection("escalas",{
 
             required:[
 
-                "administrador_id",
+                "administradorId",
                 "mes",
                 "ano",
                 "status"
@@ -226,22 +222,26 @@ db.createCollection("escalas",{
             properties:{
 
 
-                administrador_id:{
+                administradorId:{
                     bsonType:"objectId"
                 },
 
 
                 mes:{
-                    bsonType:"int"
+                    bsonType:"int",
+                    minimum:1,
+                    maximum:12
                 },
 
 
                 ano:{
-                    bsonType:"int"
+                    bsonType:"int",
+                    minimum:2020
                 },
 
 
                 status:{
+                    bsonType:"string",
                     enum:[
                         "rascunho",
                         "publicada",
@@ -250,7 +250,7 @@ db.createCollection("escalas",{
                 },
 
 
-                data_criacao:{
+                dataCriacao:{
                     bsonType:"date"
                 }
 
@@ -263,11 +263,7 @@ db.createCollection("escalas",{
 });
 
 
-
-// =====================================
 // COLLECTION PLANTOES
-// =====================================
-
 db.createCollection("plantoes",{
 
     validator:{
@@ -278,12 +274,12 @@ db.createCollection("plantoes",{
 
             required:[
 
-                "escala_id",
-                "enfermeiro_id",
-                "setor_id",
+                "escalaId",
+                "enfermeiros",
+                "setorId",
                 "data",
-                "horario_inicio",
-                "horario_fim"
+                "horarioInicio",
+                "horarioFim"
 
             ],
 
@@ -291,17 +287,37 @@ db.createCollection("plantoes",{
             properties:{
 
 
-                escala_id:{
+                escalaId:{
                     bsonType:"objectId"
                 },
 
 
-                enfermeiro_id:{
-                    bsonType:"objectId"
+                enfermeiros:{
+                    bsonType:"array",
+                    minItems:1,
+                    items:{
+                        bsonType:"object",
+                        required:[
+                            "enfermeiroId"
+                        ],
+                        properties:{
+                            enfermeiroId:{
+                                bsonType:"objectId"
+                            },
+
+                            funcao:{
+                                bsonType:"string",
+                                enum:[
+                                    "chefe",
+                                    "apoio"
+                                ]
+                            }
+                        }
+                    }
                 },
 
 
-                setor_id:{
+                setorId:{
                     bsonType:"objectId"
                 },
 
@@ -311,12 +327,12 @@ db.createCollection("plantoes",{
                 },
 
 
-                horario_inicio:{
+                horarioInicio:{
                     bsonType:"string"
                 },
 
 
-                horario_fim:{
+                horarioFim:{
                     bsonType:"string"
                 },
 
@@ -334,11 +350,7 @@ db.createCollection("plantoes",{
 });
 
 
-
-// =====================================
 // COLLECTION SETORES
-// =====================================
-
 db.createCollection("setores",{
 
     validator:{
@@ -370,12 +382,8 @@ db.createCollection("setores",{
 });
 
 
-
-// =====================================
 // COLLECTION TROCAS DE PLANTAO
-// =====================================
-
-db.createCollection("trocas_plantao",{
+db.createCollection("trocasPlantao",{
 
     validator:{
 
@@ -384,10 +392,9 @@ db.createCollection("trocas_plantao",{
             bsonType:"object",
 
             required:[
-
-                "plantao_id",
-                "id_origem",
-                "id_destino",
+                "plantaoId",
+                "enfermeiroOrigemId",
+                "enfermeiroDestinoId",
                 "status"
 
             ],
@@ -395,43 +402,33 @@ db.createCollection("trocas_plantao",{
             properties:{
 
 
-                plantao_id:{
+                plantaoId:{
+                    bsonType:"objectId"
+                },
+
+                enfermeiroOrigemId:{
                     bsonType:"objectId"
                 },
 
 
-                id_origem:{
+                enfermeiroDestinoId:{
                     bsonType:"objectId"
                 },
 
 
-                id_destino:{
-                    bsonType:"objectId"
-                },
-
-
-                data_solicitacao:{
+                dataSolicitacao:{
                     bsonType:"date"
                 },
 
 
                 status:{
+                    bsonType:"string",
                     enum:[
                         "pendente",
-                        "aceita_enf",
+                        "aceitaEnf",
                         "recusada",
-                        "aprovada_admin"
+                        "aprovadaAdmin"
                     ]
-                },
-
-
-                aceita_enf:{
-                    bsonType:"bool"
-                },
-
-
-                aprovada_admin:{
-                    bsonType:"bool"
                 }
 
             }
@@ -444,11 +441,7 @@ db.createCollection("trocas_plantao",{
 
 
 
-
-// =====================================
 // ÍNDICES
-// =====================================
-
 db.usuarios.createIndex(
     {
         email:1
@@ -458,12 +451,59 @@ db.usuarios.createIndex(
     }
 );
 
+db.usuarios.createIndex(
+{
+    cpf:1
+},
+{
+    unique:true
+}
+);
+
 
 db.enfermeiros.createIndex(
     {
-        registro_profissional:1
+        coren:1
     },
     {
         unique:true
     }
 );
+
+db.setores.createIndex(
+{
+    nome:1
+},
+{
+    unique:true
+}
+);
+
+db.administradores.createIndex(
+{
+    usuarioId:1
+},
+{
+    unique:true
+});
+
+
+db.enfermeiros.createIndex(
+{
+    usuarioId:1
+},
+{
+    unique:true
+});
+
+
+db.plantoes.createIndex(
+{
+    escalaId:1
+});
+
+
+db.trocasPlantao.createIndex(
+{
+    status:1
+});
