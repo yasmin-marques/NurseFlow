@@ -47,7 +47,7 @@ db.createCollection("usuarios", {
                     bsonType:"string",
                     enum:[
                         "administrador",
-                        "enfermeiro"
+                        "profissionalDaSaude"
                     ]
                 }
             }
@@ -84,8 +84,8 @@ db.createCollection("administradores", {
 });
 
 
-// COLLECTION ENFERMEIROS
-db.createCollection("enfermeiros", {
+// COLLECTION PROFISSIONAISDASAUDE
+db.createCollection("profissionaisDaSaude", {
 
     validator:{
 
@@ -98,7 +98,8 @@ db.createCollection("enfermeiros", {
                 "usuarioId",
                 "coren",
                 "tipoVinculo",
-                "status"
+                "status",
+                "formacao"
 
             ],
 
@@ -130,6 +131,14 @@ db.createCollection("enfermeiros", {
                         "clt",
                         "rpa"
                     ]
+                },
+
+                formacao:{
+                    bsonType:"string",
+                    enum:[
+                        "tecnico",
+                        "enfermeiro"
+                    ]
                 }
 
             }
@@ -152,7 +161,7 @@ db.createCollection("restricoes",{
 
             required:[
 
-                "enfermeiroId",
+                "profissionalId",
                 "administradorCriadorId",
                 "diaSemana",
                 "horarioInicio",
@@ -164,7 +173,7 @@ db.createCollection("restricoes",{
             properties:{
 
 
-                enfermeiroId:{
+                profissionalId:{
                     bsonType:"objectId"
                 },
 
@@ -222,7 +231,7 @@ db.createCollection("escalas",{
             properties:{
 
 
-                administradorId:{
+                administradorId:{   
                     bsonType:"objectId"
                 },
 
@@ -275,7 +284,7 @@ db.createCollection("plantoes",{
             required:[
 
                 "escalaId",
-                "enfermeiros",
+                "profissionaisDaSaude",
                 "setorId",
                 "data",
                 "horarioInicio",
@@ -292,16 +301,16 @@ db.createCollection("plantoes",{
                 },
 
 
-                enfermeiros:{
+                profissionaisDaSaude:{
                     bsonType:"array",
                     minItems:1,
                     items:{
                         bsonType:"object",
                         required:[
-                            "enfermeiroId"
+                            "profissionalDaSaudeId"
                         ],
                         properties:{
-                            enfermeiroId:{
+                            profissionalDaSaudeId:{
                                 bsonType:"objectId"
                             },
 
@@ -393,8 +402,8 @@ db.createCollection("trocasPlantao",{
 
             required:[
                 "plantaoId",
-                "enfermeiroOrigemId",
-                "enfermeiroDestinoId",
+                "profissionalOrigemId",
+                "profissionalDestinoId",
                 "status"
 
             ],
@@ -406,12 +415,12 @@ db.createCollection("trocasPlantao",{
                     bsonType:"objectId"
                 },
 
-                enfermeiroOrigemId:{
+                profissionalOrigemId:{
                     bsonType:"objectId"
                 },
 
 
-                enfermeiroDestinoId:{
+                profissionalDestinoId:{
                     bsonType:"objectId"
                 },
 
@@ -461,7 +470,7 @@ db.usuarios.createIndex(
 );
 
 
-db.enfermeiros.createIndex(
+db.profissionaisDaSaude.createIndex(
     {
         coren:1
     },
@@ -488,7 +497,7 @@ db.administradores.createIndex(
 });
 
 
-db.enfermeiros.createIndex(
+db.profissionaisDaSaude.createIndex(
 {
     usuarioId:1
 },
