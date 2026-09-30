@@ -99,7 +99,8 @@ db.createCollection("profissionaisDaSaude", {
                 "coren",
                 "tipoVinculo",
                 "status",
-                "formacao"
+                "formacao",
+                "sincronizaAgenda"
 
             ],
 
@@ -139,6 +140,10 @@ db.createCollection("profissionaisDaSaude", {
                         "tecnico",
                         "enfermeiro"
                     ]
+                },
+
+                sincronizaAgenda:{
+                    bsonType:"bool"
                 }
 
             }
@@ -147,6 +152,38 @@ db.createCollection("profissionaisDaSaude", {
 
     }
 
+});
+
+db.createCollection("ferias",{
+    validator:{
+
+        $jsonSchema:{
+
+            bsonType:"object",
+
+            required:[
+                "profissionalId",
+                "inicioFerias",
+                "fimFerias"
+            ],
+
+            properties:{
+
+                profissionalId:{
+                    bsonType:"objectId"
+                },
+
+                inicioFerias:{
+                    bsonType:"date"
+                },
+
+                fimFerias:{
+                    bsonType:"date"
+                }
+                
+            }
+        }
+    }
 });
 
 
@@ -160,7 +197,6 @@ db.createCollection("restricoes",{
             bsonType:"object",
 
             required:[
-
                 "profissionalId",
                 "administradorCriadorId",
                 "diaSemana",
@@ -207,6 +243,43 @@ db.createCollection("restricoes",{
 
     }
 
+});
+
+db.createCollection("configuracoes",{
+    validator:{
+
+        $jsonSchema:{
+
+            bsonType: "object",
+
+            required:[
+                "administradorId",
+                "quantMaxExtra",
+                "quantMaxTroca",
+                "quantLimitePlantao"
+            ],
+
+            properties:{
+
+                administradorId:{
+                    bsonType:"objectId"
+                },
+
+                quantMaxExtra:{
+                    bsonType:"int"
+                },
+
+                quantMaxTroca:{
+                    bsonType:"int"
+                },
+
+                quantLimitePlantao:{
+                    bsonType:"int"
+                }
+                
+            }
+        }
+    }
 });
 
 
@@ -272,6 +345,61 @@ db.createCollection("escalas",{
 });
 
 
+db.createCollection("profissionaisRelacionados",{
+    validator:{
+
+        $jsonSchema:{
+            bsonType:"object",
+
+            required:[
+                "plantaoId",
+                "profissionalID"
+            ],
+
+            properties:{
+                
+                plantaoId:{
+                    bsonType: "objectId"
+                },
+
+                profissionalId:{
+                    bsonType: "objectId"
+                }
+            }
+        }
+    }
+});
+
+db.createCollection("notificacoes",{
+    validator:{
+
+        $jsonSchema:{
+            bsonType:"object",
+
+            required:[
+                "lida",
+                "dataEnvio",
+                "mensagem"
+            ],
+
+            properties:{
+
+                lida:{
+                    bsonType:"bool"
+                },
+
+                dataEnvio:{
+                    bsonType:"date"
+                },
+
+                mensagem:{
+                    bsonType:"string"
+                }
+            }
+        }
+    }
+})
+
 // COLLECTION PLANTOES
 db.createCollection("plantoes",{
 
@@ -282,13 +410,12 @@ db.createCollection("plantoes",{
             bsonType:"object",
 
             required:[
-
                 "escalaId",
-                "profissionaisDaSaude",
                 "setorId",
                 "data",
                 "horarioInicio",
-                "horarioFim"
+                "horarioFim",
+                "tipo"
 
             ],
 
@@ -298,31 +425,6 @@ db.createCollection("plantoes",{
 
                 escalaId:{
                     bsonType:"objectId"
-                },
-
-
-                profissionaisDaSaude:{
-                    bsonType:"array",
-                    minItems:1,
-                    items:{
-                        bsonType:"object",
-                        required:[
-                            "profissionalDaSaudeId"
-                        ],
-                        properties:{
-                            profissionalDaSaudeId:{
-                                bsonType:"objectId"
-                            },
-
-                            funcao:{
-                                bsonType:"string",
-                                enum:[
-                                    "chefe",
-                                    "apoio"
-                                ]
-                            }
-                        }
-                    }
                 },
 
 
@@ -345,9 +447,12 @@ db.createCollection("plantoes",{
                     bsonType:"string"
                 },
 
-
-                observacao:{
-                    bsonType:"string"
+                tipo:{
+                    bsonType:"string",
+                    enum:[
+                        "regular",
+                        "extra"
+                    ]
                 }
 
             }
@@ -369,13 +474,23 @@ db.createCollection("setores",{
             bsonType:"object",
 
             required:[
-                "nome"
+                "nome",
+                "quantMinEnf",
+                "quantMinTec"
             ],
 
             properties:{
 
                 nome:{
                     bsonType:"string"
+                },
+
+                quantMinEnf:{
+                    bsonType:"int"
+                },
+
+                quantMinTec:{
+                    bsonType:"int"
                 },
 
                 descricao:{
@@ -448,17 +563,16 @@ db.createCollection("trocasPlantao",{
 
 });
 
+//INDICES
 
-
-// ÍNDICES
+// USUARIOS
 db.usuarios.createIndex(
-    {
-        email:1
-    },
-    {
-        unique:true
-    }
-);
+{
+    email:1
+},
+{
+    unique:true
+});
 
 db.usuarios.createIndex(
 {
@@ -466,28 +580,33 @@ db.usuarios.createIndex(
 },
 {
     unique:true
-}
-);
+});
 
 
+// PROFISSIONAIS
 db.profissionaisDaSaude.createIndex(
-    {
-        coren:1
-    },
-    {
-        unique:true
-    }
-);
-
-db.setores.createIndex(
 {
-    nome:1
+    coren:1
 },
 {
     unique:true
-}
-);
+});
 
+db.profissionaisDaSaude.createIndex(
+{
+    usuarioId:1
+},
+{
+    unique:true
+});
+
+db.profissionaisDaSaude.createIndex(
+{
+    status:1
+});
+
+
+// ADMINISTRADORES
 db.administradores.createIndex(
 {
     usuarioId:1
@@ -497,14 +616,34 @@ db.administradores.createIndex(
 });
 
 
-db.profissionaisDaSaude.createIndex(
+// SETORES
+db.setores.createIndex(
 {
-    usuarioId:1
+    nome:1
 },
 {
     unique:true
 });
 
+
+// ESCALAS
+db.escalas.createIndex(
+{
+    administradorId:1
+});
+
+db.escalas.createIndex(
+{
+    status:1
+});
+
+db.escalas.createIndex(
+{
+    mes:1,
+    ano:1
+});
+
+// PLANTOES
 
 db.plantoes.createIndex(
 {
@@ -512,7 +651,92 @@ db.plantoes.createIndex(
 });
 
 
+db.plantoes.createIndex(
+{
+    setorId:1
+});
+
+
+db.plantoes.createIndex(
+{
+    data:1
+});
+
+
+db.plantoes.createIndex(
+{
+    tipo:1
+});
+
+
+// PROFISSIONAIS RELACIONADOS
+db.profissionaisRelacionados.createIndex(
+{
+    plantaoId:1
+});
+
+db.profissionaisRelacionados.createIndex(
+{
+    profissionalId:1
+});
+
+db.profissionaisRelacionados.createIndex(
+{
+    plantaoId:1,
+    profissionalId:1
+},
+{
+    unique:true
+});
+
+
+// TROCAS
 db.trocasPlantao.createIndex(
 {
     status:1
+});
+
+db.trocasPlantao.createIndex(
+{
+    plantaoId:1
+});
+
+db.trocasPlantao.createIndex(
+{
+    profissionalOrigemId:1
+});
+
+db.trocasPlantao.createIndex(
+{
+    profissionalDestinoId:1
+});
+
+
+// NOTIFICACOES
+db.notificacoes.createIndex(
+{
+    profissionalId:1
+});
+
+db.notificacoes.createIndex(
+{
+    lida:1
+});
+
+
+db.ferias.createIndex(
+{
+    profissionalId:1
+});
+
+
+db.restricoes.createIndex(
+{
+    profissionalId:1
+});
+
+
+db.configuracoes.createIndex(
+{
+    administradorId:1
 });
