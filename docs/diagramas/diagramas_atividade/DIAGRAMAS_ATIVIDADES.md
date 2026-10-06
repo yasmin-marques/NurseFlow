@@ -168,3 +168,115 @@ A Coordenação informa a quantidade máxima de trocas de plantão permitidas po
 O sistema valida o valor, salva a configuração e confirma a operação.
 
 Essa configuração limita novas solicitações de troca, enquanto a aprovação final das trocas continua sob responsabilidade da Coordenação.
+
+---
+
+## DA11 - Geração Automática da Escala
+
+O Administrador acessa a funcionalidade de geração automática, informa o setor e o período desejados e solicita a geração da escala.
+
+O sistema recebe os parâmetros e valida as informações inseridas. Caso os dados sejam inválidos, exibe uma mensagem de erro indicando o campo incorreto para correção pelo usuário.
+
+Quando os dados são válidos, o sistema consulta no banco de dados os profissionais disponíveis, suas restrições e vínculos. Em seguida, o sistema processa e considera as restrições dos profissionais, aplica as regras específicas de cada vínculo e gera a escala em rascunho.
+
+A escala em rascunho é salva no banco de dados, o salvamento é confirmado e o sistema permite que o Administrador visualize a escala gerada.
+
+---
+
+## DA12 - Criação Manual da Escala
+
+O Administrador acessa a criação manual da escala, seleciona o profissional e define o setor, o turno e a função no plantão, confirmando e enviando os dados.
+
+O sistema recebe as informações e verifica se os dados inseridos são válidos. Se houver inconsistência nos campos, exibe uma mensagem de erro indicando o campo inválido.
+
+Estando os dados válidos, o sistema consulta a disponibilidade e os plantões do profissional no banco de dados para verificar se existe conflito de alocação.
+
+Se for identificado um conflito, a alocação é impedida, um alerta é emitido e o Administrador visualiza o conflito. Caso não haja conflito, o plantão é incluído na escala em rascunho e salvo no banco de dados. O sistema confirma a inclusão e exibe a confirmação do plantão para o Administrador.
+
+---
+
+## DA13 - Validação de Conflitos da Escala
+
+O Administrador acessa a validação de conflitos, seleciona a escala desejada e solicita a verificação.
+
+O sistema recebe a solicitação e consulta no banco de dados as informações de plantões, disponibilidades e folgas.
+
+Com os dados retornados, o sistema executa uma sequência de verificações: choque de horários, indisponibilidades cadastrais, concessão de folgas e o cumprimento do quantitativo mínimo.
+
+Caso sejam encontrados conflitos, o sistema os indica na escala e exibe os problemas para o Administrador. Caso não existam conflitos, a escala é marcada como validada, seu status é atualizado no banco de dados e a confirmação da validação é apresentada ao Administrador.
+
+---
+
+## DA14 - Edição da Escala
+
+O Administrador acessa a edição da escala, seleciona os plantões que deseja alterar, realiza as modificações necessárias e confirma o envio.
+
+O sistema recebe as alterações e valida as informações fornecidas. Se algum campo estiver incorreto, exibe uma mensagem de erro indicando o problema.
+
+Se os dados forem válidos, os plantões alterados são salvos no banco de dados. Em seguida, o sistema cria e salva uma nova versão da escala, registra a alteração no histórico e confirma a edição para o Administrador.
+
+---
+
+## DA15 - Visualização da Escala Geral
+
+O Administrador acessa a escala geral. O sistema recebe a solicitação, busca a escala completa no banco de dados, monta a visualização e exibe a escala geral.
+
+O Administrador pode optar por aplicar filtros. Caso opte por não filtrar, o fluxo é encerrado na visualização completa.
+
+Caso deseje filtrar, o Administrador informa o setor e/ou o profissional e solicita a aplicação dos filtros. O sistema recebe os parâmetros, consulta os plantões correspondentes no banco de dados, monta a escala filtrada e a exibe ao Administrador.
+
+---
+
+## DA16 - Visualização da Escala Individual
+
+O Enfermeiro acessa a escala individual. O sistema recebe a consulta, identifica o enfermeiro autenticado e busca no banco de dados os seus plantões.
+
+O sistema verifica se existem plantões escalados para o profissional no período.
+
+Se houver plantões, o sistema os exibe para o Enfermeiro. Caso contrário, apresenta uma mensagem informativa comunicando a ausência de plantões escalados.
+
+---
+
+## DA17 - Visualização dos Detalhes do Plantão
+
+O Usuário acessa a escala e seleciona um plantão específico. O sistema recebe o pedido e consulta as informações detalhadas no banco de dados.
+
+O sistema verifica se o plantão foi encontrado.
+
+Se o plantão for localizado, exibe os detalhes contendo data, horário, setor, função e observações. Se o plantão não for encontrado, exibe uma mensagem informativa notificando o Usuário.
+
+---
+
+## DA18 - Publicação da Escala
+
+O Administrador acessa a publicação, seleciona a escala desejada e solicita a operação.
+
+O sistema recebe o pedido, consulta os plantões e pendências da escala no banco de dados e realiza a conferência geral.
+
+Se existirem pendências, a publicação é impedida e os alertas de pendência são exibidos ao Administrador.
+
+Se não houver pendências, a escala é tornada oficial, seu status é atualizado no banco de dados como publicada, o salvamento é confirmado e o Administrador visualiza a mensagem de confirmação da publicação.
+
+---
+
+## DA19 - Notificação de Publicações e Alterações
+
+O Sistema NurseFlow detecta automaticamente quando uma escala é publicada ou alterada.
+
+O sistema consulta no banco de dados os enfermeiros afetados pelas mudanças.
+
+Em seguida, o sistema verifica o tipo do evento:
+- Se for uma nova **publicação de escala**, o sistema envia um aviso de publicação e o Enfermeiro recebe a notificação.
+- Se for uma **alteração na escala**, o sistema envia um aviso informando as mudanças nos plantões e o Enfermeiro recebe a notificação de alteração.
+
+---
+
+## DA20 - Exportação da Escala em PDF
+
+O Administrador acessa a funcionalidade de exportação, seleciona a escala pretendida e solicita a exportação em PDF.
+
+O sistema recebe a solicitação e consulta os dados da escala no banco de dados.
+
+Em seguida, verifica se a escala está pendente de publicação:
+- Se a escala ainda não tiver sido publicada, a exportação é impedida e um alerta é emitido para o Administrador.
+- Se a escala já estiver publicada, o sistema gera o documento oficial em PDF, prepara a versão para impressão e envio ao RH e à diretoria, e disponibiliza o arquivo para download, permitindo que o Administrador visualize e baixe o PDF.
