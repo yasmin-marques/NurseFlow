@@ -280,3 +280,110 @@ O sistema recebe a solicitação e consulta os dados da escala no banco de dados
 Em seguida, verifica se a escala está pendente de publicação:
 - Se a escala ainda não tiver sido publicada, a exportação é impedida e um alerta é emitido para o Administrador.
 - Se a escala já estiver publicada, o sistema gera o documento oficial em PDF, prepara a versão para impressão e envio ao RH e à diretoria, e disponibiliza o arquivo para download, permitindo que o Administrador visualize e baixe o PDF.
+
+---
+
+## DA21 - Solicitação de Troca de Plantão
+
+O Enfermeiro acessa a funcionalidade de troca de plantão, seleciona um de seus próprios plantões e solicita a consulta de profissionais disponíveis para realizar a troca.
+
+O sistema consulta no banco de dados as informações do plantão, os profissionais cadastrados e aptos, suas disponibilidades e restrições, além do limite de trocas configurado para o período.
+
+Caso a troca não atenda às regras definidas, o sistema informa o motivo do impedimento ao Enfermeiro.
+
+Quando a troca é permitida, o sistema apresenta os profissionais aptos. O Enfermeiro seleciona o profissional desejado e confirma a solicitação.
+
+A solicitação é então registrada no banco de dados com status de **Pendente de resposta**, e o sistema confirma sua criação ao Enfermeiro.
+
+---
+
+## DA22 - Aceitação ou Recusa da Troca
+
+O Enfermeiro acessa as solicitações de troca recebidas. O sistema consulta no banco de dados as solicitações pendentes destinadas ao profissional e as apresenta para análise.
+
+O Enfermeiro seleciona uma solicitação, visualiza seus detalhes e decide entre aceitar ou recusar a troca.
+
+- Se a solicitação for recusada, o sistema atualiza seu status para **Recusada** e confirma a operação.
+- Se a solicitação for aceita, o sistema verifica se a troca continua válida conforme as condições atuais da escala, disponibilidade e restrições dos profissionais.
+
+Caso a troca não seja mais válida, o sistema informa o impedimento ao Enfermeiro.
+
+Quando a solicitação permanece válida, seu status é atualizado para **Aceita / Aguardando Coordenação**, ficando disponível para a validação final da Coordenação.
+
+---
+
+## DA23 - Validação da Troca pela Coordenação
+
+A Coordenação acessa as solicitações de troca que foram aceitas pelos profissionais e aguardam validação.
+
+O sistema consulta no banco de dados as informações da solicitação, os plantões envolvidos, os profissionais, suas disponibilidades e restrições e os dados atuais da escala.
+
+Após a consulta, o sistema verifica se existem impedimentos para a realização da troca.
+
+- Se houver impedimentos, eles são apresentados à Coordenação, que pode rejeitar a solicitação. Nesse caso, o status é atualizado para **Rejeitada pela Coordenação**.
+- Se não houver impedimentos, a Coordenação pode aprovar a troca.
+
+Quando aprovada, o sistema efetiva a alteração dos plantões, atualiza a escala, registra a modificação no histórico e altera o status da solicitação para **Aprovada**.
+
+---
+
+## DA24 - Registro Manual de Troca de Plantão
+
+A Coordenação acessa a funcionalidade de registro manual de troca para cadastrar uma troca realizada fora do fluxo normal de solicitações do sistema.
+
+São selecionados os profissionais e os plantões envolvidos, e os dados da troca são informados para validação.
+
+O sistema consulta no banco de dados os profissionais, os plantões, as disponibilidades, as restrições e o limite de trocas aplicável.
+
+Caso a troca não seja válida, o sistema apresenta os impedimentos encontrados e não realiza a alteração.
+
+Se a troca for válida, o sistema registra a operação como uma **troca realizada manualmente**, atualiza a escala oficial e registra a modificação no histórico.
+
+---
+
+## DA25 - Consulta do Histórico de Escalas e Trocas
+
+A Coordenação acessa o histórico de escalas e trocas e pode informar filtros para localizar os registros desejados, como período, profissional ou tipo de registro.
+
+O sistema consulta no banco de dados o histórico de versões das escalas, alterações realizadas e trocas de plantão.
+
+Caso nenhum registro seja encontrado, uma mensagem informativa é apresentada.
+
+Quando existem resultados, o sistema exibe os registros encontrados. A Coordenação pode selecionar um item específico para visualizar seus detalhes, permitindo o acompanhamento das alterações e a auditoria do histórico do sistema.
+
+---
+
+## DA26 - Gerenciamento de Plantões Extras
+
+A Coordenação acessa o gerenciamento de plantões extras. O sistema consulta no banco de dados os extras já cadastrados e os plantões que apresentam necessidade de cobertura, como aqueles afetados por férias ou ausências.
+
+A Coordenação pode selecionar um plantão descoberto ou criar um novo plantão extra programado, informando data, horário e setor.
+
+O sistema consulta os profissionais aptos e disponíveis, considerando suas restrições e as regras de alocação.
+
+Após a seleção de um profissional, o sistema valida a atribuição:
+
+- Se existir conflito ou restrição, a operação é impedida e o motivo é apresentado.
+- Se a atribuição for válida, o plantão é registrado como **Extra**, associado ao profissional e incluído na escala.
+
+A alteração também é registrada no histórico, e o sistema confirma o plantão extra para a Coordenação.
+
+---
+
+## DA27 - Sincronização com Calendário Externo
+
+O Enfermeiro acessa a funcionalidade de sincronização com calendário externo e solicita o envio de seus plantões para o calendário pessoal.
+
+O sistema identifica o Enfermeiro autenticado e consulta no banco de dados os seus plantões.
+
+Em seguida, prepara as informações e envia os dados para o serviço de calendário externo.
+
+Para cada plantão:
+
+- Se ainda não existir um evento correspondente, um novo evento é criado.
+- Se o evento já existir, suas informações são atualizadas.
+
+Ao final, o serviço externo retorna o resultado da sincronização.
+
+Caso ocorra alguma falha, o sistema informa o erro ao Enfermeiro. Se a sincronização for concluída com sucesso, o sistema apresenta a confirmação da operação.
+
