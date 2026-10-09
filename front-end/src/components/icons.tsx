@@ -110,6 +110,25 @@ export function Building2(props: IconProps) {
   )
 }
 
+export function Mail(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <rect width="18" height="14" x="3" y="5" rx="2" />
+      <path d="m3 7 9 6 9-6" />
+    </Icon>
+  )
+}
+
+export function LockKeyhole(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <rect width="16" height="11" x="4" y="10" rx="2" />
+      <path d="M8 10V7a4 4 0 1 1 8 0v3" />
+      <path d="M12 14v3" />
+    </Icon>
+  )
+}
+
 export function History(props: IconProps) {
   return (
     <Icon {...props}>
