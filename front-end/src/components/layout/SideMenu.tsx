@@ -1,5 +1,6 @@
 import { ChevronRight } from '../icons'
 import { NAV_ITEMS, type NavItemId } from './navItems'
+import logo from '../../assets/logo.png'
 
 export type SideMenuUser = {
   name: string
@@ -45,14 +46,7 @@ export function SideMenu({
         } transition-transform duration-200`}
       >
         <div className="flex items-center gap-3 px-5 pt-5 pb-4">
-          <div
-            className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary text-white shadow-[0_8px_18px_rgba(46,120,61,0.22)]"
-            aria-hidden
-          >
-            <svg viewBox="0 0 24 24" className="size-[20px]" fill="none" stroke="currentColor" strokeWidth="2.2">
-              <path d="M12 4v16M8 8h8M7 16h10" strokeLinecap="round" />
-            </svg>
-          </div>
+          <img src={logo} alt="NurseFlow" className="size-10 shrink-0 object-contain" />
           <div className="min-w-0 leading-tight">
             <p className="text-[15px] font-bold tracking-tight text-text">NurseFlow</p>
             <p className="text-[10.5px] text-text-muted">Gestão de escalas</p>
