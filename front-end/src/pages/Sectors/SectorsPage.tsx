@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Building2, ChevronRight, Plus } from "../../components/icons";
 import { EditSectorMinimumModal, type SectorMinimum, type SectorShift } from "./components/EditSectorMinimumModal";
+import { NewSectorModal } from "./components/NewSectorModal";
 
 type Sector = {
     name: string;
@@ -53,6 +54,7 @@ export function SectorsPage() {
     const [sectors, setSectors] = useState(INITIAL_SECTORS);
     const [expandedSectors, setExpandedSectors] = useState<string[]>(["Emergência"]);
     const [editingMinimum, setEditingMinimum] = useState<{ sectorName: string; shift: SectorShift } | null>(null);
+    const [isNewSectorModalOpen, setIsNewSectorModalOpen] = useState(false);
 
     const toggleSector = (sectorName: string) => {
         setExpandedSectors((current) => current.includes(sectorName)
@@ -82,6 +84,7 @@ export function SectorsPage() {
                 </div>
                 <button
                     type="button"
+                    onClick={() => setIsNewSectorModalOpen(true)}
                     className="inline-flex h-10 shrink-0 items-center justify-center gap-2 self-start rounded-xl bg-primary px-4 text-sm font-semibold text-white shadow-[0_8px_18px_rgba(46,120,61,0.18)] transition-colors hover:bg-primary-hover sm:self-auto"
                 >
                     <Plus className="size-4" strokeWidth={2.2} />
@@ -132,6 +135,16 @@ export function SectorsPage() {
                     shift={editingMinimum.shift}
                     onClose={() => setEditingMinimum(null)}
                     onSave={saveMinimum}
+                />
+            ) : null}
+            {isNewSectorModalOpen ? (
+                <NewSectorModal
+                    onClose={() => setIsNewSectorModalOpen(false)}
+                    onSave={(sector) => {
+                        setSectors((current) => [...current, sector]);
+                        setExpandedSectors((current) => [...current, sector.name]);
+                        setIsNewSectorModalOpen(false);
+                    }}
                 />
             ) : null}
         </div>
