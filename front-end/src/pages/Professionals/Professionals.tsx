@@ -1,5 +1,7 @@
+import { useState } from "react";
 import { Filter, Plus, Search } from "../../components/icons";
 import { ProfessionalCard } from "./components/ProfesssionalCard";
+import { filterProfessionals, ProfessionalFiltersModal, type ProfessionalFilters } from "./components/ProfessionalFiltersModal";
 import type { Professional as ProfessionalData } from "./types";
 
 const professionals: ProfessionalData[] = [
@@ -42,6 +44,15 @@ const professionals: ProfessionalData[] = [
 ];
 
 export function Professional() {
+    const [showFilters, setShowFilters] = useState(false);
+    const [filters, setFilters] = useState<ProfessionalFilters>({
+        formation: "all",
+        status: "all",
+        bond: "all",
+        sort: "asc",
+    });
+    const visibleProfessionals = filterProfessionals(professionals, filters);
+
     return (
         <>
             <div className="flex min-h-full w-full flex-col px-5 py-6 sm:px-7 lg:px-10 xl:px-12">
@@ -69,7 +80,7 @@ export function Professional() {
                                     className="p-3 text-text-muted w-full rounded-2xl outline-0"
                                 />
                             </div>
-                            <button className="flex items-center gap-1 p-2 md:px-6 py-0.5 border-2 border-border rounded-2xl">
+                            <button type="button" onClick={() => setShowFilters(true)} className="flex items-center gap-1 p-2 md:px-6 py-0.5 border-2 border-border rounded-2xl">
                                 <Filter
                                     className="h-7 w-7"
                                 />
@@ -78,13 +89,23 @@ export function Professional() {
                         </div>
                         <hr className="my-6 text-border" />
                         <div className="flex flex-col gap-8">
-                            {professionals.map((professional) => (
+                            {visibleProfessionals.map((professional) => (
                                 <ProfessionalCard key={professional.cpf} {...professional} />
                             ))}
                         </div>
                     </div>
                 </div>
             </div>
+            {showFilters ? (
+                <ProfessionalFiltersModal
+                    initialFilters={filters}
+                    onClose={() => setShowFilters(false)}
+                    onApply={(nextFilters) => {
+                        setFilters(nextFilters);
+                        setShowFilters(false);
+                    }}
+                />
+            ) : null}
         </>
     )
 }
