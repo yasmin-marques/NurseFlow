@@ -6,6 +6,7 @@ import { SettingsPage } from './pages/Settings/SettingsPage'
 import { LoginPage } from './pages/Login/LoginPage'
 import type { LoginFormValues, LoginProfile } from './pages/Login/types'
 import { DisponibilityPage } from './pages/Disponibility/DisponibilityPage'
+import { Professional } from './pages/Professionals/Professionals';
 
 function App() {
   const [authenticated, setAuthenticated] = useState(false)
@@ -38,6 +39,8 @@ function App() {
         <OverviewPage />
       ) : activeItem === 'disponibilidade' ? (
         <DisponibilityPage />
+      ) : activeItem === 'profissionais'? (
+          <Professional />
       ) : (
         <section className="mx-auto flex min-h-full w-full max-w-5xl items-center px-5 py-10 sm:px-8">
           <div className="w-full rounded-3xl border border-border bg-white p-8 shadow-(--shadow-soft) sm:p-12">

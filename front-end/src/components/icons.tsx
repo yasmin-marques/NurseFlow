@@ -174,6 +174,16 @@ export function Search(props: IconProps) {
   )
 }
 
+export function Filter(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M4 7h16" />
+      <path d="M7 12h10" />
+      <path d="M10 17h4" />
+    </Icon>
+  )
+}
+
 export function X(props: IconProps) {
   return (
     <Icon {...props}>
