@@ -52,7 +52,7 @@ function SectorHeader({ name, description }: { name: string; description: string
 
 export function SectorsPage() {
     const [sectors, setSectors] = useState(INITIAL_SECTORS);
-    const [expandedSectors, setExpandedSectors] = useState<string[]>(["Emergência"]);
+    const [expandedSectors, setExpandedSectors] = useState<string[]>([""]);
     const [editingMinimum, setEditingMinimum] = useState<{ sectorName: string; shift: SectorShift } | null>(null);
     const [isNewSectorModalOpen, setIsNewSectorModalOpen] = useState(false);
 
