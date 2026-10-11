@@ -65,8 +65,8 @@ export function TopBar({
                 onKeyDown={(event) => {
                   if (event.key === 'Escape') closeSearch()
                 }}
-                placeholder="Pesquisar configurações..."
-                aria-label="Pesquisar configurações"
+                placeholder={`Procurar em ${title}...`}
+                aria-label={`Procurar em ${title}`}
                 className="h-full min-w-0 flex-1 border-0 bg-transparent px-2.5 text-[13px] text-text outline-none placeholder:text-text-muted"
               />
               <button
