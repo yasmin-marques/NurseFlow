@@ -2,9 +2,10 @@ import { useState } from "react";
 import { Filter, Plus, Search } from "../../components/icons";
 import { ProfessionalCard } from "./components/ProfesssionalCard";
 import { filterProfessionals, ProfessionalFiltersModal, type ProfessionalFilters } from "./components/ProfessionalFiltersModal";
+import { ProfessionalFormModal } from "./components/ProfessionalFormModal";
 import type { Professional as ProfessionalData } from "./types";
 
-const professionals: ProfessionalData[] = [
+const initialProfessionals: ProfessionalData[] = [
     {
         name: "Ana Clara Souza",
         cpf: "123.456.789-01",
@@ -44,7 +45,9 @@ const professionals: ProfessionalData[] = [
 ];
 
 export function Professional() {
+    const [professionals, setProfessionals] = useState(initialProfessionals);
     const [showFilters, setShowFilters] = useState(false);
+    const [editingProfessional, setEditingProfessional] = useState<ProfessionalData | null>(null);
     const [filters, setFilters] = useState<ProfessionalFilters>({
         formation: "all",
         status: "all",
@@ -90,7 +93,11 @@ export function Professional() {
                         <hr className="my-6 text-border" />
                         <div className="flex flex-col gap-8">
                             {visibleProfessionals.map((professional) => (
-                                <ProfessionalCard key={professional.cpf} {...professional} />
+                                <ProfessionalCard
+                                    key={professional.cpf}
+                                    {...professional}
+                                    onEdit={setEditingProfessional}
+                                />
                             ))}
                         </div>
                     </div>
@@ -103,6 +110,18 @@ export function Professional() {
                     onApply={(nextFilters) => {
                         setFilters(nextFilters);
                         setShowFilters(false);
+                    }}
+                />
+            ) : null}
+            {editingProfessional ? (
+                <ProfessionalFormModal
+                    professional={editingProfessional}
+                    onClose={() => setEditingProfessional(null)}
+                    onSave={(updatedProfessional) => {
+                        setProfessionals((current) => current.map((professional) =>
+                            professional.cpf === editingProfessional.cpf ? updatedProfessional : professional,
+                        ));
+                        setEditingProfessional(null);
                     }}
                 />
             ) : null}

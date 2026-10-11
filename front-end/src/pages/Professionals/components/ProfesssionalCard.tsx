@@ -1,9 +1,10 @@
 import { ChevronRight } from "../../../components/icons";
 import type { Professional } from "../types";
 
-export function ProfessionalCard(
-    professional: Professional
-) {
+export function ProfessionalCard({
+    onEdit,
+    ...professional
+}: Professional & { onEdit: (professional: Professional) => void }) {
     const nameParts = professional.name.trim().split(/\s+/);
     const initials = nameParts.length > 1
         ? `${nameParts[0][0]}${nameParts[nameParts.length - 1][0]}`
@@ -36,7 +37,14 @@ export function ProfessionalCard(
                     </div>
                 )}
             </div>
-            <div className="sm:justify-self-end"> <ChevronRight /> </div>
+            <button
+                type="button"
+                aria-label={`Editar profissional ${professional.name}`}
+                onClick={() => onEdit(professional)}
+                className="rounded-lg p-2 text-text-muted hover:bg-card-header hover:text-primary sm:justify-self-end"
+            >
+                <ChevronRight />
+            </button>
         </div>
     )
 } 
