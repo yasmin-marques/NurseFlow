@@ -4,6 +4,7 @@ import type { FormationType, Professional, bondType } from "../types";
 
 type ProfessionalFormModalProps = {
     professional: Professional;
+    isCreating?: boolean;
     onClose: () => void;
     onSave: (professional: Professional) => void;
 };
@@ -24,7 +25,7 @@ function ChoiceCard({
             type="button"
             aria-pressed={selected}
             onClick={onClick}
-            className={`relative flex min-h-[60px] items-center gap-2 rounded-xl border px-3 py-2 text-left transition-colors ${selected ? "border-primary bg-[#f1f7ef]" : "border-border bg-white hover:bg-card-header"}`}
+            className={`relative flex min-h-15 items-center gap-2 rounded-xl border px-3 py-2 text-left transition-colors ${selected ? "border-primary bg-[#f1f7ef]" : "border-border bg-white hover:bg-card-header"}`}
         >
             <span className={`size-2 shrink-0 rounded-full ${selected ? "bg-primary" : "bg-[#a4ada2]"}`} />
             <span className="min-w-0 flex-1">
@@ -38,7 +39,7 @@ function ChoiceCard({
 
 const inputClassName = "mt-1.5 h-11 w-full rounded-xl border border-border bg-[#f7f8f6] px-3.5 text-sm text-text outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15";
 
-export function ProfessionalFormModal({ professional, onClose, onSave }: ProfessionalFormModalProps) {
+export function ProfessionalFormModal({ professional, isCreating = false, onClose, onSave }: ProfessionalFormModalProps) {
     const [form, setForm] = useState(professional);
     const [bondOpen, setBondOpen] = useState(false);
 
@@ -66,10 +67,12 @@ export function ProfessionalFormModal({ professional, onClose, onSave }: Profess
                 if (event.target === event.currentTarget) onClose();
             }}
         >
-            <aside role="dialog" aria-modal="true" aria-labelledby="professional-form-title" className="flex h-full w-full max-w-[460px] flex-col bg-white shadow-2xl">
+            <aside role="dialog" aria-modal="true" aria-labelledby="professional-form-title" className="flex h-full w-full max-w-115 flex-col bg-white shadow-2xl">
                 <header className="flex items-center justify-between border-b border-border px-6 py-5">
                     <div>
-                        <h2 id="professional-form-title" className="text-base font-bold text-text">Perfil de {professional.name}</h2>
+                        <h2 id="professional-form-title" className="text-base font-bold text-text">
+                            {isCreating ? "Cadastrar profissional" : `Perfil de ${professional.name}`}
+                        </h2>
                         <p className="mt-1 text-xs text-text-muted">Dados profissionais e disponibilidade</p>
                     </div>
                     <button type="button" onClick={onClose} aria-label="Fechar perfil" className="rounded-xl border border-border p-2 text-text-muted hover:bg-card-header">

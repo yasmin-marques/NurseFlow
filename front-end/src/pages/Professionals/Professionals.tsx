@@ -48,6 +48,7 @@ export function Professional() {
     const [professionals, setProfessionals] = useState(initialProfessionals);
     const [showFilters, setShowFilters] = useState(false);
     const [editingProfessional, setEditingProfessional] = useState<ProfessionalData | null>(null);
+    const [isCreatingProfessional, setIsCreatingProfessional] = useState(false);
     const [filters, setFilters] = useState<ProfessionalFilters>({
         formation: "all",
         status: "all",
@@ -66,7 +67,11 @@ export function Professional() {
                             {professionals.length} profissionais ativos na equipe.
                         </p>
                     </header>
-                    <button className="flex p-4 bg-primary rounded-2xl text-amber-50 font-bold text-2xl">
+                    <button
+                        type="button"
+                        onClick={() => setIsCreatingProfessional(true)}
+                        className="flex p-4 bg-primary rounded-2xl text-amber-50 font-bold text-2xl"
+                    >
                         <Plus /> Cadastrar profissional
                     </button>
                 </div>
@@ -113,15 +118,32 @@ export function Professional() {
                     }}
                 />
             ) : null}
-            {editingProfessional ? (
+            {editingProfessional || isCreatingProfessional ? (
                 <ProfessionalFormModal
-                    professional={editingProfessional}
-                    onClose={() => setEditingProfessional(null)}
-                    onSave={(updatedProfessional) => {
-                        setProfessionals((current) => current.map((professional) =>
-                            professional.cpf === editingProfessional.cpf ? updatedProfessional : professional,
-                        ));
+                    professional={editingProfessional ?? {
+                        name: "",
+                        cpf: "",
+                        email: "",
+                        coren: "",
+                        bond: "CLT",
+                        status: true,
+                        formation: "Enfemeiro",
+                    }}
+                    isCreating={isCreatingProfessional}
+                    onClose={() => {
                         setEditingProfessional(null);
+                        setIsCreatingProfessional(false);
+                    }}
+                    onSave={(updatedProfessional) => {
+                        if (isCreatingProfessional) {
+                            setProfessionals((current) => [...current, updatedProfessional]);
+                        } else if (editingProfessional) {
+                            setProfessionals((current) => current.map((professional) =>
+                                professional.cpf === editingProfessional.cpf ? updatedProfessional : professional,
+                            ));
+                        }
+                        setEditingProfessional(null);
+                        setIsCreatingProfessional(false);
                     }}
                 />
             ) : null}
