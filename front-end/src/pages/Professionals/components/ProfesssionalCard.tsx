@@ -1,5 +1,5 @@
-import type { Professional } from "../types";
 import { ChevronRight } from "../../../components/icons";
+import type { Professional } from "../types";
 
 export function ProfessionalCard(
     professional: Professional
@@ -36,13 +36,7 @@ export function ProfessionalCard(
                     </div>
                 )}
             </div>
-            <button
-                type="button"
-                aria-label={`Editar profissional ${professional.name}`}
-                className="sm:justify-self-end"
-            >
-                <ChevronRight className="h-5 w-5" />
-            </button>
+            <div className="sm:justify-self-end"> <ChevronRight /> </div>
         </div>
     )
 } 
