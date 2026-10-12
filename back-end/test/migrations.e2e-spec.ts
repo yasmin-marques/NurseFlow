@@ -29,7 +29,7 @@ describe('Migrations', () => {
   });
 
   it('há migrations nomeadas com timestamp', () => {
-    expect(listarMigrations()).toHaveLength(3);
+    expect(listarMigrations()).toHaveLength(5);
   });
 
   it('up: converte setores para quantitativo por turno e "desligado" para "desativado"', async () => {

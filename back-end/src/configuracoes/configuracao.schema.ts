@@ -8,6 +8,8 @@ export class Configuracao {
   @Prop({ type: Number, min: 0, default: 3 }) limiteTrocas: number;
   @Prop({ type: Number, min: 0, default: 0 }) maxExtras: number;
   @Prop({ type: Number, min: 0, default: 0 }) limitePlantoes: number;
+  @Prop({ type: Number, min: 0, default: 0 }) maxExtrasConcursado: number;
+  @Prop({ type: Number, min: 0, default: 0 }) maxExtrasClt: number;
   @Prop({ type: Object, default: {} }) cargas: Record<string, { plantoes24h: number; plantoes12h: number }>;
   createdAt: Date;
   updatedAt: Date;

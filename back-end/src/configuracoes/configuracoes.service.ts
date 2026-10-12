@@ -15,7 +15,8 @@ export class ConfiguracoesService {
   async consultar(ano: number, mes: number) {
     const doc = await this.documento(ano, mes);
     return { periodo: this.chave(ano, mes), limiteTrocas: doc?.limiteTrocas ?? 3,
-      maxExtras: doc?.maxExtras ?? 0, limitePlantoes: doc?.limitePlantoes ?? 0, cargas: doc?.cargas ?? {} };
+      maxExtras: doc?.maxExtras ?? 0, limitePlantoes: doc?.limitePlantoes ?? 0,
+      maxExtrasConcursado: doc?.maxExtrasConcursado ?? 0, maxExtrasClt: doc?.maxExtrasClt ?? 0, cargas: doc?.cargas ?? {} };
   }
   async limites(ano: number, mes: number, dto: AtualizarLimitesDto) {
     await this.model.updateOne({ chave: this.chave(ano, mes) },

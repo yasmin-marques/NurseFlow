@@ -60,11 +60,11 @@ function App() {
       user={{ name: user.nome, role, initials, isCoordination }}
       onLogout={handleLogout}
     >
-      {activeItem === 'configuracoes' ? (
+      {activeItem === 'configuracoes' && isCoordination ? (
         <SettingsPage searchQuery={searchQuery} />
       ) : activeItem === 'visao-geral' ? (
         <OverviewPage />
-      ) : activeItem === 'disponibilidade' ? (
+      ) : activeItem === 'disponibilidade' && isCoordination ? (
         <DisponibilityPage />
       ) : activeItem === 'profissionais' && isCoordination ? (
           <Professional />

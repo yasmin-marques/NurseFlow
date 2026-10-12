@@ -7,6 +7,8 @@ export class AtualizarLimitesDto {
   @ApiPropertyOptional({ minimum: 0 }) @IsOptional() @IsInt() @Min(0) limiteTrocas?: number;
   @ApiPropertyOptional({ minimum: 0 }) @IsOptional() @IsInt() @Min(0) maxExtras?: number;
   @ApiPropertyOptional({ minimum: 0 }) @IsOptional() @IsInt() @Min(0) limitePlantoes?: number;
+  @ApiPropertyOptional({ minimum: 0 }) @IsOptional() @IsInt() @Min(0) maxExtrasConcursado?: number;
+  @ApiPropertyOptional({ minimum: 0 }) @IsOptional() @IsInt() @Min(0) maxExtrasClt?: number;
 }
 export class DefinirCargaDto {
   @ApiProperty({ enum: TipoVinculo }) @IsEnum(TipoVinculo) vinculo: TipoVinculo;

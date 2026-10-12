@@ -4,13 +4,14 @@ import {
   SETTINGS_STORAGE_KEY,
   type AppSettings,
 } from './types'
+import { fetchSettings, saveSettings } from '../../services/settings'
 
 function clampNonNegativeInteger(value: number): number {
   if (!Number.isFinite(value)) return 0
   return Math.max(0, Math.trunc(value))
 }
 
-function normalizeSettings(value: Partial<AppSettings> | null): AppSettings {
+export function normalizeSettings(value: Partial<AppSettings> | null): AppSettings {
   return {
     swapLimitPerProfessional: clampNonNegativeInteger(
       value?.swapLimitPerProfessional ?? DEFAULT_SETTINGS.swapLimitPerProfessional,
@@ -44,8 +45,34 @@ function readStoredSettings(): AppSettings {
 export function useSettings() {
   const [saved, setSaved] = useState<AppSettings>(readStoredSettings)
   const [draft, setDraft] = useState<AppSettings>(saved)
+  const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
+
+  // Limites de trocas e de extras vêm do MongoDB; os demais ajustes ficam neste navegador.
+  const load = useCallback(() => {
+    return fetchSettings()
+      .then((remote) => {
+        const next = normalizeSettings({ ...readStoredSettings(), ...remote })
+        setSaved(next)
+        setDraft(next)
+        setLoadError(null)
+      })
+      .catch((err: unknown) => {
+        setLoadError(err instanceof Error ? err.message : 'Não foi possível carregar as configurações.')
+      })
+      .finally(() => setIsLoading(false))
+  }, [])
+
+  useEffect(() => {
+    void load()
+  }, [load])
+
+  const reload = useCallback(() => {
+    setIsLoading(true)
+    return load()
+  }, [load])
 
   useEffect(() => {
     if (!toast) return
@@ -69,21 +96,34 @@ export function useSettings() {
   const save = useCallback(async () => {
     const next = normalizeSettings(draft)
     setIsSaving(true)
-    await new Promise((resolve) => window.setTimeout(resolve, 350))
-    localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(next))
-    setSaved(next)
-    setDraft(next)
-    setIsSaving(false)
-    setToast('Configurações salvas com sucesso')
+    try {
+      const remote = await saveSettings(next)
+      const confirmed = normalizeSettings({ ...next, ...remote })
+      try {
+        localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(confirmed))
+      } catch {
+        // Armazenamento local indisponível: os limites já estão salvos no servidor.
+      }
+      setSaved(confirmed)
+      setDraft(confirmed)
+      setToast('Configurações salvas com sucesso')
+    } catch (err) {
+      setToast(err instanceof Error ? err.message : 'Não foi possível salvar as configurações')
+    } finally {
+      setIsSaving(false)
+    }
   }, [draft])
 
   return {
     draft,
     isDirty,
+    isLoading,
+    loadError,
     isSaving,
     toast,
     update,
     discard,
     save,
+    reload,
   }
 }
