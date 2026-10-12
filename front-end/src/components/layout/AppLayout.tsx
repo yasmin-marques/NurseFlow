@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { SideMenu } from './SideMenu'
 import { TopBar } from './TopBar'
+import type { SideMenuUser } from './SideMenu'
 import type { NavItemId } from './navItems'
 
 type AppLayoutProps = {
@@ -9,6 +10,8 @@ type AppLayoutProps = {
   children: ReactNode
   onNavigate?: (id: NavItemId) => void
   onSearchChange?: (query: string) => void
+  user?: SideMenuUser
+  onLogout?: () => void
 }
 
 export function AppLayout({
@@ -17,6 +20,8 @@ export function AppLayout({
   children,
   onNavigate,
   onSearchChange,
+  user,
+  onLogout,
 }: AppLayoutProps) {
   const [menuOpen, setMenuOpen] = useState(false)
 
@@ -27,11 +32,14 @@ export function AppLayout({
         isOpen={menuOpen}
         onClose={() => setMenuOpen(false)}
         onNavigate={onNavigate}
+        user={user}
+        onLogout={onLogout}
       />
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <TopBar
           key={title}
           title={title}
+          userInitials={user?.initials}
           onMenuClick={() => setMenuOpen(true)}
           onSearchChange={onSearchChange}
         />

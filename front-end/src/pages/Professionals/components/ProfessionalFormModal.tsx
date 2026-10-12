@@ -6,7 +6,7 @@ type ProfessionalFormModalProps = {
     professional: Professional;
     isCreating?: boolean;
     onClose: () => void;
-    onSave: (professional: Professional) => void;
+    onSave: (professional: Professional) => void | Promise<void>;
 };
 
 function ChoiceCard({
@@ -55,9 +55,19 @@ export function ProfessionalFormModal({ professional, isCreating = false, onClos
         setForm((current) => ({ ...current, [key]: value }));
     };
 
-    const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    const [error, setError] = useState("");
+    const [saving, setSaving] = useState(false);
+
+    const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
-        onSave(form);
+        setSaving(true);
+        setError("");
+        try {
+            await onSave(form);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : "Não foi possível salvar o profissional.");
+            setSaving(false);
+        }
     };
 
     return (
@@ -89,6 +99,11 @@ export function ProfessionalFormModal({ professional, isCreating = false, onClos
                         <label className="block text-[11px] font-semibold text-text">
                             CPF <span className="text-danger">*</span>
                             <input required value={form.cpf} onChange={(event) => update("cpf", event.target.value)} className={inputClassName} />
+                        </label>
+
+                        <label className="block text-[11px] font-semibold text-text">
+                            E-mail profissional <span className="text-danger">*</span>
+                            <input required type="email" value={form.email} onChange={(event) => update("email", event.target.value)} className={inputClassName} />
                         </label>
 
                         <div className="grid grid-cols-2 gap-3">
@@ -155,8 +170,9 @@ export function ProfessionalFormModal({ professional, isCreating = false, onClos
                     </div>
 
                     <footer className="flex justify-end gap-2 border-t border-border px-6 py-4">
+                    {error ? <p role="alert" className="mr-auto self-center text-[11px] font-semibold text-danger">{error}</p> : null}
                         <button type="button" onClick={onClose} className="rounded-xl border border-border px-4 py-2.5 text-xs font-bold text-text hover:bg-card-header">Cancelar</button>
-                        <button type="submit" className="rounded-xl bg-primary px-4 py-2.5 text-xs font-bold text-white shadow-md hover:brightness-95">Salvar</button>
+                        <button type="submit" disabled={saving} className="rounded-xl bg-primary px-4 py-2.5 text-xs font-bold text-white shadow-md hover:brightness-95">Salvar</button>
                     </footer>
                 </form>
             </aside>

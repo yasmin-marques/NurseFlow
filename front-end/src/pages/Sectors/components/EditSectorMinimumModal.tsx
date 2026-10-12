@@ -18,12 +18,25 @@ type EditSectorMinimumModalProps = {
     sectorName: string;
     shift: SectorShift;
     onClose: () => void;
-    onSave: (minimum: SectorMinimum) => void;
+    onSave: (minimum: SectorMinimum) => void | Promise<void>;
 };
 
 export function EditSectorMinimumModal({ sectorName, shift, onClose, onSave }: EditSectorMinimumModalProps) {
     const [nurses, setNurses] = useState(shift.minimum.nurses);
     const [technicians, setTechnicians] = useState(shift.minimum.technicians);
+    const [error, setError] = useState("");
+    const [saving, setSaving] = useState(false);
+
+    const save = async () => {
+        setSaving(true);
+        setError("");
+        try {
+            await onSave({ nurses, technicians });
+        } catch (err) {
+            setError(err instanceof Error ? err.message : "Não foi possível salvar.");
+            setSaving(false);
+        }
+    };
 
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
@@ -94,8 +107,9 @@ export function EditSectorMinimumModal({ sectorName, shift, onClose, onSave }: E
                 </div>
 
                 <footer className="flex justify-end gap-2 border-t border-border px-6 py-4">
+                    {error ? <p role="alert" className="mr-auto self-center text-[11px] font-semibold text-danger">{error}</p> : null}
                     <button type="button" onClick={onClose} className="rounded-xl border border-border px-4 py-2.5 text-xs font-bold text-text hover:bg-card-header">Cancelar</button>
-                    <button type="button" onClick={() => onSave({ nurses, technicians })} className="rounded-xl bg-primary px-4 py-2.5 text-xs font-bold text-white shadow-md hover:brightness-95">Salvar quantitativo</button>
+                    <button type="button" disabled={saving} onClick={save} className="rounded-xl bg-primary px-4 py-2.5 text-xs font-bold text-white shadow-md hover:brightness-95">Salvar quantitativo</button>
                 </footer>
             </aside>
         </div>

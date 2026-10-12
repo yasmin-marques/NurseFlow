@@ -13,6 +13,13 @@ services:
     environment:
       MONGO_INITDB_DATABASE: nurseflow
 
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
     volumes:
       - ./mongo/script.js:/docker-entrypoint-initdb.d/script.js:ro
       - mongo_data:/data/db

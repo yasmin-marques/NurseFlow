@@ -1,0 +1,17 @@
+{
+  "name": "nurseflow",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Orquestração do ambiente de desenvolvimento do NurseFlow",
+  "scripts": {
+    "setup": "node scripts/setup.mjs",
+    "dev": "npm run db:up && concurrently -k -n back,front -c blue,green \"npm:dev:back\" \"npm:dev:front\"",
+    "dev:front": "npm --prefix front-end run dev -- --port 5173 --strictPort",
+    "dev:back": "npm --prefix back-end run start:dev",
+    "db:up": "docker compose -f db/docker-compose.yml up -d --wait",
+    "db:down": "docker compose -f db/docker-compose.yml down"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}

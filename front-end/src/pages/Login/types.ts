@@ -1,3 +1,5 @@
+import type { SessionUser } from '../../services/auth'
+
 export type LoginProfile = 'coordenação' | 'enfermeiro' | 'técnico'
 
 export type LoginFormValues = {
@@ -6,7 +8,7 @@ export type LoginFormValues = {
 }
 
 export type LoginPageProps = {
-  onLogin: (profile: LoginProfile, values: LoginFormValues) => void
+  onLogin: (user: SessionUser) => void
 }
 
 export type ProfileOption = {

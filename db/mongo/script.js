@@ -15,7 +15,6 @@ db.createCollection("usuarios", {
                 "email",
                 "senha",
                 "cpf",
-                "telefone",
                 "tipoUsuario"
             ],
 
@@ -49,6 +48,39 @@ db.createCollection("usuarios", {
                         "administrador",
                         "profissionalDaSaude"
                     ]
+                },
+
+                senhaTemporaria:{
+                    bsonType:"bool"
+                },
+
+                tentativasFalhasLogin:{
+                    bsonType:"number",
+                    minimum:0
+                },
+
+                bloqueadoAte:{
+                    bsonType:["date","null"]
+                },
+
+                ultimoLoginEm:{
+                    bsonType:["date","null"]
+                },
+
+                redefinicaoSenha:{
+                    bsonType:["object","null"],
+                    properties:{
+                        tokenHash:{ bsonType:"string" },
+                        expiraEm:{ bsonType:"date" }
+                    }
+                },
+
+                createdAt:{
+                    bsonType:"date"
+                },
+
+                updatedAt:{
+                    bsonType:"date"
                 }
             }
         }
@@ -119,9 +151,9 @@ db.createCollection("profissionaisDaSaude", {
                     bsonType:"string",
                     enum:[
                         "ativo",
+                        "desativado",
                         "afastado",
-                        "ferias",
-                        "desligado"
+                        "ferias"
                     ]
                 },
 
@@ -144,6 +176,18 @@ db.createCollection("profissionaisDaSaude", {
 
                 sincronizaAgenda:{
                     bsonType:"bool"
+                },
+
+                desativadoEm:{
+                    bsonType:["date","null"]
+                },
+
+                createdAt:{
+                    bsonType:"date"
+                },
+
+                updatedAt:{
+                    bsonType:"date"
                 }
 
             }
@@ -465,6 +509,7 @@ db.createCollection("plantoes",{
 
 
 // COLLECTION SETORES
+// Quantitativo mínimo por turno (diurno/noturno) e função (DA07/DA08)
 db.createCollection("setores",{
 
     validator:{
@@ -475,8 +520,8 @@ db.createCollection("setores",{
 
             required:[
                 "nome",
-                "quantMinEnf",
-                "quantMinTec"
+                "turnos",
+                "ativo"
             ],
 
             properties:{
@@ -485,16 +530,43 @@ db.createCollection("setores",{
                     bsonType:"string"
                 },
 
-                quantMinEnf:{
-                    bsonType:"int"
-                },
-
-                quantMinTec:{
-                    bsonType:"int"
-                },
-
                 descricao:{
                     bsonType:"string"
+                },
+
+                ativo:{
+                    bsonType:"bool"
+                },
+
+                turnos:{
+                    bsonType:"object",
+                    required:["diurno","noturno"],
+                    properties:{
+                        diurno:{
+                            bsonType:"object",
+                            required:["enfermeiros","tecnicos"],
+                            properties:{
+                                enfermeiros:{ bsonType:"number", minimum:0 },
+                                tecnicos:{ bsonType:"number", minimum:0 }
+                            }
+                        },
+                        noturno:{
+                            bsonType:"object",
+                            required:["enfermeiros","tecnicos"],
+                            properties:{
+                                enfermeiros:{ bsonType:"number", minimum:0 },
+                                tecnicos:{ bsonType:"number", minimum:0 }
+                            }
+                        }
+                    }
+                },
+
+                createdAt:{
+                    bsonType:"date"
+                },
+
+                updatedAt:{
+                    bsonType:"date"
                 }
 
             }
@@ -622,7 +694,8 @@ db.setores.createIndex(
     nome:1
 },
 {
-    unique:true
+    unique:true,
+    collation:{ locale:"pt", strength:1 }
 });
 
 

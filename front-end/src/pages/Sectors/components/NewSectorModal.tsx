@@ -5,7 +5,7 @@ import type { SectorShift } from "./EditSectorMinimumModal";
 
 type NewSectorModalProps = {
     onClose: () => void;
-    onSave: (sector: { name: string; description: string; shifts: SectorShift[] }) => void;
+    onSave: (sector: { name: string; description: string; shifts: SectorShift[] }) => void | Promise<void>;
 };
 
 export function NewSectorModal({ onClose, onSave }: NewSectorModalProps) {
@@ -24,16 +24,26 @@ export function NewSectorModal({ onClose, onSave }: NewSectorModalProps) {
         return () => window.removeEventListener("keydown", handleKeyDown);
     }, [onClose]);
 
-    const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    const [error, setError] = useState("");
+    const [saving, setSaving] = useState(false);
+
+    const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
-        onSave({
+        setSaving(true);
+        setError("");
+        try {
+            await onSave({
             name: name.trim(),
             description: description.trim(),
             shifts: [
                 { id: "day", label: "Diurno", hours: "07h—19h", minimum: { nurses: dayNurses, technicians: dayTechnicians } },
                 { id: "night", label: "Noturno", hours: "19h—07h", minimum: { nurses: nightNurses, technicians: nightTechnicians } },
             ],
-        });
+            });
+        } catch (err) {
+            setError(err instanceof Error ? err.message : "Não foi possível cadastrar o setor.");
+            setSaving(false);
+        }
     };
 
     const inputClassName = "mt-1.5 h-11 w-full rounded-xl border border-border bg-white px-3.5 text-sm text-text placeholder:text-text-muted outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15";
@@ -105,8 +115,9 @@ export function NewSectorModal({ onClose, onSave }: NewSectorModalProps) {
                     </div>
 
                     <footer className="flex justify-end gap-2 border-t border-border px-6 py-4">
+                    {error ? <p role="alert" className="mr-auto self-center text-[11px] font-semibold text-danger">{error}</p> : null}
                         <button type="button" onClick={onClose} className="rounded-xl border border-border px-4 py-2.5 text-xs font-bold text-text hover:bg-card-header">Cancelar</button>
-                        <button type="submit" className="rounded-xl bg-primary px-4 py-2.5 text-xs font-bold text-white shadow-md hover:brightness-95">Cadastrar setor</button>
+                        <button type="submit" disabled={saving} className="rounded-xl bg-primary px-4 py-2.5 text-xs font-bold text-white shadow-md hover:brightness-95">Cadastrar setor</button>
                     </footer>
                 </form>
             </aside>

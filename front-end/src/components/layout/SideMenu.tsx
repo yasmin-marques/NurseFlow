@@ -6,6 +6,7 @@ export type SideMenuUser = {
   name: string
   role: string
   initials: string
+  isCoordination?: boolean
 }
 
 type SideMenuProps = {
@@ -13,8 +14,12 @@ type SideMenuProps = {
   isOpen?: boolean
   onClose?: () => void
   onNavigate?: (id: NavItemId) => void
+  onLogout?: () => void
   user?: SideMenuUser
 }
+
+/** Páginas de gestão restritas à Coordenação (o back-end também bloqueia o acesso). */
+const COORDINATION_ONLY: NavItemId[] = ['profissionais', 'setores']
 
 const DEFAULT_USER: SideMenuUser = {
   name: 'Paloma Ferreira',
@@ -27,6 +32,7 @@ export function SideMenu({
   isOpen = false,
   onClose,
   onNavigate,
+  onLogout,
   user = DEFAULT_USER,
 }: SideMenuProps) {
   return (
@@ -59,7 +65,7 @@ export function SideMenu({
 
         <nav className="flex-1 overflow-y-auto px-2" aria-label="Navegação principal">
           <ul className="flex flex-col gap-1">
-            {NAV_ITEMS.map((item) => {
+            {NAV_ITEMS.filter((item) => user.isCoordination !== false || !COORDINATION_ONLY.includes(item.id)).map((item) => {
               const Icon = item.icon
               const isActive = item.id === activeItem
 
@@ -99,6 +105,9 @@ export function SideMenu({
         <div className="p-3">
           <button
             type="button"
+            onClick={onLogout}
+            title="Sair"
+            aria-label={`Sair (${user.name})`}
             className="flex w-full items-center gap-3 rounded-2xl border border-border bg-white px-3 py-3 text-left shadow-[0_8px_20px_rgba(16,24,16,0.03)] transition-transform hover:-translate-y-0.5"
           >
             <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-secondary text-[13px] font-bold text-primary shadow-[inset_0_0_0_1px_rgba(46,120,61,0.08)]">

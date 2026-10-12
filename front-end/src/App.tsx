@@ -1,16 +1,18 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { AppLayout } from './components/layout/AppLayout'
 import { NAV_ITEMS, type NavItemId } from './components/layout/navItems'
 import { OverviewPage } from './pages/Overview/OverviewPage'
 import { SettingsPage } from './pages/Settings/SettingsPage'
 import { LoginPage } from './pages/Login/LoginPage'
-import type { LoginFormValues, LoginProfile } from './pages/Login/types'
+import { currentUser, logout, type SessionUser } from './services/auth'
+import { UNAUTHORIZED_EVENT } from './services/api'
 import { DisponibilityPage } from './pages/Disponibility/DisponibilityPage'
 import { Professional } from './pages/Professionals/Professionals';
 import { SectorsPage } from './pages/Sectors/SectorsPage';
 
 function App() {
-  const [authenticated, setAuthenticated] = useState(false)
+  const [user, setUser] = useState<SessionUser | null>(null)
+  const [checkingSession, setCheckingSession] = useState(true)
   const [activeItem, setActiveItem] = useState<NavItemId>('visao-geral')
   const [searchQuery, setSearchQuery] = useState('')
   const activePage = NAV_ITEMS.find((item) => item.id === activeItem)
@@ -20,12 +22,34 @@ function App() {
     setSearchQuery('')
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const handleLogin = (_profile: LoginProfile, _values: LoginFormValues) => {
-    setAuthenticated(true)
+  useEffect(() => {
+    currentUser()
+      .then(setUser)
+      .catch(() => logout())
+      .finally(() => setCheckingSession(false))
+    const onUnauthorized = () => setUser(null)
+    window.addEventListener(UNAUTHORIZED_EVENT, onUnauthorized)
+    return () => window.removeEventListener(UNAUTHORIZED_EVENT, onUnauthorized)
+  }, [])
+
+  const handleLogout = () => {
+    logout()
+    setUser(null)
+    setActiveItem('visao-geral')
   }
 
-  if (!authenticated) return <LoginPage onLogin={handleLogin} />
+  if (checkingSession) return null
+  if (!user) return <LoginPage onLogin={setUser} />
+
+  const initials = user.nome
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => part[0])
+    .slice(0, 2)
+    .join('')
+    .toUpperCase()
+  const isCoordination = user.perfil === 'coordenacao'
+  const role = { coordenacao: 'Coordenação', enfermeiro: 'Enfermeiro', tecnico: 'Técnico' }[user.perfil] ?? user.perfil
 
   return (
     <AppLayout
@@ -33,6 +57,8 @@ function App() {
       activeItem={activeItem}
       onNavigate={navigate}
       onSearchChange={setSearchQuery}
+      user={{ name: user.nome, role, initials, isCoordination }}
+      onLogout={handleLogout}
     >
       {activeItem === 'configuracoes' ? (
         <SettingsPage searchQuery={searchQuery} />
@@ -40,9 +66,9 @@ function App() {
         <OverviewPage />
       ) : activeItem === 'disponibilidade' ? (
         <DisponibilityPage />
-      ) : activeItem === 'profissionais'? (
+      ) : activeItem === 'profissionais' && isCoordination ? (
           <Professional />
-      ) : activeItem === 'setores' ? (
+      ) : activeItem === 'setores' && isCoordination ? (
         <SectorsPage />
       ) : (
         <section className="mx-auto flex min-h-full w-full max-w-5xl items-center px-5 py-10 sm:px-8">

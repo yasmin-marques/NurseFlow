@@ -1,51 +1,16 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Filter, Plus, Search } from "../../components/icons";
 import { ProfessionalCard } from "./components/ProfesssionalCard";
 import { filterProfessionals, ProfessionalFiltersModal, type ProfessionalFilters } from "./components/ProfessionalFiltersModal";
 import { ProfessionalFormModal } from "./components/ProfessionalFormModal";
 import type { Professional as ProfessionalData } from "./types";
-
-const initialProfessionals: ProfessionalData[] = [
-    {
-        name: "Ana Clara Souza",
-        cpf: "123.456.789-01",
-        email: "ana.souza@nurseflow.com",
-        coren: "COREN-CE 123456",
-        bond: "CLT",
-        status: true,
-        formation: "Enfemeiro",
-    },
-    {
-        name: "Rafael Martins Lima",
-        cpf: "234.567.890-12",
-        email: "rafael.lima@nurseflow.com",
-        coren: "COREN-CE 234567",
-        bond: "Concursado",
-        status: true,
-        formation: "Técnico",
-    },
-    {
-        name: "Mariana Oliveira Costa",
-        cpf: "345.678.901-23",
-        email: "mariana.costa@nurseflow.com",
-        coren: "COREN-CE 345678",
-        bond: "RPA",
-        status: false,
-        formation: "Enfemeiro",
-    },
-    {
-        name: "João Pedro Almeida",
-        cpf: "456.789.012-34",
-        email: "joao.almeida@nurseflow.com",
-        coren: "COREN-CE 456789",
-        bond: "CLT",
-        status: true,
-        formation: "Técnico",
-    },
-];
+import { createProfessional, listProfessionals, updateProfessional } from "../../services/professionals";
 
 export function Professional() {
-    const [professionals, setProfessionals] = useState(initialProfessionals);
+    const [professionals, setProfessionals] = useState<ProfessionalData[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState("");
+    const [search, setSearch] = useState("");
     const [showFilters, setShowFilters] = useState(false);
     const [editingProfessional, setEditingProfessional] = useState<ProfessionalData | null>(null);
     const [isCreatingProfessional, setIsCreatingProfessional] = useState(false);
@@ -55,7 +20,20 @@ export function Professional() {
         bond: "all",
         sort: "asc",
     });
-    const visibleProfessionals = filterProfessionals(professionals, filters);
+    const term = search.trim().toLowerCase();
+    const digits = term.replace(/\D/g, "");
+    const visibleProfessionals = filterProfessionals(professionals, filters).filter((p) =>
+        !term
+        || p.name.toLowerCase().includes(term)
+        || p.coren.toLowerCase().includes(term)
+        || (digits !== "" && p.cpf.replace(/\D/g, "").includes(digits)));
+
+    useEffect(() => {
+        listProfessionals()
+            .then(setProfessionals)
+            .catch((err: Error) => setError(err.message))
+            .finally(() => setLoading(false));
+    }, []);
 
     return (
         <>
@@ -64,7 +42,7 @@ export function Professional() {
                     <header className="mb-6">
                         <h2 className="text-[28px] font-bold leading-none tracking-[-0.04em] text-text">Profissionais</h2>
                         <p className="mt-2.5 text-[14px] text-text-muted">
-                            {professionals.length} profissionais ativos na equipe.
+                            {professionals.filter((p) => p.status).length} profissionais ativos na equipe.
                         </p>
                     </header>
                     <button
@@ -85,6 +63,8 @@ export function Professional() {
                                 <input
                                     type="text"
                                     placeholder="Buscar por nome, CPF ou COREN"
+                                    value={search}
+                                    onChange={(event) => setSearch(event.target.value)}
                                     className="p-3 text-text-muted w-full rounded-2xl outline-0"
                                 />
                             </div>
@@ -96,10 +76,13 @@ export function Professional() {
                             </button>
                         </div>
                         <hr className="my-6 text-border" />
+                        {error ? <p role="alert" className="mb-4 text-sm text-danger">{error}</p> : null}
+                        {loading ? <p className="text-sm text-text-muted">Carregando profissionais...</p> : null}
+                        {!loading && !error && visibleProfessionals.length === 0 ? <p className="text-sm text-text-muted">Nenhum profissional encontrado.</p> : null}
                         <div className="flex flex-col gap-8">
                             {visibleProfessionals.map((professional) => (
                                 <ProfessionalCard
-                                    key={professional.cpf}
+                                    key={professional.id}
                                     {...professional}
                                     onEdit={setEditingProfessional}
                                 />
@@ -134,13 +117,14 @@ export function Professional() {
                         setEditingProfessional(null);
                         setIsCreatingProfessional(false);
                     }}
-                    onSave={(updatedProfessional) => {
+                    onSave={async (draft) => {
                         if (isCreatingProfessional) {
-                            setProfessionals((current) => [...current, updatedProfessional]);
-                        } else if (editingProfessional) {
+                            const created = await createProfessional(draft);
+                            setProfessionals((current) => [...current, created]);
+                        } else {
+                            const updated = await updateProfessional(draft);
                             setProfessionals((current) => current.map((professional) =>
-                                professional.cpf === editingProfessional.cpf ? updatedProfessional : professional,
-                            ));
+                                professional.id === updated.id ? updated : professional));
                         }
                         setEditingProfessional(null);
                         setIsCreatingProfessional(false);

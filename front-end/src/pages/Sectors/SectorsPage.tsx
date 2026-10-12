@@ -1,49 +1,22 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Building2, ChevronRight, Plus } from "../../components/icons";
 import { EditSectorMinimumModal, type SectorMinimum, type SectorShift } from "./components/EditSectorMinimumModal";
 import { NewSectorModal } from "./components/NewSectorModal";
+import { EditSectorModal } from "./components/EditSectorModal";
+import { createSector, listSectors, setSectorActive, updateSectorDetails, updateSectorMinimum } from "../../services/sectors";
+import type { Sector } from "./types";
 
-type Sector = {
-    name: string;
-    description: string;
-    shifts: SectorShift[];
-};
-
-const INITIAL_SECTORS: Sector[] = [
-    {
-        name: "Bloco A",
-        description: "Assistência clínica",
-        shifts: [
-            { id: "day", label: "Diurno", hours: "07h—19h", minimum: { nurses: 2, technicians: 3 } },
-            { id: "night", label: "Noturno", hours: "19h—07h", minimum: { nurses: 2, technicians: 3 } },
-        ],
-    },
-    {
-        name: "Bloco B",
-        description: "Assistência clínica",
-        shifts: [
-            { id: "day", label: "Diurno", hours: "07h—19h", minimum: { nurses: 2, technicians: 3 } },
-            { id: "night", label: "Noturno", hours: "19h—07h", minimum: { nurses: 2, technicians: 3 } },
-        ],
-    },
-    {
-        name: "Emergência",
-        description: "Atendimento imediato e classificação de risco",
-        shifts: [
-            { id: "day", label: "Diurno", hours: "07h—19h", minimum: { nurses: 2, technicians: 3 } },
-            { id: "night", label: "Noturno", hours: "19h—07h", minimum: { nurses: 2, technicians: 3 } },
-        ],
-    },
-];
-
-function SectorHeader({ name, description }: { name: string; description: string }) {
+function SectorHeader({ name, description, active }: { name: string; description: string; active: boolean }) {
     return (
         <div className="flex min-w-0 flex-1 items-center gap-4">
             <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[#e4f1df] text-primary">
                 <Building2 className="size-5" strokeWidth={1.8} />
             </span>
             <span className="min-w-0">
-                <span className="block text-sm font-bold text-text">{name}</span>
+                <span className="block text-sm font-bold text-text">
+                    {name}
+                    {active ? null : <span className="ml-2 rounded-md bg-[#eceeea] px-2 py-0.5 align-middle text-[9px] font-bold text-text-muted">INATIVO</span>}
+                </span>
                 <span className="mt-1 block text-xs text-text-muted">{description}</span>
             </span>
         </div>
@@ -51,28 +24,61 @@ function SectorHeader({ name, description }: { name: string; description: string
 }
 
 export function SectorsPage() {
-    const [sectors, setSectors] = useState(INITIAL_SECTORS);
-    const [expandedSectors, setExpandedSectors] = useState<string[]>([""]);
-    const [editingMinimum, setEditingMinimum] = useState<{ sectorName: string; shift: SectorShift } | null>(null);
+    const [sectors, setSectors] = useState<Sector[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState("");
+    const [expandedSectors, setExpandedSectors] = useState<string[]>([]);
+    const [editingMinimum, setEditingMinimum] = useState<{ sector: Sector; shift: SectorShift } | null>(null);
     const [isNewSectorModalOpen, setIsNewSectorModalOpen] = useState(false);
+    const [editingSector, setEditingSector] = useState<Sector | null>(null);
+    const [togglingId, setTogglingId] = useState<string | null>(null);
 
-    const toggleSector = (sectorName: string) => {
-        setExpandedSectors((current) => current.includes(sectorName)
-            ? current.filter((name) => name !== sectorName)
-            : [...current, sectorName]);
+    useEffect(() => {
+        listSectors()
+            .then(setSectors)
+            .catch((err: Error) => setError(err.message))
+            .finally(() => setLoading(false));
+    }, []);
+
+    const toggleSector = (sectorId: string) => {
+        setExpandedSectors((current) => current.includes(sectorId)
+            ? current.filter((id) => id !== sectorId)
+            : [...current, sectorId]);
     };
 
-    const saveMinimum = (minimum: SectorMinimum) => {
+    const saveMinimum = async (minimum: SectorMinimum) => {
         if (!editingMinimum) return;
-        setSectors((current) => current.map((sector) => sector.name !== editingMinimum.sectorName
-            ? sector
-            : {
-                ...sector,
-                shifts: sector.shifts?.map((shift) => shift.id === editingMinimum.shift.id
-                    ? { ...shift, minimum }
-                    : shift),
-            }));
+        const updated = await updateSectorMinimum(editingMinimum.sector.id, editingMinimum.shift.id, minimum);
+        setSectors((current) => current.map((sector) => sector.id === updated.id ? updated : sector));
         setEditingMinimum(null);
+    };
+
+    const replaceSector = (updated: Sector) =>
+        setSectors((current) => current.map((sector) => sector.id === updated.id ? updated : sector));
+
+    const saveDetails = async (details: { name: string; description: string }) => {
+        if (!editingSector) return;
+        replaceSector(await updateSectorDetails(editingSector.id, details));
+        setEditingSector(null);
+    };
+
+    const toggleActive = async (sector: Sector) => {
+        setTogglingId(sector.id);
+        setError("");
+        try {
+            replaceSector(await setSectorActive(sector.id, !sector.active));
+        } catch (err) {
+            setError(err instanceof Error ? err.message : "Não foi possível alterar o status do setor.");
+        } finally {
+            setTogglingId(null);
+        }
+    };
+
+    const saveSector = async (sector: Omit<Sector, "id" | "active">) => {
+        const created = await createSector(sector);
+        setSectors((current) => [...current, created]);
+        setExpandedSectors((current) => [...current, created.id]);
+        setIsNewSectorModalOpen(false);
     };
 
     return (
@@ -92,22 +98,26 @@ export function SectorsPage() {
                 </button>
             </header>
 
+            {error ? <p role="alert" className="mb-4 rounded-xl border border-danger/30 bg-white px-4 py-3 text-sm text-danger">{error}</p> : null}
+            {loading ? <p className="text-sm text-text-muted">Carregando setores...</p> : null}
+            {!loading && sectors.length === 0 && !error ? <p className="text-sm text-text-muted">Nenhum setor cadastrado.</p> : null}
+
             <section aria-label="Lista de setores" className="space-y-3">
                 {sectors.map((sector) => (
-                    <article key={sector.name} className="overflow-hidden rounded-2xl border border-border bg-white shadow-(--shadow-soft)">
+                    <article key={sector.id} className={`overflow-hidden rounded-2xl border border-border bg-white shadow-(--shadow-soft) ${sector.active ? "" : "opacity-75"}`}>
                         <button
                             type="button"
-                            aria-expanded={expandedSectors.includes(sector.name)}
-                            onClick={() => toggleSector(sector.name)}
+                            aria-expanded={expandedSectors.includes(sector.id)}
+                            onClick={() => toggleSector(sector.id)}
                             className="flex min-h-[84px] w-full items-center gap-4 px-5 py-4 text-left transition-colors hover:bg-[#fbfcfa] sm:px-6"
                         >
-                            <SectorHeader name={sector.name} description={sector.description} />
+                            <SectorHeader name={sector.name} description={sector.description} active={sector.active} />
                             <span className="flex size-9 shrink-0 items-center justify-center rounded-lg text-text">
-                                <ChevronRight className={`size-5 transition-transform ${expandedSectors.includes(sector.name) ? "rotate-90" : ""}`} strokeWidth={1.8} />
+                                <ChevronRight className={`size-5 transition-transform ${expandedSectors.includes(sector.id) ? "rotate-90" : ""}`} strokeWidth={1.8} />
                             </span>
                         </button>
 
-                        {expandedSectors.includes(sector.name) ? (
+                        {expandedSectors.includes(sector.id) ? (
                             <div className="border-t border-border px-5 sm:pl-[76px] sm:pr-5">
                                 {sector.shifts.map((shift) => (
                                     <div key={shift.id} className="flex min-h-[68px] items-center justify-between gap-4 border-b border-border py-3 last:border-b-0">
@@ -117,13 +127,30 @@ export function SectorsPage() {
                                         </div>
                                         <button
                                             type="button"
-                                            onClick={() => setEditingMinimum({ sectorName: sector.name, shift })}
+                                            onClick={() => setEditingMinimum({ sector, shift })}
                                             className="shrink-0 rounded-xl border border-border px-3.5 py-2.5 text-[10px] font-semibold text-text-muted transition-colors hover:bg-card-header"
                                         >
                                             Editar mínimo
                                         </button>
                                     </div>
                                 ))}
+                                <div className="flex flex-wrap justify-end gap-2 py-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => setEditingSector(sector)}
+                                        className="rounded-xl border border-border px-3.5 py-2.5 text-[10px] font-semibold text-text-muted transition-colors hover:bg-card-header"
+                                    >
+                                        Editar setor
+                                    </button>
+                                    <button
+                                        type="button"
+                                        disabled={togglingId === sector.id}
+                                        onClick={() => toggleActive(sector)}
+                                        className={`rounded-xl border px-3.5 py-2.5 text-[10px] font-semibold transition-colors hover:bg-card-header ${sector.active ? "border-danger/30 text-danger" : "border-primary/30 text-primary"}`}
+                                    >
+                                        {sector.active ? "Desativar setor" : "Reativar setor"}
+                                    </button>
+                                </div>
                             </div>
                         ) : null}
                     </article>
@@ -131,20 +158,23 @@ export function SectorsPage() {
             </section>
             {editingMinimum ? (
                 <EditSectorMinimumModal
-                    sectorName={editingMinimum.sectorName}
+                    sectorName={editingMinimum.sector.name}
                     shift={editingMinimum.shift}
                     onClose={() => setEditingMinimum(null)}
                     onSave={saveMinimum}
                 />
             ) : null}
+            {editingSector ? (
+                <EditSectorModal
+                    sector={editingSector}
+                    onClose={() => setEditingSector(null)}
+                    onSave={saveDetails}
+                />
+            ) : null}
             {isNewSectorModalOpen ? (
                 <NewSectorModal
                     onClose={() => setIsNewSectorModalOpen(false)}
-                    onSave={(sector) => {
-                        setSectors((current) => [...current, sector]);
-                        setExpandedSectors((current) => [...current, sector.name]);
-                        setIsNewSectorModalOpen(false);
-                    }}
+                    onSave={saveSector}
                 />
             ) : null}
         </div>
