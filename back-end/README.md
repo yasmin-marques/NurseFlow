@@ -13,10 +13,10 @@ API REST em **NestJS 12 + MongoDB (Mongoose)** com os módulos de **Autenticaç�
 ```bash
 cd back-end
 npm install
-cp .env.example .env     # ajuste JWT_SECRET e as credenciais do seed
+cp .env.exemple .env     # ajuste JWT_SECRET e as credenciais do seed
 ```
 
-Variáveis (veja `.env.example`):
+Variáveis (veja `.env.exemple`):
 
 | Variável | Descrição | Padrão |
 |---|---|---|
@@ -164,3 +164,8 @@ O front atual ainda usa dados em memória e não chama a API; **nenhum arquivo d
 - **Inativação de setor:** não verifica plantões futuros do setor (mesma razão).
 - **Recuperação de senha:** o envio de e-mail não existe nesta etapa. O token é entregue por `SenhaNotifier`; a implementação padrão só o escreve no log fora de produção. Basta fornecer outra implementação (SMTP etc.) no `AuthModule`.
 - **MongoDB sem transações:** o cadastro de profissional grava `usuarios` e depois `profissionaisDaSaude`; se a segunda gravação falhar, a primeira é desfeita manualmente (o container padrão não é um replica set).
+
+
+## Configurações e restrições
+
+Consulte [`../IMPLEMENTACAO_CONFIGURACOES_RESTRICOES.md`](../IMPLEMENTACAO_CONFIGURACOES_RESTRICOES.md) para endpoints, exemplos e fluxo de execução.

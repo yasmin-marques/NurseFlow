@@ -1,1 +1,98 @@
-node_modules
+# ==========================================
+# DEPENDÊNCIAS
+# ==========================================
+node_modules/
+**/node_modules/
+
+# ==========================================
+# VARIÁVEIS DE AMBIENTE E SEGREDOS
+# ==========================================
+.env
+.env.*
+!.env.example
+!**/.env.example
+
+*.pem
+*.key
+*.p12
+*.pfx
+secrets/
+
+# ==========================================
+# NESTJS / TYPESCRIPT
+# ==========================================
+dist/
+**/dist/
+build/
+**/build/
+*.tsbuildinfo
+
+# ==========================================
+# TESTES E COBERTURA
+# ==========================================
+coverage/
+**/coverage/
+.nyc_output/
+test-results/
+playwright-report/
+
+# ==========================================
+# LOGS
+# ==========================================
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ==========================================
+# CACHE E TEMPORÁRIOS
+# ==========================================
+.cache/
+.tmp/
+temp/
+tmp/
+.eslintcache
+.npm/
+
+# ==========================================
+# DOCKER E BANCO DE DADOS
+# ==========================================
+docker-compose.override.yml
+mongo_data/
+db/data/
+db/backup/
+*.bson
+*.archive
+
+# ==========================================
+# ARQUIVOS ENVIADOS PELOS USUÁRIOS
+# ==========================================
+uploads/
+storage/
+
+# ==========================================
+# IDEs E EDITORES
+# ==========================================
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.swp
+*.swo
+*~
+
+# ==========================================
+# SISTEMAS OPERACIONAIS
+# ==========================================
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# ==========================================
+# ARQUIVOS LOCAIS
+# ==========================================
+*.local
+*.bak
+*.backup

@@ -9,7 +9,7 @@ export function configurarApp(app: INestApplication): void {
 export function configurarSwagger(app: INestApplication): void {
   const documento = new DocumentBuilder()
     .setTitle('NurseFlow API')
-    .setDescription('Autenticação, Profissionais e Setores hospitalares.')
+    .setDescription('Autenticação, Profissionais, Setores, Configurações e Restrições.')
     .setVersion('1.0')
     .addBearerAuth()
     .build();

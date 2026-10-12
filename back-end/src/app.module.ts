@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { MongooseModule } from '@nestjs/mongoose';
+import { ConfiguracoesModule } from './configuracoes/configuracoes.module';
+import { RestricoesModule } from './restricoes/restricoes.module';
 import { AuthModule } from './auth/auth.module';
 import { JwtAuthGuard } from './auth/jwt-auth.guard';
 import { AllExceptionsFilter } from './common/filters/http-exception.filter';
@@ -27,6 +29,8 @@ import { UsuariosModule } from './usuarios/usuarios.module';
     AuthModule,
     ProfissionaisModule,
     SetoresModule,
+    ConfiguracoesModule,
+    RestricoesModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
