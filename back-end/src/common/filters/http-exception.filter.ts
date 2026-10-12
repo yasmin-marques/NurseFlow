@@ -33,6 +33,16 @@ export class AllExceptionsFilter implements ExceptionFilter {
     if (statusCode >= 500) {
       this.logger.error(exception instanceof Error ? (exception.stack ?? exception.message) : String(exception));
     }
+    // MongoDB code 121: mostra a regra de validação violada nos logs,
+    // sem registrar valores dos campos nem expor detalhes ao cliente HTTP.
+    if (
+      typeof exception === 'object' &&
+      exception !== null &&
+      (exception as { code?: unknown }).code === 121
+    ) {
+      const details = (exception as { errInfo?: { details?: unknown } }).errInfo?.details;
+      this.logger.error(`MongoDB validação (121): ${JSON.stringify(this.sanitizarDetalhesMongo(details))}`);
+    }
 
     const body: ErroResposta = {
       ...extras,
@@ -44,6 +54,19 @@ export class AllExceptionsFilter implements ExceptionFilter {
       timestamp: new Date().toISOString(),
     };
     response.status(statusCode).json(body);
+  }
+
+  /** Evita expor dados sensíveis presentes em consideredValue/failingDocumentId. */
+  private sanitizarDetalhesMongo(value: unknown): unknown {
+    if (Array.isArray(value)) return value.map((item) => this.sanitizarDetalhesMongo(item));
+    if (typeof value === 'object' && value !== null) {
+      return Object.fromEntries(
+        Object.entries(value)
+          .filter(([key]) => key !== 'consideredValue' && key !== 'failingDocumentId')
+          .map(([key, item]) => [key, this.sanitizarDetalhesMongo(item)]),
+      );
+    }
+    return value ?? null;
   }
 
   private normalizar(exception: unknown): {

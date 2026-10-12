@@ -1,144 +1,205 @@
-# NurseFlow
+# NurseFlow — execução integrada
 
-O **NurseFlow** é uma aplicação web desenvolvida para apoiar a **gestão de equipes de enfermagem em ambientes hospitalares**. O projeto busca centralizar informações que normalmente ficam distribuídas em planilhas e controles manuais, oferecendo à coordenação uma forma mais organizada de administrar profissionais e setores.
+Aplicação com **React 19 / Vite**, **NestJS**, **MongoDB 8** e **Nginx**. O Compose reside na raiz e sobe os três serviços. O frontend utiliza `/api` como URL de API; o Nginx faz proxy para `http://backend:3000` dentro da rede Docker.
 
-A proposta é facilitar o acompanhamento dos cadastros, reduzir a repetição de tarefas administrativas e estabelecer uma base para o futuro planejamento de escalas e plantões. O acesso ao sistema é feito por **perfis**, para que cada usuário utilize apenas as funcionalidades permitidas à sua função.
+## Pré-requisitos
 
-### Funcionalidades
+- Docker Engine com Compose v2.
+- Para executar sem Docker: Node e npm compatíveis com os `package.json`/`package-lock.json` dos projetos.
 
-- **Autenticação:** login por perfil, com validação de credenciais na API.
-- **Profissionais:** cadastro, consulta e gerenciamento de enfermeiros e técnicos de enfermagem.
-- **Setores:** cadastro e gerenciamento dos setores da instituição.
-- **Controle de acesso:** separação entre as permissões da Coordenação e dos profissionais.
+## 1. Configurar o ambiente
 
-
-### Tecnologias
-
-| Camada | Tecnologias |
-| --- | --- |
-| Frontend | React 19, TypeScript, Vite 8 e Tailwind CSS 4 |
-| Backend | NestJS 12, TypeScript e API REST |
-| Banco de dados | MongoDB 8, Mongoose e migrations |
-| Ambiente local | Node.js, npm e Docker Compose |
-
-## Como executar o projeto
-
-### 1. Pré-requisitos e versões
-
-Tenha instalados **Node.js**, **npm** e **Docker Desktop** (com Docker Compose). Antes de iniciar, abra um terminal e confira:
+Na **raiz do repositório**:
 
 ```bash
-node -v
-npm -v
-docker --version
-docker compose version
+cp .env.example .env
 ```
 
-**Recomendação:** utilize uma versão LTS atual do Node.js compatível com Vite 8 e NestJS 12 (por exemplo, **Node.js 22.12+**). Use o npm que acompanha essa instalação. O projeto utiliza **MongoDB 8**, cuja imagem é iniciada automaticamente pelo Docker Compose; não é necessário instalá-lo separadamente.
+Troque `MONGO_ROOT_PASSWORD` e `JWT_SECRET`. A URL `MONGODB_URI` deve usar as mesmas credenciais definidas no Compose e o hostname `mongo` (não `localhost`). Se a senha contiver caracteres especiais, codifique-os na URI. O `.env` real **não** deve ser versionado.
 
-Confira também se o **Docker Desktop está aberto e em execução** antes de iniciar o banco.
+## 2. Preparar os lockfiles
 
-### 2. Instalar dependências
-
-Abra o terminal na **pasta raiz do NurseFlow** (onde fica o `package.json` principal) e execute:
+O Docker usa `npm ci`; se os lockfiles estiverem fora de sincronia com `package.json`, rode antes:
 
 ```bash
-npm run setup
+cd back-end && npm install --package-lock-only && cd ..
+cd front-end && npm install --package-lock-only && cd ..
 ```
 
-Esse comando instala as dependências do projeto, do frontend e do backend. Se ainda não existir, também cria `back-end/.env` com base no `.env.example`.
+Versione o `package-lock.json` atualizado. Não substitua `npm ci` por `npm install` no Dockerfile para contornar erros de lockfile.
 
-### 3. Configurar o ambiente
-
-Abra `back-end/.env` e confira, principalmente:
-
-- A conexão com o MongoDB.
-- `JWT_SECRET`: substitua o valor de exemplo por um segredo próprio.
-- `SEED_COORDENACAO_EMAIL` e `SEED_COORDENACAO_SENHA`: credenciais da conta inicial de Coordenação.
-- `NODE_ENV=development` para desenvolvimento local.
-
-### 4. Iniciar o banco de dados
-
-Ainda na pasta raiz:
+## 3. Iniciar MongoDB + backend + frontend
 
 ```bash
-npm run db:up
+docker compose config --quiet
+docker compose up --build -d
+docker compose ps
+docker compose logs -f backend frontend
 ```
 
-O comando inicia o **MongoDB 8** em um container Docker e aguarda sua disponibilidade.
+- **Frontend**: http://localhost:8080 (variável `FRONTEND_PORT`).
+- **API**: http://localhost:3000 (variável `BACKEND_PORT`).
+- **Swagger**: http://localhost:3000/docs.
+- **MongoDB**: acessível somente pela rede do Compose como `mongo:27017`.
 
-### 5. Preparar o banco e criar a Coordenação
+### Dependências de saúde
 
-Na **primeira execução**:
+- O healthcheck do MongoDB faz `ping` autenticado.
+- O backend usa `depends_on: mongo: condition: service_healthy`.
+- O frontend usa `depends_on: backend: condition: service_healthy`.
+- Os healthchecks não garantem reinício de dependentes quando outro container ficar unhealthy posteriormente.
+
+O comando de inicialização do backend roda as migrations antes da API. Para cadastrar a coordenação após iniciar os serviços, defina as variáveis `SEED_COORDENACAO_*` no `.env` e execute:
 
 ```bash
-cd back-end
-npm run migrate:up
-npm run seed:coordenacao
-cd ..
+docker compose exec backend npm run seed:coordenacao
 ```
 
-As migrations preparam a estrutura do banco e o seed cria a conta inicial de Coordenação. **Se essa conta já existir, executar o seed novamente não redefine automaticamente sua senha.**
+## 4. Desenvolvimento do frontend fora do Docker
 
-### 6. Iniciar a aplicação
-
-Na pasta raiz:
-
-```bash
-npm run dev
-```
-
-Esse comando inicia o banco (caso necessário), o backend e o frontend.
-
-| Serviço | Endereço |
-| --- | --- |
-| Aplicação web | http://localhost:5173 |
-| API e documentação Swagger | http://localhost:3000/docs |
-
-Para o primeiro acesso, selecione o perfil **Coordenação** e utilize as credenciais definidas no `back-end/.env` antes de executar o seed.
-
-## Próximas execuções
-
-Depois da configuração inicial, abra o Docker Desktop e execute, na raiz:
-
-```bash
-npm run dev
-```
-
-Não é necessário repetir o `setup`, as migrations ou o seed a cada inicialização.
-
-## Parar o projeto
-
-Para encerrar frontend e backend, pressione `Ctrl + C` no terminal. Para parar os containers do banco sem apagar os volumes:
-
-```bash
-npm run db:down
-```
-
-> **Cuidado:** evite `docker compose down -v` ou comandos de limpeza de volumes caso queira manter os profissionais, setores e usuários cadastrados.
-
-## Testes e verificações
-
-Para executar os testes do backend:
-
-```bash
-cd back-end
-npm run test
-npm run test:e2e
-```
-
-Para conferir a compilação do frontend:
+Com o banco e o backend disponíveis em `localhost:3000`:
 
 ```bash
 cd front-end
-npm run build
+npm ci
 ```
 
-Esses comandos verificam partes diferentes do sistema; o build não substitui os testes de integração.
+Crie um arquivo `front-end/.env.local` com:
 
-## Problemas frequentes
+```dotenv
+VITE_API_URL=http://localhost:3000
+```
 
-- **“Não foi possível conectar ao servidor”:** verifique se `http://localhost:3000/docs` abre e se o frontend está apontando para a porta correta. Confira também as origens permitidas no CORS caso o Vite esteja aberto em outra URL/porta.
-- **`401 Unauthorized` no Swagger:** faça login em `POST /auth/login`, copie o `accessToken` e use o botão **Authorize** antes de chamar endpoints protegidos.
-- **Login de Coordenação não funciona:** confirme que o seed foi executado e que a conta foi criada com a senha esperada. Alterar `SEED_COORDENACAO_SENHA` após criar a conta não altera a senha armazenada.
-- **Banco não inicia:** confirme que o Docker Desktop está aberto e confira os containers com `docker ps`.
+Inicie:
+
+```bash
+npm run dev
+```
+
+Abra http://localhost:5173. Ao desenvolver localmente, a API aceita essa origem conforme `CORS_ORIGINS`. Para o frontend dentro do Docker, **não** configure `VITE_API_URL` com `backend:3000` (o navegador não conhece o DNS do Compose): o valor padrão `/api` funciona via Nginx.
+
+## 5. Integração das funcionalidades
+
+| Funcionalidade | Situação |
+| --- | --- |
+| Autenticação e sessão | API existente (`/auth/*`) usada pelo frontend |
+| Profissionais | Listagem/cadastro/atualização por API existente |
+| Setores | Listagem/cadastro/edição de quantitativos por API existente |
+| Configurações | Consulta e gravação por `GET /configuracoes`, `PATCH /configuracoes/limites`, `PUT /configuracoes/cargas` |
+| Disponibilidade | Listagem/criação/exclusão via `/profissionais/:id/restricoes` |
+| Conflitos | Endpoint no backend disponível, **não** conectado a um gerador de escalas (inexistente) |
+
+**Limitações intencionais**:
+
+- O backend ainda não implementa aprovação de trocas, geração automática de coberturas, notificações ou configuração de limites específicos de extras por vínculo. A tela de configurações exibe somente as opções persistidas de verdade.
+- O schema de restrições persiste períodos e, opcionalmente, **um dia da semana por registro**, mas não turno/horário; o frontend rejeita criação de preferências de turno e vínculo externo com turno definido em vez de fingir persistência. Múltiplos dias selecionados criam múltiplos registros; falha em uma das requisições pode deixar um subconjunto cadastrado, pois não existe endpoint transacional em lote.
+- O backend só expõe criação, consulta e exclusão de restrições, portanto a UI oferece **exclusão e novo cadastro** no lugar de edição.
+- Restrições marcadas como recorrentes sem data utilizam, temporariamente, um período de cinco anos; não há recorrência infinita no modelo atual.
+- O endpoint de restrições está protegido para perfil coordenação no backend. Usuários sem esse perfil podem receber 403 nesta tela até a autorização ser definida.
+- A geração automática de escalas **não existe** no backend fornecido e não é declarada funcional neste pacote.
+
+## 6. Diagnóstico e encerramento
+
+```bash
+docker compose ps
+docker compose logs -f mongo
+docker compose logs -f backend
+docker compose logs -f frontend
+docker compose down
+```
+
+O volume nomeado `mongo_data` é preservado por `docker compose down`; **não** use `down -v` sem desejar apagar o banco de dados.
+
+## 7. Validar o build fora do Docker
+
+```bash
+cd front-end && npm ci && npm run build && cd ..
+cd back-end && npm ci && npm run build && cd ..
+```
+
+Esses comandos exigem acesso ao registro npm. O pacote foi montado sem validar execução end-to-end com MongoDB real; execute-os em seu ambiente antes de integrar à branch principal.
+
+## Dados de demonstração (Docker)
+
+> **Somente desenvolvimento local.** Nunca habilite o seed de demonstração em produção nem exponha suas contas de teste publicamente.
+
+Na raiz, inclua no `.env` (use senhas novas; nunca commite o `.env`):
+
+```dotenv
+DEMO_SEED_ENABLED=true
+DEMO_ADMIN_PASSWORD=EscolhaUmaSenhaForteAdmin!
+DEMO_PRO_PASSWORD=EscolhaUmaSenhaForteProf!
+```
+
+Então execute:
+
+```bash
+docker compose config --quiet
+docker compose up --build -d
+docker compose ps -a
+docker compose logs seed-demo
+```
+
+**Ordem:** `mongo` saudável → `backend` (migrations e API, saudável) → `seed-demo` (execução única) → `frontend`. O serviço de seed deve terminar com `Exited (0)`; **não** fica em execução permanentemente. Para executá-lo novamente em um banco já iniciado: `docker compose run --rm seed-demo`. É idempotente: cria apenas registros inexistentes; **não restaura registros alterados, nem redefine senhas existentes**. Para renovar credenciais de uma conta já existente, utilize a recuperação de senha ou um banco de testes descartável. Para **apagar todos os dados** (destrutivo): `docker compose down -v`.
+
+### Contas de teste
+
+| Login | Perfil | Formação / Vínculo / Status |
+|---|---|---|
+| `admin@nurseflow.test` | coordenação | administração |
+| `ana@nurseflow.test` | enfermeiro | enfermeiro / concursado / ativo |
+| `bruno@nurseflow.test` | enfermeiro | enfermeiro / CLT / ativo |
+| `carla@nurseflow.test` | enfermeiro | enfermeiro / RPA / ativo |
+| `daniela@nurseflow.test` | técnico | técnico / concursado / ativo |
+| `eduardo@nurseflow.test` | técnico | técnico / CLT / ativo |
+| `fernanda@nurseflow.test` | técnico | técnico / RPA / ativo |
+| `gabriela@nurseflow.test` | enfermeiro | enfermeiro / concursado / férias |
+| `henrique@nurseflow.test` | técnico | técnico / CLT / afastado |
+| `isabela@nurseflow.test` | técnico | técnico / concursado / ativo |
+
+A senha de `admin@nurseflow.test` é o valor de `DEMO_ADMIN_PASSWORD`; todos os profissionais usam `DEMO_PRO_PASSWORD`. O campo de perfil no login da UI deve corresponder ao tipo do usuário (coordenação, enfermeiro ou técnico). CPFs de teste são gerados com dígitos verificadores válidos, exclusivamente fictícios; os COREN demonstrativos têm formato `CE-10001` ... `CE-10009` (não correspondem a registros reais).
+
+### Setores (quantitativos mínimos)
+
+| Setor | Diurno (enfermeiros/técnicos) | Noturno (enfermeiros/técnicos) |
+|---|---|---|
+| UTI | 2/3 | 2/2 |
+| Emergência | 2/3 | 1/2 |
+| Clínica Médica | 1/2 | 1/1 |
+
+### Configurações que a coordenação pode gerenciar
+
+O seed cria documentos para **outubro e novembro de 2026** (`2026-10` e `2026-11`). Em cada mês: `limiteTrocas=3`, `maxExtras=2`, `limitePlantoes=12`. As cargas para o mês são:
+
+| Vínculo | Plantões 24h | Plantões 12h |
+|---|---:|---:|
+| Concursado | 6 | 1 |
+| CLT | 5 | 2 |
+| RPA | 3 | 2 |
+
+Os parâmetros de carga são armazenados com chave `<vínculo>_<diasDoMês>` (`concursado_31` em outubro e `concursado_30` em novembro). Os endpoints `/configuracoes` e `/setores` são restritos a `coordenacao` no backend. Este seed não cria escalas nem calcula automaticamente plantões.
+
+### Restrições de demonstração (outubro de 2026)
+
+| Profissional | Tipo | Período | Observação |
+|---|---|---|---|
+| Ana | Indisponível | 14/10 | dia inteiro |
+| Bruno | Vínculo externo | 01/10 a 31/10 | terças-feiras (`diaSemana=2`) |
+| Carla | Disponível | 16/10 | dia inteiro |
+| Daniela | Ausência | 19/10 a 21/10 | ausência declarada |
+| Eduardo | Indisponível | 23/10 | compromisso pessoal |
+| Fernanda | Vínculo externo | 01/10 a 31/10 | sextas-feiras (`diaSemana=5`) |
+| Gabriela | Férias | 12/10 a 26/10 | profissional também está no status `ferias` |
+| Henrique | Ausência | 12/10 a 31/10 | profissional também está no status `afastado` |
+| Isabela | Disponível | 18/10 | dia inteiro |
+
+As datas são persistidas em UTC, como indicado no script. A restrição recorrente contém dia da semana mas **não** um horário específico. Não há escala gerada automaticamente, nem aprovação de trocas no projeto atual.
+
+### Verificação rápida de autorização
+
+1. Entre com `admin@nurseflow.test` e `DEMO_ADMIN_PASSWORD`, selecione perfil Coordenação.
+2. Consulte `/configuracoes?ano=2026&mes=10` (token Bearer) e verifique `limiteTrocas=3`. Consulte `/setores` para ver os três setores.
+3. Entre como `ana@nurseflow.test`, selecione Enfermeiro, e tente `PATCH /configuracoes/limites?ano=2026&mes=10`: o esperado é **403 Forbidden**, pois a operação exige `coordenacao`.
+4. Consulte restrições na interface com a conta de coordenação. Os profissionais de férias e afastamento servem para conferir status e filtros.
+
+**Nota:** os registros são demonstrativos; não foram utilizados dados pessoais reais. Não habilite o seed em instâncias públicas.

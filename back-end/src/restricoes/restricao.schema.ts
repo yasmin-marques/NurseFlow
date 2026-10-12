@@ -1,9 +1,9 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument, Types } from 'mongoose';
+import { Schema as MongooseSchema, HydratedDocument, Types } from 'mongoose';
 export enum TipoRestricao { INDISPONIVEL = 'indisponivel', DISPONIVEL = 'disponivel', FERIAS = 'ferias', AUSENCIA = 'ausencia', VINCULO_EXTERNO = 'vinculo_externo' }
 @Schema({ collection: 'restricoes', timestamps: true, versionKey: false })
 export class Restricao {
-  @Prop({ type: Types.ObjectId, ref: 'Profissional', required: true }) profissionalId: Types.ObjectId;
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Profissional', required: true }) profissionalId: Types.ObjectId;
   @Prop({ required: true, enum: TipoRestricao }) tipo: TipoRestricao;
   @Prop({ required: true }) inicio: Date;
   @Prop({ required: true }) fim: Date;

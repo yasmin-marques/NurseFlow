@@ -1,75 +1,22 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Check, Plus } from '../../components/icons'
 import { Toast } from '../../components/ui/Toast'
+import { createRestriction, deleteRestriction, fetchAllRestrictions, type ListedRecord, type ProfessionalStatus } from '../../services/restriction'
 import {
   AvailabilityFormModal,
   type AvailabilityCategory,
   type AvailabilityRecord,
 } from './components/AvailabilityFormModal'
 
-const INITIAL_RECORDS: Record<AvailabilityCategory, AvailabilityRecord[]> = {
-  restrictions: [
-    {
-      id: 'restriction-ana',
-      category: 'restrictions',
-      name: 'Ana Ribeiro',
-      role: 'Enfermagem',
-      rule: 'Não disponível às quartas',
-      period: 'Recorrente',
-    },
-    {
-      id: 'restriction-lucas',
-      category: 'restrictions',
-      name: 'Lucas Mendes',
-      role: 'Enfermagem',
-      rule: 'Somente turno diurno',
-      period: 'Até 30 jun',
-    },
-    {
-      id: 'restriction-beatriz',
-      category: 'restrictions',
-      name: 'Beatriz Lima',
-      role: 'Enfermagem',
-      rule: 'Indisponível aos domingos',
-      period: 'Recorrente',
-    },
-  ],
-  externalLinks: [
-    {
-      id: 'external-mariana',
-      category: 'externalLinks',
-      name: 'Mariana Costa',
-      role: 'Enfermagem',
-      rule: 'Vínculo no Hospital Central',
-      period: '12h semanais',
-    },
-    {
-      id: 'external-rafael',
-      category: 'externalLinks',
-      name: 'Rafael Souza',
-      role: 'Enfermagem',
-      rule: 'Plantões em clínica parceira',
-      period: 'Fins de semana',
-    },
-  ],
-  absences: [
-    {
-      id: 'absence-carolina',
-      category: 'absences',
-      name: 'Carolina Alves',
-      role: 'Enfermagem',
-      rule: 'Férias',
-      period: '1–15 jul',
-    },
-    {
-      id: 'absence-pedro',
-      category: 'absences',
-      name: 'Pedro Nunes',
-      role: 'Enfermagem',
-      rule: 'Licença médica',
-      period: 'Até 20 jun',
-    },
-  ],
+const INITIAL_RECORDS: Record<AvailabilityCategory, ListedRecord[]> = {
+  restrictions: [], externalLinks: [], absences: [],
+}
+
+const STATUS_LABELS: Record<ProfessionalStatus, string> = {
+  ativo: 'Ativo',
+  desativado: 'Desativado',
+  afastado: 'Afastado',
+  ferias: 'Férias',
 }
 
 const TABS: { id: AvailabilityCategory; label: string }[] = [
@@ -80,12 +27,41 @@ const TABS: { id: AvailabilityCategory; label: string }[] = [
 
 export function DisponibilityPage() {
   const [records, setRecords] = useState(INITIAL_RECORDS)
+  const [professionals, setProfessionals] = useState<{id:string;name:string}[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  // Consulta a API: nunca usa uma lista fictícia para determinar o status.
+  const reload = useCallback(async (): Promise<boolean> => {
+    setLoading(true)
+    try {
+      const result = await fetchAllRestrictions()
+      setRecords(result.records)
+      setProfessionals(result.professionals)
+      setError(null)
+      return true
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Não foi possível carregar a disponibilidade.')
+      return false
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    void reload()
+    // Ao voltar à janela, atualiza o status alterado em Profissionais.
+    const onFocus = () => { void reload() }
+    window.addEventListener('focus', onFocus)
+    return () => window.removeEventListener('focus', onFocus)
+  }, [reload])
+
   const [activeCategory, setActiveCategory] = useState<AvailabilityCategory>('restrictions')
   const [editingRecord, setEditingRecord] = useState<AvailabilityRecord | null>(null)
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
   const activeRecords = records[activeCategory]
-  const professionals = [...new Set(Object.values(records).flat().map((record) => record.name))]
+
 
   useEffect(() => {
     if (!toast) return
@@ -98,28 +74,26 @@ export function DisponibilityPage() {
     setIsFormOpen(true)
   }
 
-  const openEditForm = (record: AvailabilityRecord) => {
-    setEditingRecord(record)
-    setIsFormOpen(true)
+  const closeForm = () => { setEditingRecord(null); setIsFormOpen(false) }
+
+  const saveRecord = async (record: AvailabilityRecord) => {
+    try {
+      await createRestriction(record, professionals)
+      const refreshed = await reload()
+      setActiveCategory(record.category)
+      setToast(refreshed ? 'Registro salvo no servidor' : 'Registro salvo; falha ao atualizar a lista')
+      closeForm()
+    } catch (e) { setToast(e instanceof Error ? e.message : 'Falha ao salvar') }
   }
 
-  const closeForm = () => {
-    setEditingRecord(null)
-    setIsFormOpen(false)
-  }
-
-  const saveRecord = (record: AvailabilityRecord) => {
-    setRecords((current) => {
-      const next = { ...current }
-      for (const category of TABS) {
-        next[category.id] = next[category.id].filter((item) => item.id !== record.id)
-      }
-      next[record.category] = [...next[record.category], record]
-      return next
-    })
-    setActiveCategory(record.category)
-    setToast(editingRecord ? 'Registro atualizado com sucesso' : 'Registro adicionado com sucesso')
-    closeForm()
+  const removeRecord = async (record: ListedRecord) => {
+    if (!window.confirm(`Excluir restrição de ${record.name}?`)) return
+    try {
+      await deleteRestriction(record.professionalId, record.id)
+      const refreshed = await reload()
+      setToast(refreshed ? 'Registro excluído' : 'Registro excluído; falha ao atualizar a lista')
+    }
+    catch (e) { setToast(e instanceof Error ? e.message : 'Falha ao excluir') }
   }
 
   return (
@@ -136,13 +110,23 @@ export function DisponibilityPage() {
         <button
           type="button"
           onClick={openCreateForm}
-          className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-white shadow-[0_10px_22px_rgba(46,120,61,0.2)] transition-colors hover:bg-primary-hover"
+          disabled={loading || professionals.length === 0}
+          className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-white shadow-[0_10px_22px_rgba(46,120,61,0.2)] transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Plus className="size-4" strokeWidth={2.4} />
           Adicionar registro
         </button>
       </header>
 
+      {loading && <p role="status" className="mb-4 text-sm text-text-muted">Carregando registros...</p>}
+      {error && (
+        <div role="alert" className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+          <span>Falha ao carregar os dados: {error}</span>
+          <button type="button" onClick={() => { void reload() }} className="font-semibold underline">
+            Tentar novamente
+          </button>
+        </div>
+      )}
       <section aria-label="Registros de disponibilidade" className="min-w-0">
         <div
           role="tablist"
@@ -209,11 +193,13 @@ export function DisponibilityPage() {
               </thead>
               <tbody className="divide-y divide-border">
                 {activeRecords.map((record) => {
+                  const isActive = record.professionalStatus === 'ativo'
+                  const statusLabel = STATUS_LABELS[record.professionalStatus]
                   const initials = record.name
                     .trim()
                     .split(/\s+/)
                     .slice(0, 2)
-                    .map((part) => part[0])
+                    .map((part: string) => part.charAt(0))
                     .join('')
                     .toLocaleUpperCase('pt-BR')
 
@@ -239,24 +225,24 @@ export function DisponibilityPage() {
                       <td className="px-5 py-4 text-sm text-text-muted">{record.period}</td>
                       <td className="px-5 py-4">
                         <span className="inline-flex items-center gap-2 text-sm font-medium text-text">
-                          <span className="size-2 rounded-full bg-success" aria-hidden="true" />
-                          Ativo
+                          <span className={`size-2 rounded-full ${isActive ? 'bg-success' : 'bg-gray-400'}`} aria-hidden="true" />
+                          {statusLabel}
                         </span>
                       </td>
                       <td className="px-6 py-4 text-right">
                         <button
                           type="button"
-                          onClick={() => openEditForm(record)}
+                          onClick={() => removeRecord(record)}
                           className="rounded-lg px-2 py-1 text-sm font-semibold text-primary transition-colors hover:bg-secondary/70"
-                          aria-label={`Editar registro de ${record.name}`}
+                          aria-label={`Excluir registro de ${record.name}`}
                         >
-                          Editar
+                          Excluir
                         </button>
                       </td>
                     </tr>
                   )
                 })}
-                {activeRecords.length === 0 ? (
+                {!loading && !error && activeRecords.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="px-6 py-12 text-center">
                       <p className="text-sm font-semibold text-text">Nenhum registro nesta categoria</p>
@@ -278,7 +264,7 @@ export function DisponibilityPage() {
           <div>
             <h3 className="text-sm font-bold text-[#285f34]">Usado na geração automática</h3>
             <p className="mt-1 text-sm leading-relaxed text-[#53705a]">
-              Essas regras são consideradas ao criar o rascunho da escala.
+              Restrições armazenadas no MongoDB. A geração automática de escalas ainda não está implementada.
             </p>
           </div>
         </aside>
@@ -288,7 +274,7 @@ export function DisponibilityPage() {
         <AvailabilityFormModal
           category={activeCategory}
           record={editingRecord ?? undefined}
-          professionals={professionals}
+          professionals={professionals.map(p => p.name)}
           onClose={closeForm}
           onSave={saveRecord}
         />

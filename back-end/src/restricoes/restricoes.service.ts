@@ -24,7 +24,13 @@ export class RestricoesService {
     const { inicio, fim } = this.datas(dto);
     if (await this.model.exists({ profissionalId: id, tipo: dto.tipo, inicio: { $lte: fim }, fim: { $gte: inicio }, diaSemana: dto.diaSemana ?? null }))
       throw new ConflictException('Já existe restrição desse tipo no período informado');
-    return this.model.create({ ...dto, profissionalId: id, inicio, fim, diaSemana: dto.diaSemana ?? null });
+    return this.model.create({
+      ...dto,
+      profissionalId: new Types.ObjectId(id),
+      inicio,
+      fim,
+      diaSemana: dto.diaSemana ?? null,
+    });
   }
   async listar(id: string) { await this.profissional(id); return this.model.find({ profissionalId: id }).sort({ inicio: 1 }).lean().exec(); }
   async excluir(id: string, restricaoId: string) {
