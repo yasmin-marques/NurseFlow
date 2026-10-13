@@ -13,7 +13,7 @@ type SettingsPageProps = {
 }
 
 export function SettingsPage({ searchQuery = '' }: SettingsPageProps) {
-  const { draft, isDirty, isSaving, toast, update, discard, save } = useSettings()
+  const { draft, isDirty, isLoading, loadError, isSaving, toast, update, discard, save, reload } = useSettings()
   const query = searchQuery.trim().toLocaleLowerCase('pt-BR')
   const matches = (...values: string[]) =>
     !query || values.some((value) => value.toLocaleLowerCase('pt-BR').includes(query))
@@ -54,6 +54,16 @@ export function SettingsPage({ searchQuery = '' }: SettingsPageProps) {
           Regras usadas na montagem e gestão das escalas.
         </p>
       </header>
+
+      {isLoading ? <p role="status" className="mb-4 text-sm text-text-muted">Carregando configurações...</p> : null}
+      {loadError ? (
+        <div role="alert" className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+          <span>Falha ao carregar as configurações: {loadError}</span>
+          <button type="button" onClick={() => { void reload() }} className="font-semibold underline">
+            Tentar novamente
+          </button>
+        </div>
+      ) : null}
 
       <div className="flex flex-1 flex-col gap-5 xl:grid xl:grid-rows-[0.9fr_1.8fr_0.9fr]">
         {showSwapSettings ? (
@@ -190,7 +200,7 @@ export function SettingsPage({ searchQuery = '' }: SettingsPageProps) {
         </div>
       ) : null}
 
-      <ActionButtons isDirty={isDirty} isSaving={isSaving} onDiscard={discard} onSave={save} />
+      <ActionButtons isDirty={isDirty} isSaving={isSaving} disabled={isLoading || loadError !== null} onDiscard={discard} onSave={save} />
       <Toast message={toast} />
     </div>
   )

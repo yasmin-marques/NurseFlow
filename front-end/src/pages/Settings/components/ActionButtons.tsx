@@ -3,11 +3,12 @@ import { Check } from '../../../components/icons'
 type ActionButtonsProps = {
   isDirty: boolean
   isSaving: boolean
+  disabled?: boolean
   onDiscard: () => void
   onSave: () => void
 }
 
-export function ActionButtons({ isDirty, isSaving, onDiscard, onSave }: ActionButtonsProps) {
+export function ActionButtons({ isDirty, isSaving, disabled = false, onDiscard, onSave }: ActionButtonsProps) {
   return (
     <div className="flex flex-wrap justify-end gap-3 pt-2 pb-7">
       <button
@@ -21,7 +22,7 @@ export function ActionButtons({ isDirty, isSaving, onDiscard, onSave }: ActionBu
       <button
         type="button"
         onClick={onSave}
-        disabled={isSaving}
+        disabled={isSaving || disabled}
         className="inline-flex h-[42px] items-center gap-2 rounded-xl bg-primary px-4 text-[14px] font-semibold text-white shadow-[0_10px_22px_rgba(46,120,61,0.22)] transition-colors hover:bg-primary-hover disabled:opacity-70"
       >
         <Check className="size-4" strokeWidth={2.2} />

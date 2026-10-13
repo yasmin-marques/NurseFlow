@@ -9,7 +9,11 @@
     "dev:front": "npm --prefix front-end run dev -- --port 5173 --strictPort",
     "dev:back": "npm --prefix back-end run start:dev",
     "db:up": "docker compose -f db/docker-compose.yml up -d --wait",
-    "db:down": "docker compose -f db/docker-compose.yml down"
+    "db:down": "docker compose -f db/docker-compose.yml down",
+    "test:back": "npm --prefix back-end test",
+    "test:e2e": "npm --prefix back-end run test:e2e",
+    "test:front": "npm --prefix front-end test",
+    "test": "npm run test:back && npm run test:e2e && npm run test:front"
   },
   "devDependencies": {
     "concurrently": "^9.2.1"

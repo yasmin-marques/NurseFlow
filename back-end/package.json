@@ -16,7 +16,8 @@
     "migrate:up": "migrate-mongo up",
     "migrate:down": "migrate-mongo down",
     "migrate:status": "migrate-mongo status",
-    "seed:coordenacao": "node scripts/seed-coordenacao.js"
+    "seed:coordenacao": "node scripts/seed-coordenacao.js",
+    "seed:demo": "node scripts/seed-demo.js"
   },
   "dependencies": {
     "@nestjs/common": "^12.1.2",
