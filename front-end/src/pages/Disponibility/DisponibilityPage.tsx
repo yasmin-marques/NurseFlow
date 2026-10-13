@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Check, Plus } from '../../components/icons'
+import { Plus } from '../../components/icons'
 import { Toast } from '../../components/ui/Toast'
 import { createRestriction, deleteRestriction, fetchAllRestrictions, type ListedRecord, type ProfessionalStatus } from '../../services/restriction'
 import {
@@ -187,7 +187,7 @@ export function DisponibilityPage() {
                     Status
                   </th>
                   <th scope="col" className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-[0.06em] text-text-muted">
-                    Ações
+                    <span className="sr-only">Ações</span>
                   </th>
                 </tr>
               </thead>
@@ -256,18 +256,6 @@ export function DisponibilityPage() {
             </table>
           </div>
         </div>
-
-        <aside className="mt-5 flex items-start gap-3 rounded-2xl border border-[#dcebd9] bg-[#edf5eb] px-5 py-4 sm:items-center sm:px-6">
-          <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-[#dcebd8] text-primary sm:mt-0">
-            <Check className="size-4" strokeWidth={2.5} />
-          </span>
-          <div>
-            <h3 className="text-sm font-bold text-[#285f34]">Usado na geração automática</h3>
-            <p className="mt-1 text-sm leading-relaxed text-[#53705a]">
-              Restrições armazenadas no MongoDB. A geração automática de escalas ainda não está implementada.
-            </p>
-          </div>
-        </aside>
       </section>
 
       {isFormOpen ? (
