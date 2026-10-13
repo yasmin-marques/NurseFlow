@@ -16,7 +16,7 @@ export function ProfileSelector({ value, onChange }: ProfileSelectorProps) {
   return (
     <fieldset className="mb-5.5 mt-5.5 min-w-0 border-0 p-0 md:mb-5.5 md:mt-12">
       <legend className="mb-2.5 text-[12px] font-bold tracking-[0.08em] text-[#727970]">QUAL É O SEU PERFIL?</legend>
-      <div className="grid grid-cols-3 gap-1.5 min-[421px]:gap-2.5">
+      <div className="flex flex-col md:grid md:grid-cols-3 gap-1.5 min-[421px]:gap-2.5">
         {profiles.map((item) => {
           const selected = value === item.id
           return (
