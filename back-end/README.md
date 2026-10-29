@@ -13,10 +13,10 @@ API REST em **NestJS 12 + MongoDB (Mongoose)** com os módulos de **Autenticaç�
 ```bash
 cd back-end
 npm install
-cp .env.exemple .env     # ajuste JWT_SECRET e as credenciais do seed
+cp .env.example .env     # ajuste JWT_SECRET e as credenciais do seed
 ```
 
-Variáveis (veja `.env.exemple`):
+Variáveis (veja `.env.example`):
 
 | Variável | Descrição | Padrão |
 |---|---|---|

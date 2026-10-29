@@ -8,7 +8,7 @@ services:
     restart: always
 
     ports:
-      - "27017:27017"
+      - "127.0.0.1:27017:27017"
 
     environment:
       MONGO_INITDB_DATABASE: nurseflow
@@ -24,6 +24,21 @@ services:
       - ./mongo/script.js:/docker-entrypoint-initdb.d/script.js:ro
       - mongo_data:/data/db
 
+
+  # Otimizador de escalas (FastAPI + OR-Tools). A API NestJS local o acessa em http://localhost:8000.
+  optimizer:
+    build:
+      context: ../optimizer
+    container_name: nurseflow-optimizer
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/saude').status==200 else 1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
 
 volumes:
   mongo_data:

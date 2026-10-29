@@ -34,8 +34,9 @@ O NurseFlow é um sistema web de apoio à gestão da equipe de enfermagem de um 
 | Setores | Cadastro com quantitativo mínimo de enfermeiros/técnicos por turno (diurno e noturno), edição por turno, inativação e reativação |
 | Configurações | Limites de trocas, extras e cargas de plantão por vínculo e por mês (restrito à Coordenação) |
 | Restrições / disponibilidade | Registro, consulta e exclusão de indisponibilidades, ausências, vínculos externos e disponibilidades por profissional |
+| Escalas (geração automática) | `POST /escalas/gerar`: otimiza a escala do mês (regime 24x72) com OR-Tools CP-SAT e salva como rascunho, devolvendo vagas descobertas e conflitos — veja [Geração automática de escalas](#geração-automática-de-escalas) |
 
-As limitações atuais (por exemplo, ausência de geração automática de escalas) estão descritas na seção [Integração das funcionalidades](#5-integração-das-funcionalidades).
+As limitações atuais (por exemplo, ausência de telas de escala, edição e publicação) estão descritas na seção [Integração das funcionalidades](#5-integração-das-funcionalidades).
 
 ## Tecnologias utilizadas
 
@@ -44,6 +45,7 @@ As limitações atuais (por exemplo, ausência de geração automática de escal
 | Frontend | React 19, TypeScript, Vite, Tailwind CSS 4, Vitest |
 | Backend | NestJS 12, TypeScript, Mongoose, JWT (`@nestjs/jwt`), bcryptjs, class-validator, Swagger/OpenAPI, Jest + Supertest |
 | Banco de dados | MongoDB 8, com esquema e índices versionados por migrations (`migrate-mongo`) |
+| Otimização | Python 3.12, FastAPI e Google OR-Tools (CP-SAT) — serviço `optimizer/`, consumido apenas pela API NestJS |
 | Infraestrutura | Docker / Docker Compose, Nginx (serve o frontend e faz proxy de `/api` no modo Docker) |
 
 ## Estrutura do repositório
@@ -52,11 +54,12 @@ As limitações atuais (por exemplo, ausência de geração automática de escal
 NurseFlow/
 ├── back-end/            API NestJS (src/, migrations/, scripts/, test/)
 ├── front-end/           Aplicação React/Vite
-├── db/                  docker-compose.yml apenas do MongoDB (uso local) e script de inicialização
+├── optimizer/           Serviço Python (FastAPI + OR-Tools) que resolve a escala mensal
+├── db/                  docker-compose.yml da infraestrutura local (MongoDB e otimizador) e script de inicialização
 ├── scripts/setup.mjs    Instala dependências e prepara o .env do back-end
 ├── docs/                Documentos de requisitos, arquitetura e diagramas
 ├── docker-compose.yml   Stack completa (mongo + backend + frontend + seed-demo)
-├── .env.example         Variáveis do Docker Compose
+├── .env.example         Variáveis do Docker Compose (stack completa)
 └── package.json         Scripts da raiz (dev, test, db:up, ...)
 ```
 
@@ -79,60 +82,45 @@ docker compose version
 
 Fluxo para rodar o frontend e o backend na sua máquina, usando o Docker apenas para o MongoDB. Execute a partir da **raiz do repositório**.
 
-**1. Instale as dependências** (raiz, `back-end` e `front-end`):
+**1. Instale as dependências** (raiz, `back-end` e `front-end`; também cria `back-end/.env` a partir do modelo, se ainda não existir):
 
 ```bash
-npm install
-npm --prefix back-end install
-npm --prefix front-end install
+npm run setup
 ```
 
-> O script `npm run setup` faz o mesmo e tenta criar o `back-end/.env`, mas ele procura o arquivo `back-end/.env.example`, e o modelo do repositório se chama `back-end/.env.exemple`. Em um clone novo, use os comandos acima e crie o `.env` manualmente no próximo passo.
+**2. Configure o `.env` do backend** (se o passo anterior não o criou: `cp back-end/.env.example back-end/.env`). Edite `back-end/.env`:
 
-**2. Configure o `.env` do backend:**
-
-```bash
-cp back-end/.env.exemple back-end/.env
-```
-
-Edite `back-end/.env`:
-
-- `MONGODB_URI`: o MongoDB de `db/docker-compose.yml` roda sem autenticação e publica a porta 27017, então use `mongodb://localhost:27017/nurseflow` (o valor do modelo, com host `mongo`, serve apenas para o Docker Compose da raiz).
-- `JWT_SECRET`: chave aleatória com 16 caracteres ou mais.
+- `MONGODB_URI`: o modelo já aponta para `mongodb://localhost:27017/nurseflow` (MongoDB de `db/docker-compose.yml`, sem autenticação, publicado apenas em `127.0.0.1`). O host `mongo` só vale dentro do Docker Compose da raiz.
+- `JWT_SECRET`: chave aleatória com 16 caracteres ou mais, por exemplo `node -e "console.log(require('crypto').randomBytes(24).toString('hex'))"`.
 - `SEED_COORDENACAO_NOME`, `_EMAIL`, `_CPF` (CPF válido) e `_SENHA` (de 8 a 72 caracteres): dados da primeira conta de Coordenação.
+- (Opcional) dados de demonstração: `DEMO_SEED_ENABLED=true`, `DEMO_ADMIN_PASSWORD` e `DEMO_PRO_PASSWORD` (de 8 a 72 caracteres). Veja [Dados de demonstração](#dados-de-demonstração-docker).
 
-As demais variáveis (`CORS_ORIGINS`, `JWT_EXPIRES_IN_SECONDS`, `LOGIN_MAX_ATTEMPTS`, ...) estão documentadas em [back-end/README.md](back-end/README.md). O `.env` real **não** deve ser versionado.
+As demais variáveis (`CORS_ORIGINS`, `JWT_EXPIRES_IN_SECONDS`, `LOGIN_MAX_ATTEMPTS`, ...) estão documentadas em [back-end/README.md](back-end/README.md). Os `.env` reais **não** são versionados (apenas os `.env.example`).
 
-**3. Configure o frontend.** Sem Docker não existe o proxy `/api`, então aponte o frontend para a API criando `front-end/.env.local`:
+O frontend **não precisa** de `.env` no desenvolvimento local: o Vite faz proxy de `/api` para `http://localhost:3000`.
 
-```dotenv
-VITE_API_URL=http://localhost:3000
-```
-
-**4. Inicie o MongoDB:**
+**3. Inicie o MongoDB, aplique as migrations e popule o banco:**
 
 ```bash
-npm run db:up
+npm run db:up      # sobe o MongoDB 8 e o otimizador de escalas e aguarda os healthchecks (parar: npm run db:down)
+npm run db:setup   # migrations + seed da Coordenação + seed de demonstração
 ```
 
-O comando sobe o MongoDB 8 em segundo plano e aguarda o healthcheck (`docker compose -f db/docker-compose.yml up -d --wait`). Para parar: `npm run db:down`.
-
-**5. Execute as migrations** (criam validators e índices; a API **não** os cria sozinha):
+`db:setup` equivale a `db:migrate` (validators e índices; a API **não** os cria sozinha) seguido de `db:seed` (`seed:coordenacao` e `seed:demo`). Também podem ser executados separadamente:
 
 ```bash
 npm --prefix back-end run migrate:up
 npm --prefix back-end run migrate:status   # opcional: lista o que foi aplicado
+npm --prefix back-end run seed:coordenacao # cria a Coordenação (não faz nada se já existir)
+npm --prefix back-end run seed:demo        # dados fictícios (somente com DEMO_SEED_ENABLED=true)
 ```
 
-**6. Crie a conta inicial da Coordenação** (não existe cadastro público; o seed não faz nada se o usuário já existir):
+Os seeds são **idempotentes**: só criam o que não existe, nunca sobrescrevem nem apagam registros e não redefinem senhas. Pode executá-los de novo com segurança.
 
-```bash
-npm --prefix back-end run seed:coordenacao
-```
 
 ## Execução (desenvolvimento local)
 
-Com o `.env` configurado, as migrations aplicadas e o seed executado, na raiz:
+Com o `.env` configurado, o MongoDB no ar, as migrations aplicadas e o seed executado, na raiz:
 
 ```bash
 npm run dev
@@ -146,7 +134,7 @@ O comando sobe o MongoDB (`npm run db:up`) e inicia, em paralelo, o backend (`ne
 | API | http://localhost:3000 |
 | Swagger | http://localhost:3000/docs |
 
-No login, escolha o perfil correspondente à conta (Coordenação, Enfermeiro ou Técnico) e entre com o e-mail e a senha definidos em `SEED_COORDENACAO_*`. No Swagger, use *Authorize* com o `accessToken` retornado por `POST /auth/login`.
+No login, escolha o perfil correspondente à conta (Coordenação, Enfermeiro ou Técnico) e entre com o e-mail e a senha definidos em `SEED_COORDENACAO_*` (ou com as contas de demonstração). No Swagger, use *Authorize* com o `accessToken` retornado por `POST /auth/login`.
 
 Para iniciar apenas uma das partes: `npm run dev:back` ou `npm run dev:front`.
 
@@ -162,7 +150,7 @@ Na **raiz do repositório**:
 cp .env.example .env
 ```
 
-Troque `MONGO_ROOT_PASSWORD` e `JWT_SECRET`. A URL `MONGODB_URI` deve usar as mesmas credenciais definidas no Compose e o hostname `mongo` (não `localhost`). Se a senha contiver caracteres especiais, codifique-os na URI. O `.env` real **não** deve ser versionado.
+Troque `MONGO_ROOT_PASSWORD`, `JWT_SECRET` e `SEED_COORDENACAO_SENHA` por valores aleatórios (`node -e "console.log(require('crypto').randomBytes(24).toString('hex'))"`). A `MONGODB_URI` deve repetir `MONGO_ROOT_USERNAME`/`MONGO_ROOT_PASSWORD` e usar o hostname `mongo` (não `localhost`). Para popular dados fictícios, defina também `DEMO_SEED_ENABLED=true`, `DEMO_ADMIN_PASSWORD` e `DEMO_PRO_PASSWORD`. Se a senha contiver caracteres especiais, codifique-os na URI. O `.env` real **não** deve ser versionado.
 
 ## 2. Preparar os lockfiles
 
@@ -196,7 +184,7 @@ docker compose logs -f backend frontend
 - O frontend usa `depends_on: backend: condition: service_healthy`.
 - Os healthchecks não garantem reinício de dependentes quando outro container ficar unhealthy posteriormente.
 
-O comando de inicialização do backend roda as migrations antes da API. Para cadastrar a coordenação após iniciar os serviços, defina as variáveis `SEED_COORDENACAO_*` no `.env` e execute:
+O comando de inicialização do backend roda as migrations antes da API, e o serviço `seed-demo` popula os dados fictícios quando `DEMO_SEED_ENABLED=true`. Para cadastrar a coordenação após iniciar os serviços, defina as variáveis `SEED_COORDENACAO_*` no `.env` e execute:
 
 ```bash
 docker compose exec backend npm run seed:coordenacao
@@ -234,7 +222,7 @@ Abra http://localhost:5173. Ao desenvolver localmente, a API aceita essa origem 
 | Setores | Listagem/cadastro/edição de quantitativos por API existente |
 | Configurações | Consulta e gravação por `GET /configuracoes`, `PATCH /configuracoes/limites`, `PUT /configuracoes/cargas` |
 | Disponibilidade | Listagem/criação/exclusão via `/profissionais/:id/restricoes` |
-| Conflitos | Endpoint no backend disponível, **não** conectado a um gerador de escalas (inexistente) |
+| Conflitos | Endpoint no backend disponível, ainda não conectado à geração de escalas; a geração (`POST /escalas/gerar`) aplica as restrições diretamente |
 
 **Limitações intencionais**:
 
@@ -243,7 +231,7 @@ Abra http://localhost:5173. Ao desenvolver localmente, a API aceita essa origem 
 - O backend só expõe criação, consulta e exclusão de restrições, portanto a UI oferece **exclusão e novo cadastro** no lugar de edição.
 - Restrições marcadas como recorrentes sem data utilizam, temporariamente, um período de cinco anos; não há recorrência infinita no modelo atual.
 - O endpoint de restrições está protegido para perfil coordenação no backend. Usuários sem esse perfil podem receber 403 nesta tela até a autorização ser definida.
-- A geração automática de escalas **não existe** no backend fornecido e não é declarada funcional neste pacote.
+- A geração automática de escalas existe apenas como API (`POST /escalas/gerar`, rascunho); **não há** telas, edição nem publicação de escalas.
 
 ## 6. Diagnóstico e encerramento
 
@@ -266,6 +254,78 @@ cd back-end && npm ci && npm run build && cd ..
 
 Esses comandos exigem acesso ao registro npm. O pacote foi montado sem validar execução end-to-end com MongoDB real; execute-os em seu ambiente antes de integrar à branch principal.
 
+## Geração automática de escalas
+
+Implementa RF005/US07 (e as regras RN003–RN009 do documento de requisitos). Escopo atual: **apenas a API de geração**; edição, publicação e telas de escala não existem ainda.
+
+### Arquitetura
+
+```text
+Coordenação ──POST /escalas/gerar──▶ NestJS (módulo escalas)
+                                       │ 1. valida e lê do MongoDB: configuração vigente do mês,
+                                       │    setores ativos, profissionais, restrições, escala do mês anterior
+                                       │ 2. monta o problema (montar-problema.ts)
+                                       ▼
+                               optimizer/ (FastAPI + OR-Tools CP-SAT)   ← só matemática, sem acesso ao banco
+                                       │ 3. devolve alocações, vagas descobertas e estatísticas
+                                       ▼
+                    NestJS grava escala (rascunho) + plantões + profissionaisRelacionados
+```
+
+- **NestJS** (`back-end/src/escalas`): controller, service, schemas, `montar-problema.ts` (função pura, testada) e a porta `OtimizadorEscala` (implementação HTTP; substituível em testes).
+- **Python** (`optimizer/`): `POST /otimizar` e `GET /saude`. Sobe junto de `npm run db:up` (porta 8000 em `127.0.0.1`) e na stack Docker (rede interna, serviço `optimizer`).
+- **Persistência:** coleções existentes `escalas`, `plantoes` e `profissionaisRelacionados`. A migration `20261013000006` reconcilia os validators legados (o antigo exigia `profissionalID`, com typo) e cria o índice único `(ano, mes)` que impede escalas duplicadas.
+
+### Regras aplicadas
+
+| Regra | Como é tratada |
+| --- | --- |
+| Regime 24x72 | Plantão de 24h (07:00→07:00) exige 72h de descanso; plantão de 12h exige 36h. O descanso é herdado da escala do mês anterior, se existir. Exceção prevista na US25: 12h diurno + 12h noturno no mesmo dia |
+| RN003/RN005 | Nenhum plantão **inicia** em dia de indisponibilidade, férias, ausência ou vínculo externo (inclui recorrência por dia da semana). "Disponível" com dia da semana define dias fixos de trabalho no período; "disponível" sem dia da semana é só informativo. Datas em UTC |
+| RN006/DA08 | Quantitativo mínimo de enfermeiros e técnicos por setor, dia e turno. Plantão de 24h cobre diurno e noturno; cada função é coberta só por profissionais da respectiva formação |
+| RN007/US29 | Carga regular por vínculo vem de `cargas` da configuração do mês (`<vínculo>_<diasDoMês>`), nunca fixa no algoritmo |
+| RN009 | O que excede a carga regular é **extra**, limitado por `maxExtrasConcursado`/`maxExtrasClt` (se > 0) ou por `maxExtras`. RPA sem carga configurada atua somente como extra |
+| `limitePlantoes` | Se > 0, teto de plantões totais por profissional no mês |
+| Vagas sem cobertura | Nunca violam restrição obrigatória: voltam em `pendencias` |
+| Quem participa | Apenas profissionais `ativo`; `ferias`/`afastado` aparecem em `conflitos`; `desativado` é ignorado |
+
+Prioridade do objetivo: menos vagas descobertas > menos extras > carga regular completa > menos sobra de cobertura > extras distribuídos de forma equilibrada. O solver tem limite de tempo (`OPTIMIZER_TIME_LIMIT_SECONDS`, padrão 30 s); se o limite estourar, devolve a melhor solução viável e `resumo.solver.otimo = false`.
+
+**Configurações vigentes:** são lidas do banco a cada geração. Um retrato delas fica em `geracao.configuracao` da escala (`configuracaoUtilizada` na resposta); alterar as configurações depois **não** muda escalas existentes, só as próximas gerações.
+
+### Endpoint
+
+`POST /escalas/gerar` (somente Coordenação) — corpo `{ "mes": 11, "ano": 2026, "substituirRascunho": false }`
+
+| Código | Situação |
+| --- | --- |
+| 201 | Escala gerada como `rascunho` |
+| 400 | Mês/ano inválidos |
+| 409 | Já existe escala do período (publicada/finalizada: nunca substituída; rascunho: envie `substituirRascunho: true` para regerar, o conteúdo antigo é trocado sem duplicar) |
+| 422 | Dados insuficientes (sem setores ativos, sem profissionais ativos, sem quantitativo, ou carga de concursado/CLT não configurada para o mês) — lista em `erros` |
+| 502/503 | Otimizador indisponível ou com falha (nada é gravado) |
+
+Resposta: `escala`, `resumo`, `configuracaoUtilizada`, `plantoes` (com profissionais), `pendencias` (vagas descobertas), `conflitos`, `avisos` e `cargas` (esperada × atribuída por profissional). `GET /escalas/:id` devolve a mesma estrutura.
+
+### Como testar
+
+```bash
+npm run db:up                              # MongoDB + otimizador (http://localhost:8000/docs)
+npm --prefix back-end run migrate:up       # inclui a migration das coleções de escala
+npm run db:seed                            # coordenação + dados de demonstração (opcional)
+npm run dev:back                           # API em http://localhost:3000
+
+TOKEN=$(curl -s -X POST localhost:3000/auth/login -H 'content-type: application/json' \
+  -d '{"email":"admin@nurseflow.test","senha":"<DEMO_ADMIN_PASSWORD>","perfil":"coordenacao"}' | node -pe 'JSON.parse(require("fs").readFileSync(0,"utf8")).accessToken')
+
+curl -s -X POST localhost:3000/escalas/gerar -H "authorization: Bearer $TOKEN" \
+  -H 'content-type: application/json' -d '{"mes":11,"ano":2026}'
+```
+
+Também é possível usar o Swagger (http://localhost:3000/docs → **Escalas**). Para gerar um mês é preciso ter a carga configurada (o seed de demonstração cria `2026-10` e `2026-11`; ou `PUT /configuracoes/cargas`).
+
+Testes: unitários (`montar-problema.spec.ts`) e e2e (`back-end/test/escalas.e2e-spec.ts`) rodam em `npm test`; os testes das restrições do modelo ficam em `optimizer/tests` — veja [optimizer/README.md](optimizer/README.md).
+
 ## Testes automatizados
 
 Todos os testes (backend + frontend) rodam com um único comando, na raiz do projeto:
@@ -283,6 +343,7 @@ Pré-requisito: dependências instaladas em `back-end/` e `front-end/` (`npm ins
 | `npm run test:back` | Jest, testes unitários do backend | Guard de perfis, validação de CPF |
 | `npm run test:e2e` | Jest + Supertest + MongoDB em memória (`back-end/test`) | Login/autenticação, Profissionais, Setores, autorização por perfil, Configurações, Restrições/Disponibilidade, migrations |
 | `npm run test:front` | Vitest (`front-end/src/**/*.test.ts`) | Serviços do frontend: auth, setores, profissionais, configurações, restrições |
+| `pytest` em `optimizer/` | Restrições do modelo CP-SAT (24x72, bloqueios, quantitativo, vagas descobertas, carga/extras) | Não faz parte do `npm test`; veja [optimizer/README.md](optimizer/README.md) |
 
 Cada grupo também pode ser executado isoladamente com os scripts acima.
 
@@ -326,6 +387,8 @@ Cada grupo também pode ser executado isoladamente com os scripts acima.
 | Testes e2e falham ao baixar o MongoDB | O `mongodb-memory-server` baixa o binário na primeira execução e precisa de internet; não depende do Docker |
 
 ## Dados de demonstração (Docker)
+
+> Em desenvolvimento local (sem Docker para a aplicação), os mesmos dados são criados por `npm run db:seed` com `DEMO_SEED_ENABLED=true` no `back-end/.env`.
 
 > **Somente desenvolvimento local.** Nunca habilite o seed de demonstração em produção nem exponha suas contas de teste publicamente.
 

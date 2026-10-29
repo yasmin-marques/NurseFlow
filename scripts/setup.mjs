@@ -12,6 +12,6 @@ if (existsSync('back-end/.env')) {
   console.log('\nback-end/.env já existe — mantido.');
 } else {
   copyFileSync('back-end/.env.example', 'back-end/.env');
-  console.log('\nback-end/.env criado a partir de .env.example — ajuste JWT_SECRET e SEED_*.');
+  console.log('\nback-end/.env criado a partir de .env.example — defina JWT_SECRET, SEED_COORDENACAO_* e (opcional) DEMO_*.');
 }
-console.log('\nPronto. Rode: npm run dev');
+console.log('\nPronto. Rode: npm run db:up && npm run db:setup && npm run dev');

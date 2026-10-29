@@ -1,3 +1,7 @@
+// BASELINE LEGADO: executado apenas no primeiro start do container (volume vazio).
+// As migrations em back-end/migrations (npm run db:migrate) são a fonte da verdade e
+// sobrescrevem estes validators (usuarios, profissionaisDaSaude, setores, configuracoes, restricoes).
+
 // Seleciona o banco
 db = db.getSiblingDB("nurseflow");
 

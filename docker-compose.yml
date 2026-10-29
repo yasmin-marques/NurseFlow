@@ -24,6 +24,24 @@ services:
       retries: 12
       start_period: 30s
 
+  optimizer:
+    build:
+      context: ./optimizer
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    networks:
+      - nurseflow_internal
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/saude').status==200 else 1)"
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
   backend:
     build:
       context: ./back-end
@@ -31,6 +49,8 @@ services:
     restart: unless-stopped
     depends_on:
       mongo:
+        condition: service_healthy
+      optimizer:
         condition: service_healthy
     environment:
       NODE_ENV: production
@@ -42,6 +62,9 @@ services:
       LOGIN_MAX_ATTEMPTS: ${LOGIN_MAX_ATTEMPTS:-5}
       LOGIN_LOCK_MINUTES: ${LOGIN_LOCK_MINUTES:-15}
       PASSWORD_RESET_TTL_MINUTES: ${PASSWORD_RESET_TTL_MINUTES:-30}
+      OPTIMIZER_URL: http://optimizer:8000
+      OPTIMIZER_TIMEOUT_MS: ${OPTIMIZER_TIMEOUT_MS:-120000}
+      OPTIMIZER_TIME_LIMIT_SECONDS: ${OPTIMIZER_TIME_LIMIT_SECONDS:-30}
       SEED_COORDENACAO_NOME: ${SEED_COORDENACAO_NOME:-}
       SEED_COORDENACAO_EMAIL: ${SEED_COORDENACAO_EMAIL:-}
       SEED_COORDENACAO_CPF: ${SEED_COORDENACAO_CPF:-}

@@ -104,6 +104,7 @@ async function seed() {
     for (const [chave, dias] of [['2026-10', 31], ['2026-11', 30]]) {
       await db.collection('configuracoes').updateOne({ chave }, { $setOnInsert: {
         chave, limiteTrocas: 3, maxExtras: 2, limitePlantoes: 12,
+        maxExtrasConcursado: 1, maxExtrasClt: 1,
         cargas: {
           [`concursado_${dias}`]: { plantoes24h: 6, plantoes12h: 1 },
           [`clt_${dias}`]: { plantoes24h: 5, plantoes12h: 2 },
@@ -136,4 +137,11 @@ async function seed() {
     await client.close();
   }
 }
-seed().catch((error) => { console.error('Falha no seed:', error); process.exitCode = 1; });
+seed().catch((error) => {
+  if (error && error.code === 11000) {
+    console.error('Falha no seed: conflito de unicidade (e-mail, CPF ou COREN já usados por outro registro).', error.keyValue ?? '');
+  } else {
+    console.error('Falha no seed:', error);
+  }
+  process.exitCode = 1;
+});
