@@ -6,6 +6,7 @@ type TopBarProps = {
   title: string
   userInitials?: string
   onMenuClick?: () => void
+  onProfileClick?: () => void
   onSearchChange?: (query: string) => void
 }
 
@@ -13,6 +14,7 @@ export function TopBar({
   title,
   userInitials = 'PF',
   onMenuClick,
+  onProfileClick,
   onSearchChange,
 }: TopBarProps) {
   const [isSearchOpen, setIsSearchOpen] = useState(false)
@@ -92,12 +94,15 @@ export function TopBar({
           )}
         </div>
         <NotificationCenter />
-        <span
-          className="ml-1 flex size-9 items-center justify-center rounded-full bg-secondary text-[11px] font-bold text-primary shadow-sm"
-          aria-hidden
+        <button
+          type="button"
+          onClick={onProfileClick}
+          aria-label="Abrir meu perfil"
+          title="Meu perfil"
+          className="ml-1 flex size-9 items-center justify-center rounded-full bg-secondary text-[11px] font-bold text-primary shadow-sm transition-colors hover:bg-primary/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
         >
           {userInitials}
-        </span>
+        </button>
       </div>
     </header>
   )

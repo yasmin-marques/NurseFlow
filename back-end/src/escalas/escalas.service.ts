@@ -578,7 +578,21 @@ export class EscalasService {
       .session(session)
       .lean()
       .exec();
-    const destinatarios = [...new Set(profissionais.map((item) => String(item.usuarioId)))];
+    const idsDestinatarios = [...new Set(profissionais.map((item) => String(item.usuarioId)))];
+    const usuariosNotificados = idsDestinatarios.length
+      ? await this.usuarios
+          .find({
+            _id: { $in: idsDestinatarios.map((id) => new Types.ObjectId(id)) },
+            $or: [
+              { recebeNotificacoesEscala: { $exists: false } },
+              { recebeNotificacoesEscala: true },
+            ],
+          }, { _id: 1 })
+          .session(session)
+          .lean()
+          .exec()
+      : [];
+    const destinatarios = usuariosNotificados.map((item) => String(item._id));
     if (destinatarios.length === 0) return;
 
     const eventKey = `escala:${String(escalaId)}:versao:${numero}`;

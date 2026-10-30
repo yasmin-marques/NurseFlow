@@ -21,6 +21,7 @@ export type NavItemId =
   | 'setores'
   | 'historico'
   | 'configuracoes'
+  | 'perfil'
 
 export type NavItem = {
   id: NavItemId

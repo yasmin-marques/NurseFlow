@@ -1,4 +1,4 @@
-import { HttpException, HttpStatus, Injectable, UnauthorizedException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable, UnauthorizedException, ForbiddenException, BadRequestException, ConflictException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { InjectModel } from '@nestjs/mongoose';
@@ -13,6 +13,7 @@ import { Usuario } from '../usuarios/schemas/usuario.schema';
 import { UsuariosService } from '../usuarios/usuarios.service';
 import type { LoginDto } from './dto/login.dto';
 import type { LoginResponseDto } from './dto/auth-response.dto';
+import type { AtualizarPerfilDto } from './dto/atualizar-perfil.dto';
 import { SenhaNotifier } from './senha-notifier';
 
 const BCRYPT_ROUNDS = 10;
@@ -37,6 +38,50 @@ export class AuthService {
 
   static gerarHashSenha(senha: string): Promise<string> {
     return bcrypt.hash(senha, BCRYPT_ROUNDS);
+  }
+
+  async obterPerfil(usuarioId: string) {
+    const usuario = await this.usuariosService.buscarPorId(usuarioId);
+    if (!usuario) throw new UnauthorizedException('Sessão inválida.');
+    const resolvido = await this.usuariosService.resolverPerfil(usuario);
+    if (!resolvido) throw new UnauthorizedException('Sessão inválida.');
+    const profissional = await this.usuariosService.buscarProfissionalDoUsuario(usuarioId);
+    const proximoSetor = profissional && resolvido.profissional
+      ? await this.usuariosService.buscarProximoSetor(resolvido.profissional._id.toString())
+      : null;
+    return {
+      id: usuario._id.toString(),
+      nome: usuario.nome,
+      email: usuario.email,
+      perfil: resolvido.perfil,
+      coren: profissional?.coren ?? null,
+      formacao: profissional?.formacao ?? null,
+      tipoVinculo: profissional?.tipoVinculo ?? null,
+      proximoSetor,
+      recebeNotificacoesEscala: usuario.recebeNotificacoesEscala ?? true,
+    };
+  }
+
+  async atualizarPerfil(usuarioId: string, dto: AtualizarPerfilDto) {
+    if (dto.email === undefined && dto.recebeNotificacoesEscala === undefined) {
+      throw new BadRequestException('Informe ao menos um dado para atualizar.');
+    }
+
+    const usuario = await this.usuariosService.buscarPorId(usuarioId);
+    if (!usuario) throw new UnauthorizedException('Sessão inválida.');
+
+    if (dto.email !== undefined && dto.email !== usuario.email) {
+      const emailEmUso = await this.usuariosService.buscarPorEmail(dto.email);
+      if (emailEmUso && emailEmUso._id.toString() !== usuarioId) {
+        throw new ConflictException('Este e-mail já está sendo usado por outra conta.');
+      }
+      usuario.email = dto.email;
+    }
+    if (dto.recebeNotificacoesEscala !== undefined) {
+      usuario.recebeNotificacoesEscala = dto.recebeNotificacoesEscala;
+    }
+    await usuario.save();
+    return this.obterPerfil(usuarioId);
   }
 
   /** DA01: valida credenciais e perfil, controla bloqueio temporário e emite o JWT. */

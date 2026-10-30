@@ -10,6 +10,7 @@ type AppLayoutProps = {
   children: ReactNode
   onNavigate?: (id: NavItemId) => void
   onSearchChange?: (query: string) => void
+  onProfileClick?: () => void
   user?: SideMenuUser
   onLogout?: () => void
 }
@@ -20,6 +21,7 @@ export function AppLayout({
   children,
   onNavigate,
   onSearchChange,
+  onProfileClick,
   user,
   onLogout,
 }: AppLayoutProps) {
@@ -32,6 +34,7 @@ export function AppLayout({
         isOpen={menuOpen}
         onClose={() => setMenuOpen(false)}
         onNavigate={onNavigate}
+        onProfileClick={onProfileClick}
         user={user}
         onLogout={onLogout}
       />
@@ -41,6 +44,7 @@ export function AppLayout({
           title={title}
           userInitials={user?.initials}
           onMenuClick={() => setMenuOpen(true)}
+          onProfileClick={onProfileClick}
           onSearchChange={onSearchChange}
         />
         <main className="min-h-0 flex-1 overflow-y-auto bg-page">{children}</main>
