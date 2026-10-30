@@ -30,6 +30,8 @@ Variáveis (veja `.env.example`):
 | `LOGIN_MAX_ATTEMPTS` / `LOGIN_LOCK_MINUTES` | Bloqueio temporário após tentativas inválidas | `5` / `15` |
 | `PASSWORD_RESET_TTL_MINUTES` | Validade do token de recuperação de senha | `30` |
 | `SEED_COORDENACAO_*` | Dados da primeira conta de Coordenação | — |
+| `DEMO_SEED_ENABLED` | Habilita a criação de dados fictícios de demonstração | `false` |
+| `DEMO_ADMIN_PASSWORD` / `DEMO_PRO_PASSWORD` | Senhas das contas fictícias (8–72 caracteres; obrigatórias com seed habilitado) | — |
 
 ## Migrations
 
@@ -48,6 +50,9 @@ As migrations são idempotentes e funcionam tanto em um banco criado por `db/mon
 | `20261011000001-usuarios-autenticacao` | `telefone` deixa de ser obrigatório; novos campos de login (`tentativasFalhasLogin`, `bloqueadoAte`, `ultimoLoginEm`, `redefinicaoSenha`, `senhaTemporaria`); timestamps |
 | `20261011000002-profissionais-status` | status `desligado` → `desativado` (DA04 / diagrama de classes); `desativadoEm`; timestamps |
 | `20261011000003-setores-quantitativo-por-turno` | `quantMinEnf`/`quantMinTec` → `turnos.{diurno,noturno}.{enfermeiros,tecnicos}` (dados existentes copiados para os dois turnos); `ativo`; índice único de `nome` sem diferenciar maiúsculas/acentos |
+| `20261012000004-configuracoes-restricoes` | Validators e índices de configurações e restrições |
+| `20261012000005-reconciliar-validacao-restricoes` | Reaplica o contrato atual de validação de restrições em bancos existentes |
+| `20261013000006-escalas-plantoes` | Validators e índices das escalas, plantões e profissionais relacionados |
 | `20261014000007-ciclo-vida-escalas` | Estados e revisões de escala, snapshots oficiais, auditoria, notificações e índices únicos para período, versões e eventos por destinatário |
 
 ### Primeira conta de Coordenação
@@ -58,6 +63,16 @@ Não existe cadastro público: a primeira conta é criada pelo seed (usa `SEED_C
 npm run migrate:up
 npm run seed:coordenacao
 ```
+
+### Dados de demonstração
+
+Para criar dados fictícios em desenvolvimento, configure `DEMO_SEED_ENABLED=true`, `DEMO_ADMIN_PASSWORD` e `DEMO_PRO_PASSWORD` no `.env` e execute:
+
+```bash
+npm run seed:demo
+```
+
+O seed cria, quando ausentes, uma conta de Coordenação, nove profissionais, três setores, configurações para os meses de 2026 e restrições de exemplo. É idempotente e não sobrescreve registros existentes. Use somente em ambiente local isolado; o script recusa execução em produção sem autorização explícita. Os logins são `admin@nurseflow.test` e `<nome>@nurseflow.test`.
 
 ## Execução
 
@@ -73,8 +88,8 @@ Swagger/OpenAPI: **http://localhost:3000/docs** (use *Authorize* com o `accessTo
 
 ```bash
 npm run lint:check
-npm test                 # unitários (CPF, guard de perfis)
-npm run test:e2e         # e2e com MongoDB em memória: aplica as migrations e exercita a API inteira
+npm test                 # unitários (CPF, guard de perfis e regras de escala)
+npm run test:e2e         # e2e com MongoDB em memória: migrations, módulos da API e ciclo de vida de escalas
 ```
 
 Os testes e2e baixam o binário do `mongod` na primeira execução (mongodb-memory-server) e não dependem do Docker. O Jest roda com `--experimental-vm-modules` (já configurado nos scripts) porque os pacotes `@nestjs/*` são ESM.
@@ -174,7 +189,7 @@ src/
   common/         enums, decorators (@Public, @Perfis), guards, filtro global de erros, utilitários
   config/         leitura e validação do ambiente
 migrations/       migrate-mongo
-scripts/          seed da Coordenação
+scripts/          seeds da Coordenação e de demonstração
 test/             e2e (API completa e migrations)
 ```
 

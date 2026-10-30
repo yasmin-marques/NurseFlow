@@ -1,6 +1,6 @@
 # NurseFlow — execução integrada
 
-Aplicação com **React 19 / Vite**, **NestJS**, **MongoDB 8** e **Nginx**. O Compose reside na raiz e sobe os três serviços. O frontend utiliza `/api` como URL de API; o Nginx faz proxy para `http://backend:3000` dentro da rede Docker.
+Aplicação com **React 19 / Vite**, **NestJS**, **MongoDB 8**, **FastAPI/OR-Tools** e **Nginx**. O Compose da raiz sobe MongoDB, otimizador, API e frontend; `seed-demo` é uma tarefa de inicialização executada antes do frontend. O frontend utiliza `/api` como URL de API; o Nginx faz proxy para `http://backend:3000` dentro da rede Docker.
 
 ## Sumário
 
@@ -348,7 +348,7 @@ O Compose local (`db/docker-compose.yml`) e o Compose integrado (`docker-compose
 
 ## Testes automatizados
 
-Todos os testes (backend + frontend) rodam com um único comando, na raiz do projeto:
+Os testes do backend e do frontend rodam com um único comando, na raiz do projeto:
 
 ```bash
 npm test
@@ -360,9 +360,9 @@ Pré-requisito: dependências instaladas em `back-end/` e `front-end/` (`npm ins
 
 | Script | O que roda | Cobertura |
 |---|---|---|
-| `npm run test:back` | Jest, testes unitários do backend | Guard de perfis, validação de CPF |
-| `npm run test:e2e` | Jest + Supertest + MongoDB em memória (`back-end/test`) | Login/autenticação, Profissionais, Setores, autorização por perfil, Configurações, Restrições/Disponibilidade, migrations |
-| `npm run test:front` | Vitest (`front-end/src/**/*.test.ts`) | Serviços do frontend: auth, setores, profissionais, configurações, restrições |
+| `npm run test:back` | Jest, testes unitários do backend | Guard de perfis, validação de CPF e regras de montagem/validação de plantões |
+| `npm run test:e2e` | Jest + Supertest + MongoDB em memória (`back-end/test`) | Login/autenticação, Profissionais, Setores, autorização por perfil, Configurações, Restrições/Disponibilidade, ciclo de vida de escalas e migrations |
+| `npm run test:front` | Vitest (testes em `front-end/src/`) | Serviços e telas do frontend: auth, profissionais, setores, configurações, restrições, calendário, revisão/publicação de escalas, equipe semanal e notificações |
 | `pytest` em `optimizer/` | Restrições do modelo CP-SAT (24x72, bloqueios, quantitativo, vagas descobertas, carga/extras) | Não faz parte do `npm test`; veja [optimizer/README.md](optimizer/README.md) |
 
 Cada grupo também pode ser executado isoladamente com os scripts acima.
@@ -429,7 +429,7 @@ docker compose ps -a
 docker compose logs seed-demo
 ```
 
-**Ordem:** `mongo` saudável → `backend` (migrations e API, saudável) → `seed-demo` (execução única) → `frontend`. O serviço de seed deve terminar com `Exited (0)`; **não** fica em execução permanentemente. Para executá-lo novamente em um banco já iniciado: `docker compose run --rm seed-demo`. O seed é idempotente: cria as contas ausentes e sincroniza somente os profissionais, setores e configurações reservados à demonstração para manter o cenário de geração sem conflitos; não redefine senhas existentes nem apaga escalas. Ele também remove apenas as restrições legadas que o seed de demonstração anterior criou para esses profissionais. Para renovar credenciais de uma conta já existente, utilize a recuperação de senha ou um banco de testes descartável. Para **apagar todos os dados** (destrutivo): `docker compose down -v`.
+**Ordem:** `mongo` saudável → `optimizer` saudável → `backend` (migrations e API, saudável) → `seed-demo` (execução única) → `frontend`. O serviço de seed deve terminar com `Exited (0)`; **não** fica em execução permanentemente. Para executá-lo novamente em um banco já iniciado: `docker compose run --rm seed-demo`. O seed é idempotente: insere registros ausentes e não sobrescreve dados existentes, redefine senhas ou apaga escalas. Cria uma coordenação, nove profissionais, três setores, configurações mensais para 2026 e nove restrições de demonstração. Para renovar credenciais de uma conta já existente, utilize a recuperação de senha ou um banco de testes descartável. Para **apagar todos os dados** (destrutivo): `docker compose down -v`.
 
 ### Contas de teste
 
@@ -437,44 +437,42 @@ docker compose logs seed-demo
 |---|---|---|
 | `admin@nurseflow.test` | coordenação | administração |
 | `ana@nurseflow.test` | enfermeiro | enfermeiro / concursado / ativo |
-| `bruno@nurseflow.test` | enfermeiro | enfermeiro / concursado / ativo |
-| `carla@nurseflow.test` | enfermeiro | enfermeiro / concursado / ativo |
-| `gabriela@nurseflow.test` | enfermeiro | enfermeiro / concursado / ativo |
+| `bruno@nurseflow.test` | enfermeiro | enfermeiro / CLT / ativo |
+| `carla@nurseflow.test` | enfermeiro | enfermeiro / RPA / ativo |
 | `daniela@nurseflow.test` | técnico | técnico / concursado / ativo |
-| `eduardo@nurseflow.test` | técnico | técnico / concursado / ativo |
-| `fernanda@nurseflow.test` | técnico | técnico / concursado / ativo |
-| `henrique@nurseflow.test` | técnico | técnico / concursado / ativo |
+| `eduardo@nurseflow.test` | técnico | técnico / CLT / ativo |
+| `fernanda@nurseflow.test` | técnico | técnico / RPA / ativo |
+| `gabriela@nurseflow.test` | enfermeiro | enfermeiro / concursado / férias |
+| `henrique@nurseflow.test` | técnico | técnico / CLT / afastado |
 | `isabela@nurseflow.test` | técnico | técnico / concursado / ativo |
-| `enfermeiro05`–`enfermeiro09` e `tecnico06`–`tecnico09` | respectiva função | concursado / ativo |
-| `enfermeiro10`–`enfermeiro15` e `tecnico10`–`tecnico15` | respectiva função | CLT / ativo |
 
-A senha de `admin@nurseflow.test` é o valor de `DEMO_ADMIN_PASSWORD`; todos os profissionais usam `DEMO_PRO_PASSWORD`. O campo de perfil no login da UI deve corresponder ao tipo do usuário (coordenação, enfermeiro ou técnico). Há 15 enfermeiros e 15 técnicos, todos ativos. CPFs de teste são gerados com dígitos verificadores válidos, exclusivamente fictícios; os COREN demonstrativos têm formato `CE-10001` ... `CE-10030` (não correspondem a registros reais).
+A senha de `admin@nurseflow.test` é o valor de `DEMO_ADMIN_PASSWORD`; todos os profissionais usam `DEMO_PRO_PASSWORD`. O campo de perfil no login da UI deve corresponder ao tipo do usuário (coordenação, enfermeiro ou técnico). CPFs e COREN de demonstração são fictícios.
 
 ### Setores (quantitativos mínimos)
 
 | Setor | Diurno (enfermeiros/técnicos) | Noturno (enfermeiros/técnicos) |
 |---|---|---|
-| UTI | 1/1 | 1/1 |
-| Emergência | 1/1 | 1/1 |
-| Clínica Médica | 1/1 | 1/1 |
+| UTI | 2/3 | 2/2 |
+| Emergência | 2/3 | 1/2 |
+| Clínica Médica | 1/2 | 1/1 |
 
 ### Configurações que a coordenação pode gerenciar
 
-O seed cria documentos para **outubro e novembro de 2026** (`2026-10` e `2026-11`). Em cada mês: `limiteTrocas=3`, `maxExtras=0`, `limitePlantoes=12`. As cargas regulares para o mês são:
+O seed cria configurações para todos os meses de **2026**. Cada mês tem `limiteTrocas=3`, `maxExtras=2`, `limitePlantoes=12`, `maxExtrasConcursado=1` e `maxExtrasClt=1`. As cargas são registradas conforme a quantidade de dias do mês:
 
 | Vínculo | Plantões 24h | Plantões 12h |
 |---|---:|---:|
-| Concursado (outubro) | 7 | 0 |
-| CLT (outubro) | 5 | 0 |
-| Concursado e CLT (novembro) | 6 | 0 |
+| Concursado | 6 | 1 |
+| CLT | 5 | 2 |
+| RPA | 3 | 2 |
 
-Os parâmetros de carga são armazenados com chave `<vínculo>_<diasDoMês>` (`concursado_31` e `clt_31` em outubro; `concursado_30` e `clt_30` em novembro). As quantidades somam exatamente as vagas de cada função: 93 plantões em outubro e 90 em novembro. Com todos os setores e os turnos diurno e noturno selecionados, plantões de 24 horas cobrem os dois turnos; o otimizador consegue preencher todas as vagas, atender às cargas e respeitar o descanso 24x72. Os endpoints `/configuracoes` e `/setores` são restritos a `coordenacao` no backend. Este seed prepara os dados, mas não cria nem gera escalas automaticamente.
+Os parâmetros são armazenados com chave `<vínculo>_<diasDoMês>` (por exemplo, `concursado_31` ou `clt_30`). O seed não cria escalas automaticamente. Como inclui nove profissionais, dos quais dois estão em férias/afastamento, a geração pode apresentar vagas descobertas; não há garantia de cobertura completa ou de uma escala sem conflitos.
 
-### Gerar uma escala demonstrativa sem conflitos
+### Gerar uma escala demonstrativa
 
 1. Entre na interface como `admin@nurseflow.test` e selecione perfil Coordenação.
-2. Gere **outubro de 2026** ou **novembro de 2026**, mantendo os três setores e os turnos diurno e noturno selecionados.
-3. A geração deve resultar em cobertura completa, sem conflitos ou plantões extras. Para esse resultado, use um banco local sem escalas no mês anterior (o sistema herda o descanso dos plantões anteriores). O seed não cria nem remove escalas; se o período já tiver uma escala, use um banco local de demonstração limpo.
+2. Gere um mês de **2026**, selecionando os setores e turnos desejados.
+3. Revise as vagas descobertas e os conflitos retornados. A escala do mês anterior influencia o descanso herdado; o seed não cria nem remove escalas. Se o período já tiver escala, escolha outro mês ou use um banco local de demonstração.
 
 ### Verificação rápida de autorização
 
