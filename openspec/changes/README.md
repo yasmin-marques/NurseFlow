@@ -14,3 +14,4 @@ Use nomes de diretório em `kebab-case`, uma mudança por objetivo coeso e os co
 
 - [`align-frontend-with-nurseflow-design/`](./align-frontend-with-nurseflow-design/README.md): fidelidade visual da tela mensal/semanal de Escala e de seus painéis.
 - [`gerenciar-ciclo-de-vida-de-escalas/`](./gerenciar-ciclo-de-vida-de-escalas/README.md): CRUD e fluxo de gestão, validação, publicação, notificações e exportação de escalas.
+- [`implementar-tela-de-perfil/`](./implementar-tela-de-perfil/README.md): tela de perfil pessoal dos usuários autenticados baseada na imagem de referência.

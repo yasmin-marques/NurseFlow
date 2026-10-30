@@ -37,6 +37,9 @@ export class Usuario {
   @Prop({ default: false })
   senhaTemporaria: boolean;
 
+  @Prop({ default: true })
+  recebeNotificacoesEscala: boolean;
+
   @Prop({ default: 0 })
   tentativasFalhasLogin: number;
 

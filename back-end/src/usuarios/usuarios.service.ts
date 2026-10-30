@@ -4,6 +4,8 @@ import type { Model, Types } from 'mongoose';
 import { Perfil } from '../common/enums/perfil.enum';
 import { Formacao } from '../profissionais/profissionais.enums';
 import { Profissional, type ProfissionalDocument } from '../profissionais/schemas/profissional.schema';
+import { Escala, Plantao, PlantaoProfissional, StatusEscala } from '../escalas/schemas';
+import { Setor } from '../setores/schemas/setor.schema';
 import { Administrador } from './schemas/administrador.schema';
 import { TipoUsuario, Usuario, type UsuarioDocument } from './schemas/usuario.schema';
 
@@ -19,6 +21,10 @@ export class UsuariosService {
     @InjectModel(Usuario.name) private readonly usuarioModel: Model<Usuario>,
     @InjectModel(Administrador.name) private readonly administradorModel: Model<Administrador>,
     @InjectModel(Profissional.name) private readonly profissionalModel: Model<Profissional>,
+    @InjectModel(PlantaoProfissional.name) private readonly plantaoProfissionalModel: Model<PlantaoProfissional>,
+    @InjectModel(Plantao.name) private readonly plantaoModel: Model<Plantao>,
+    @InjectModel(Escala.name) private readonly escalaModel: Model<Escala>,
+    @InjectModel(Setor.name) private readonly setorModel: Model<Setor>,
   ) {}
 
   buscarPorEmail(email: string, comSenha = false): Promise<UsuarioDocument | null> {
@@ -28,6 +34,59 @@ export class UsuariosService {
 
   buscarPorId(id: string | Types.ObjectId): Promise<UsuarioDocument | null> {
     return this.usuarioModel.findById(id).exec();
+  }
+
+  buscarProfissionalDoUsuario(usuarioId: string | Types.ObjectId) {
+    return this.profissionalModel
+      .findOne({ usuarioId })
+      .select('coren formacao tipoVinculo')
+      .lean()
+      .exec();
+  }
+
+  async buscarProximoSetor(profissionalId: string): Promise<string | null> {
+    const alocacoes = await this.plantaoProfissionalModel
+      .find({ profissionalId })
+      .select('plantaoId')
+      .lean()
+      .exec();
+    if (alocacoes.length === 0) return null;
+
+    const hoje = new Date();
+    hoje.setUTCHours(0, 0, 0, 0);
+    const plantoes = await this.plantaoModel
+      .find({
+        _id: { $in: alocacoes.map((item) => item.plantaoId) },
+        data: { $gte: hoje },
+      })
+      .select('escalaId setorId data horarioInicio')
+      .sort({ data: 1, horarioInicio: 1 })
+      .lean()
+      .exec();
+    if (plantoes.length === 0) return null;
+
+    const escalasPublicadas = await this.escalaModel
+      .find({
+        _id: { $in: plantoes.map((item) => item.escalaId) },
+        status: StatusEscala.PUBLICADA,
+        versaoPublicada: { $gt: 0 },
+      })
+      .select('_id')
+      .lean()
+      .exec();
+    const idsEscalasPublicadas = new Set(escalasPublicadas.map((item) => String(item._id)));
+    const agora = Date.now();
+    const proximoPlantao = plantoes.find((item) => {
+      if (!idsEscalasPublicadas.has(String(item.escalaId))) return false;
+      const inicio = new Date(item.data);
+      const [hora, minuto] = item.horarioInicio.split(':').map(Number);
+      inicio.setUTCHours(hora, minuto, 0, 0);
+      return inicio.getTime() >= agora;
+    });
+    if (!proximoPlantao) return null;
+
+    const setor = await this.setorModel.findById(proximoPlantao.setorId).select('nome').lean().exec();
+    return setor?.nome ?? null;
   }
 
   buscarPorCpf(cpf: string): Promise<UsuarioDocument | null> {

@@ -1,11 +1,12 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Post } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Patch, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import type { UsuarioAutenticado } from '../common/auth/usuario-autenticado';
 import { Public, UsuarioAtual } from '../common/decorators';
 import { AuthService } from './auth.service';
-import { LoginResponseDto, MensagemDto, UsuarioSessaoDto } from './dto/auth-response.dto';
+import { LoginResponseDto, MensagemDto, PerfilUsuarioDto, UsuarioSessaoDto } from './dto/auth-response.dto';
 import { LoginDto } from './dto/login.dto';
 import { RecuperarSenhaDto, RedefinirSenhaDto } from './dto/recuperacao-senha.dto';
+import { AtualizarPerfilDto } from './dto/atualizar-perfil.dto';
 
 @ApiTags('Autenticação')
 @Controller('auth')
@@ -30,6 +31,26 @@ export class AuthController {
   @ApiResponse({ status: 200, type: UsuarioSessaoDto })
   me(@UsuarioAtual() usuario: UsuarioAutenticado): UsuarioSessaoDto {
     return { id: usuario.id, nome: usuario.nome, email: usuario.email, perfil: usuario.perfil };
+  }
+
+  @Get('me/perfil')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Perfil pessoal do usuário autenticado' })
+  @ApiResponse({ status: 200, type: PerfilUsuarioDto })
+  obterPerfil(@UsuarioAtual() usuario: UsuarioAutenticado): Promise<PerfilUsuarioDto> {
+    return this.authService.obterPerfil(usuario.id);
+  }
+
+  @Patch('me/perfil')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Atualiza e-mail e preferências de notificação do usuário autenticado' })
+  @ApiResponse({ status: 200, type: PerfilUsuarioDto })
+  @ApiResponse({ status: 409, description: 'E-mail já utilizado por outra conta' })
+  atualizarPerfil(
+    @UsuarioAtual() usuario: UsuarioAutenticado,
+    @Body() dto: AtualizarPerfilDto,
+  ): Promise<PerfilUsuarioDto> {
+    return this.authService.atualizarPerfil(usuario.id, dto);
   }
 
   @Public()

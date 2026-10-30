@@ -1,4 +1,4 @@
-import { ChevronRight } from '../icons'
+import { ChevronRight, LogOut } from '../icons'
 import { NAV_ITEMS, type NavItemId } from './navItems'
 import logo from '../../assets/logo.png'
 
@@ -14,6 +14,7 @@ type SideMenuProps = {
   isOpen?: boolean
   onClose?: () => void
   onNavigate?: (id: NavItemId) => void
+  onProfileClick?: () => void
   onLogout?: () => void
   user?: SideMenuUser
 }
@@ -32,6 +33,7 @@ export function SideMenu({
   isOpen = false,
   onClose,
   onNavigate,
+  onProfileClick,
   onLogout,
   user = DEFAULT_USER,
 }: SideMenuProps) {
@@ -112,13 +114,21 @@ export function SideMenu({
           ) : null}
         </nav>
 
-        <div className="p-3">
+        <div className="flex items-center gap-2 p-3">
           <button
             type="button"
-            onClick={onLogout}
-            title="Sair"
-            aria-label={`Sair (${user.name})`}
-            className="flex w-full items-center gap-2.5 rounded-2xl border border-border bg-white px-2.5 py-2.5 text-left shadow-[0_8px_20px_rgba(16,24,16,0.03)] transition-transform hover:-translate-y-0.5"
+            onClick={() => {
+              onProfileClick?.()
+              onClose?.()
+            }}
+            title="Meu perfil"
+            aria-label={`Abrir perfil de ${user.name}`}
+            aria-current={activeItem === 'perfil' ? 'page' : undefined}
+            className={`flex min-w-0 flex-1 items-center gap-2.5 rounded-2xl border px-2.5 py-2.5 text-left shadow-[0_8px_20px_rgba(16,24,16,0.03)] transition-colors ${
+              activeItem === 'perfil'
+                ? 'border-primary/20 bg-secondary'
+                : 'border-border bg-white hover:bg-neutral'
+            }`}
           >
             <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-secondary text-[12px] font-bold text-primary shadow-[inset_0_0_0_1px_rgba(46,120,61,0.08)]">
               {user.initials}
@@ -128,6 +138,15 @@ export function SideMenu({
               <span className="mt-1 block truncate text-[10px] text-text-muted">{user.role}</span>
             </span>
             <ChevronRight className="size-4 shrink-0 text-text-muted" strokeWidth={1.8} />
+          </button>
+          <button
+            type="button"
+            onClick={onLogout}
+            title="Sair da sessão"
+            aria-label="Sair da sessão"
+            className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-border bg-white text-text-muted transition-colors hover:bg-neutral hover:text-text focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+          >
+            <LogOut className="size-4" strokeWidth={1.8} />
           </button>
         </div>
       </aside>

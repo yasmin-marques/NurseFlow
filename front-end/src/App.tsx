@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { AppLayout } from './components/layout/AppLayout'
 import { NAV_ITEMS, type NavItemId } from './components/layout/navItems'
 import { OverviewPage } from './pages/Overview/OverviewPage'
@@ -10,15 +10,18 @@ import { DisponibilityPage } from './pages/Disponibility/DisponibilityPage'
 import { Professional } from './pages/Professionals/Professionals';
 import { SectorsPage } from './pages/Sectors/SectorsPage';
 import { ScalePage } from './pages/Scale/ScalePage'
+import { ProfilePage } from './pages/Profile/ProfilePage'
 
 function App() {
   const [user, setUser] = useState<SessionUser | null>(null)
   const [checkingSession, setCheckingSession] = useState(true)
   const [activeItem, setActiveItem] = useState<NavItemId>('visao-geral')
   const [searchQuery, setSearchQuery] = useState('')
+  const lastNonProfileItem = useRef<NavItemId>('visao-geral')
   const activePage = NAV_ITEMS.find((item) => item.id === activeItem)
 
   const navigate = (id: NavItemId) => {
+    if (id !== 'perfil') lastNonProfileItem.current = id
     setActiveItem(id)
     setSearchQuery('')
   }
@@ -52,12 +55,24 @@ function App() {
   const isCoordination = user.perfil === 'coordenacao'
   const role = { coordenacao: 'Coordenação', enfermeiro: 'Enfermeiro', tecnico: 'Técnico' }[user.perfil] ?? user.perfil
 
+  if (activeItem === 'perfil') {
+    return (
+      <ProfilePage
+        user={user}
+        onClose={() => navigate(lastNonProfileItem.current)}
+        onUserUpdated={setUser}
+        onLogout={handleLogout}
+      />
+    )
+  }
+
   return (
     <AppLayout
-      title={activePage?.label ?? 'NurseFlow'}
+      title={activePage?.label ?? (activeItem === 'perfil' ? 'Meu perfil' : 'NurseFlow')}
       activeItem={activeItem}
       onNavigate={navigate}
       onSearchChange={setSearchQuery}
+      onProfileClick={() => navigate('perfil')}
       user={{ name: user.nome, role, initials, isCoordination }}
       onLogout={handleLogout}
     >
