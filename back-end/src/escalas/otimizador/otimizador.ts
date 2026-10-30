@@ -27,11 +27,13 @@ export interface SetorOtimizacao {
 }
 
 export interface ProblemaOtimizacao {
+  operacao_id?: string;
   ano: number;
   mes: number;
   dias_mes: number;
   profissionais: ProfissionalOtimizacao[];
   setores: SetorOtimizacao[];
+  turnos_selecionados?: ('diurno' | 'noturno')[];
   parametros: { tempo_limite_segundos: number };
 }
 
@@ -77,7 +79,8 @@ export interface SolucaoOtimizacao {
 
 /** Porta para o otimizador: permite substituí-lo por um dublê nos testes. */
 export abstract class OtimizadorEscala {
-  abstract resolver(problema: ProblemaOtimizacao): Promise<SolucaoOtimizacao>;
+  abstract resolver(problema: ProblemaOtimizacao, signal?: AbortSignal): Promise<SolucaoOtimizacao>;
+  abstract cancelar(operacaoId: string): Promise<void>;
 }
 
 @Injectable()
@@ -88,7 +91,7 @@ export class OtimizadorHttp extends OtimizadorEscala {
     super();
   }
 
-  async resolver(problema: ProblemaOtimizacao): Promise<SolucaoOtimizacao> {
+  async resolver(problema: ProblemaOtimizacao, signal?: AbortSignal): Promise<SolucaoOtimizacao> {
     const { url, timeoutMs } = this.config.get('otimizador', { infer: true });
     let resposta: Response;
     try {
@@ -96,9 +99,12 @@ export class OtimizadorHttp extends OtimizadorEscala {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(problema),
-        signal: AbortSignal.timeout(timeoutMs),
+        signal: signal
+          ? AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)])
+          : AbortSignal.timeout(timeoutMs),
       });
     } catch (erro) {
+      if (signal?.aborted) throw erro;
       this.logger.error(`Serviço de otimização inacessível em ${url}: ${(erro as Error).message}`);
       throw new ServiceUnavailableException('Serviço de otimização indisponível. Tente novamente em instantes.');
     }
@@ -108,5 +114,24 @@ export class OtimizadorHttp extends OtimizadorEscala {
       throw new BadGatewayException(`O serviço de otimização falhou (HTTP ${resposta.status}).`);
     }
     return (await resposta.json()) as SolucaoOtimizacao;
+  }
+
+  async cancelar(operacaoId: string): Promise<void> {
+    const { url, timeoutMs } = this.config.get('otimizador', { infer: true });
+    let resposta: Response;
+    try {
+      resposta = await fetch(`${url.replace(/\/$/, '')}/operacoes/${encodeURIComponent(operacaoId)}`, {
+        method: 'DELETE',
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+    } catch (erro) {
+      this.logger.error(`Não foi possível solicitar cancelamento ao otimizador em ${url}: ${(erro as Error).message}`);
+      throw new ServiceUnavailableException('Não foi possível confirmar o cancelamento no otimizador.');
+    }
+    if (!resposta.ok) {
+      const detalhe = await resposta.text().catch(() => '');
+      this.logger.error(`Otimizador respondeu ${resposta.status} ao cancelar: ${detalhe.slice(0, 500)}`);
+      throw new BadGatewayException(`O otimizador não aceitou o cancelamento (HTTP ${resposta.status}).`);
+    }
   }
 }

@@ -100,8 +100,11 @@ async function seed() {
       } }, { upsert: true });
     }
 
-    // Configurações para outubro e novembro de 2026; não altera configurações já criadas pela coordenação.
-    for (const [chave, dias] of [['2026-10', 31], ['2026-11', 30]]) {
+    // Configurações para todos os meses de 2026; não altera configurações já criadas pela coordenação.
+    const anoDemo = 2026;
+    for (let mes = 1; mes <= 12; mes++) {
+      const chave = `${anoDemo}-${String(mes).padStart(2, '0')}`;
+      const dias = new Date(Date.UTC(anoDemo, mes, 0)).getUTCDate();
       await db.collection('configuracoes').updateOne({ chave }, { $setOnInsert: {
         chave, limiteTrocas: 3, maxExtras: 2, limitePlantoes: 12,
         maxExtrasConcursado: 1, maxExtrasClt: 1,
@@ -131,7 +134,7 @@ async function seed() {
           observacao, createdAt: ts, updatedAt: ts },
       }, { upsert: true });
     }
-    console.log('Seed concluído: 1 coordenação, 9 profissionais, 3 setores, 2 configurações mensais e 9 restrições.');
+    console.log('Seed concluído: 1 coordenação, 9 profissionais, 3 setores, 12 configurações mensais e 9 restrições.');
     console.log('Logins: admin@nurseflow.test e <nome>@nurseflow.test; senhas conforme DEMO_ADMIN_PASSWORD/DEMO_PRO_PASSWORD.');
   } finally {
     await client.close();

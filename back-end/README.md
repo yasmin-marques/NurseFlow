@@ -1,12 +1,14 @@
 # NurseFlow — Back-end
 
-API REST em **NestJS 12 + MongoDB (Mongoose)** com os módulos de **Autenticação/controle de acesso**, **Profissionais** e **Setores hospitalares**. Escalas, trocas, férias, disponibilidade e notificações ainda não fazem parte desta etapa.
+API REST em **NestJS 12 + MongoDB (Mongoose)** com módulos de **Autenticação/controle de acesso**, **Profissionais**, **Setores hospitalares**, **Configurações**, **Restrições** e o ciclo de vida de **Escalas** (geração, edição, validação, publicação, notificações e exportação).
 
 ## Requisitos
 
 - Node.js ≥ 24 (o Nest 12 é distribuído como ESM; o projeto compila para CommonJS e roda no Node 24 via `require(esm)`)
 - npm ≥ 10
-- MongoDB 8 — suba com o Docker do projeto: `docker compose -f ../db/docker-compose.yml up -d`
+- MongoDB 8 como replica set — suba com o Docker do projeto: `docker compose -f ../db/docker-compose.yml up -d`
+
+As operações de escala que atualizam múltiplas coleções usam transações MongoDB. O Compose local e o Compose da raiz inicializam o replica set de nó único `rs0`; não execute a API contra um MongoDB standalone. Em outros ambientes, configure `MONGODB_URI` para um replica set.
 
 ## Instalação e configuração
 
@@ -22,7 +24,7 @@ Variáveis (veja `.env.example`):
 |---|---|---|
 | `PORT` | Porta da API | `3000` |
 | `CORS_ORIGINS` | Origens permitidas (vírgula) | `http://localhost:5173` |
-| `MONGODB_URI` | URI do Mongo, **incluindo o nome do banco** | — (obrigatória) |
+| `MONGODB_URI` | URI do Mongo, incluindo o banco e apontando para o replica set `rs0` (local: `mongodb://localhost:27017/nurseflow?replicaSet=rs0`) | — (obrigatória) |
 | `JWT_SECRET` | Segredo do JWT (≥ 16 caracteres) | — (obrigatória) |
 | `JWT_EXPIRES_IN_SECONDS` | Validade do token | `28800` (8 h) |
 | `LOGIN_MAX_ATTEMPTS` / `LOGIN_LOCK_MINUTES` | Bloqueio temporário após tentativas inválidas | `5` / `15` |
@@ -46,6 +48,7 @@ As migrations são idempotentes e funcionam tanto em um banco criado por `db/mon
 | `20261011000001-usuarios-autenticacao` | `telefone` deixa de ser obrigatório; novos campos de login (`tentativasFalhasLogin`, `bloqueadoAte`, `ultimoLoginEm`, `redefinicaoSenha`, `senhaTemporaria`); timestamps |
 | `20261011000002-profissionais-status` | status `desligado` → `desativado` (DA04 / diagrama de classes); `desativadoEm`; timestamps |
 | `20261011000003-setores-quantitativo-por-turno` | `quantMinEnf`/`quantMinTec` → `turnos.{diurno,noturno}.{enfermeiros,tecnicos}` (dados existentes copiados para os dois turnos); `ativo`; índice único de `nome` sem diferenciar maiúsculas/acentos |
+| `20261014000007-ciclo-vida-escalas` | Estados e revisões de escala, snapshots oficiais, auditoria, notificações e índices únicos para período, versões e eventos por destinatário |
 
 ### Primeira conta de Coordenação
 
@@ -119,14 +122,45 @@ Se `senha` for omitida, o sistema gera uma senha aleatória descartável (`senha
 
 O chefe do plantão é contabilizado entre os enfermeiros (DA08).
 
+### `/escalas` — somente **Coordenação**
+
+| Método | Rota | Descrição |
+|---|---|---|
+| GET | `/escalas?ano=&mes=` | Consulta a escala do período; retorna lista vazia quando não existe |
+| POST | `/escalas` | Cria rascunho para montagem manual |
+| POST | `/escalas/gerar` | Gera a escala mensal automaticamente; aceita setores, turnos e identificador da operação |
+| DELETE | `/escalas/gerar/:operacaoId` | Solicita cancelamento da geração ativa |
+| GET | `/escalas/:id` | Consulta escala, plantões, cobertura, pendências, conflitos, avisos e cargas |
+| POST | `/escalas/:id/plantoes` | Inclui plantão e equipe no rascunho; exige `revisaoEsperada` |
+| PATCH | `/escalas/:id/plantoes/:plantaoId` | Edita plantão e equipe; exige `revisaoEsperada` |
+| POST | `/escalas/:id/revisao` | Inicia revisão de um rascunho ou da última versão publicada |
+| POST | `/escalas/:id/validar` | Valida cobertura e conflitos antes da publicação |
+| POST | `/escalas/:id/publicar` | Publica a escala validada; corpo: `{ "revisaoEsperada": 3, "confirmarPendencias": true }` |
+| GET | `/escalas/:id/versao-oficial` | Consulta o snapshot oficial mais recente (Coordenação) |
+| GET | `/escalas/:id/auditoria` | Consulta o histórico de transições e alterações |
+| GET | `/escalas/:id/pdf` | Exporta PDF geral; `?setorId=<id>` exporta um setor e `?separarPorSetor=true` retorna ZIP |
+| DELETE | `/escalas/:id` | Remove somente rascunho; corpo exige `{ "confirmar": true, "revisaoEsperada": 3 }` |
+
+Estados do fluxo: `rascunho` → `em_revisao` → `validada` → `publicada` → `finalizada`. Alterações incrementam a revisão e invalidam uma validação anterior. Revisões desatualizadas e estados incompatíveis retornam 409; conflitos obrigatórios retornam 422. Pendências e alertas exigem confirmação explícita para publicar e permanecem no snapshot oficial e no PDF.
+
+### `/notificacoes/escalas` — usuário autenticado
+
+| Método | Rota | Descrição |
+|---|---|---|
+| GET | `/notificacoes/escalas` | Lista até 100 notificações próprias recentes e a contagem não lida |
+| PATCH | `/notificacoes/escalas/:id/lida` | Marca notificação própria como lida; operação idempotente |
+| GET | `/notificacoes/escalas/:escalaId/versoes/:numero` | Consulta o snapshot oficial associado à notificação do usuário |
+
+As notificações são geradas na publicação e em versões posteriores que alterem plantões do destinatário. A publicação grava versão, auditoria e notificações na mesma transação; chaves únicas impedem duplicação por destinatário. Consulte **http://localhost:3000/docs** para os schemas e respostas OpenAPI completos. PDF e ZIP estão disponíveis somente para Coordenação.
+
 ## Autorização
 
 JWT Bearer. `JwtAuthGuard` e `RolesGuard` são globais: toda rota exige token, exceto as marcadas com `@Public()`; `@Perfis(...)` restringe por perfil. O perfil é derivado da conta: administrador = **Coordenação**; profissional = **Enfermeiro** ou **Técnico** conforme a `formacao`. A cada requisição o token é revalidado contra o banco, então um profissional desativado perde a sessão imediatamente.
 
-| Perfil | Profissionais | Setores (leitura) | Setores (escrita) |
-|---|---|---|---|
-| Coordenação | CRUD lógico | ✔ | ✔ |
-| Enfermeiro / Técnico | ✘ (403) | ✔ | ✘ (403) |
+| Perfil | Profissionais | Setores (leitura) | Setores (escrita) | Escalas | Notificações |
+|---|---|---|---|---|---|
+| Coordenação | CRUD lógico | ✔ | ✔ | Gestão, publicação e PDF | Próprias |
+| Enfermeiro / Técnico | ✘ (403) | ✔ | ✘ (403) | Versões vinculadas a notificações | Próprias |
 
 ## Estrutura
 
@@ -135,6 +169,7 @@ src/
   auth/           login, JWT, bloqueio por tentativas, recuperação de senha
   usuarios/       identidade: schemas usuarios, administradores e UsuariosService
   profissionais/  cadastro/consulta/edição/desativação (+ porta PlantoesFuturosChecker)
+  escalas/        geração, edição, revisão, validação, publicação, notificações e PDF
   setores/        cadastro/consulta/edição/inativação com quantitativo por turno
   common/         enums, decorators (@Public, @Perfis), guards, filtro global de erros, utilitários
   config/         leitura e validação do ambiente
@@ -145,7 +180,7 @@ test/             e2e (API completa e migrations)
 
 ## Integração com o front-end
 
-O front atual ainda usa dados em memória e não chama a API; **nenhum arquivo do front foi alterado**. O CORS já permite `http://localhost:5173`. Correspondência entre os campos do front e da API:
+O front-end consome a API autenticada para cadastro e ciclo de vida das escalas. A tela Escala oferece calendário mensal/semanal, revisão, edição, validação, publicação, exportação e notificações. O CORS já permite `http://localhost:5173`; confira os contratos no Swagger (`/docs`).
 
 | Front (`Professional`) | API |
 |---|---|
@@ -157,13 +192,13 @@ O front atual ainda usa dados em memória e não chama a API; **nenhum arquivo d
 | Setor: `shifts[{id:'day'\|'night', minimum:{nurses,technicians}}]` | `turnos.diurno\|noturno.{enfermeiros,tecnicos}` |
 | Login `profile`: `coordenação`\|`enfermeiro`\|`técnico` | `perfil` (aceito com acento) |
 
-## Limitações (dependem do módulo de Escalas)
+## Limitações conhecidas
 
-- **DA04 — plantões futuros publicados:** a regra que impede desativar um profissional com plantões futuros em escalas publicadas está pronta como porta (`PlantoesFuturosChecker`, com resposta 409 listando os plantões). Sem o módulo de Escalas, a implementação registrada (`SemEscalasPlantoesFuturosChecker`) não encontra plantões e, portanto, **não bloqueia**. Ao criar as Escalas, basta registrar uma implementação real no `ProfissionaisModule`.
-- **DA02/DA03 — propagação para escalas e histórico:** "disponibilizar para escalas ainda não publicadas", "aplicar a mudança às escalas" e "registrar no histórico" dependem de Escalas/Histórico e não foram implementados.
+- **DA04 — desativação de profissional:** o módulo ainda registra `SemEscalasPlantoesFuturosChecker`; desativar um profissional não verifica plantões futuros publicados.
+- **Snapshots publicados:** snapshots novos preservam a projeção visual da publicação; para snapshots legados sem essa projeção, nomes podem ser resolvidos com os cadastros atuais.
 - **Inativação de setor:** não verifica plantões futuros do setor (mesma razão).
 - **Recuperação de senha:** o envio de e-mail não existe nesta etapa. O token é entregue por `SenhaNotifier`; a implementação padrão só o escreve no log fora de produção. Basta fornecer outra implementação (SMTP etc.) no `AuthModule`.
-- **MongoDB sem transações:** o cadastro de profissional grava `usuarios` e depois `profissionaisDaSaude`; se a segunda gravação falhar, a primeira é desfeita manualmente (o container padrão não é um replica set).
+- **Transações em outros módulos:** o cadastro de profissional ainda usa compensação manual entre coleções; o ciclo de vida das escalas exige MongoDB em replica set e usa transações.
 
 
 ## Configurações e restrições

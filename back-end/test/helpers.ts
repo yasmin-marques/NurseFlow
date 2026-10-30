@@ -1,6 +1,6 @@
 import { readdirSync } from 'fs';
 import { join } from 'path';
-import { MongoMemoryServer } from 'mongodb-memory-server';
+import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import mongoose from 'mongoose';
 
 const MIGRATIONS_DIR = join(__dirname, '..', 'migrations');
@@ -38,6 +38,6 @@ export interface BancoDeTeste {
 }
 
 export async function iniciarBanco(nome = 'nurseflow_test'): Promise<BancoDeTeste> {
-  const servidor = await MongoMemoryServer.create();
+  const servidor = await MongoMemoryReplSet.create({ replSet: { count: 1 } });
   return { uri: servidor.getUri(nome), parar: async () => void (await servidor.stop()) };
 }

@@ -25,6 +25,7 @@ from __future__ import annotations
 import os
 import time
 from collections import defaultdict
+from threading import Lock
 
 from ortools.sat.python import cp_model
 
@@ -39,6 +40,42 @@ PESO_EXTRA = 100
 PESO_CARGA_FALTANTE = 30
 PESO_SOBRA = 5
 PESO_EQUILIBRIO_EXTRAS = 10
+CANCELAMENTO_TTL_SEGUNDOS = 300
+
+_lock_operacoes = Lock()
+_solvers_ativos: dict[str, cp_model.CpSolver] = {}
+_cancelamentos: dict[str, float] = {}
+
+
+def _limpar_cancelamentos_expirados(agora: float) -> None:
+    expirados = [operacao_id for operacao_id, expiracao in _cancelamentos.items() if expiracao <= agora]
+    for operacao_id in expirados:
+        _cancelamentos.pop(operacao_id, None)
+
+
+def cancelar_operacao(operacao_id: str) -> bool:
+    agora = time.monotonic()
+    with _lock_operacoes:
+        _limpar_cancelamentos_expirados(agora)
+        _cancelamentos[operacao_id] = agora + CANCELAMENTO_TTL_SEGUNDOS
+        solver = _solvers_ativos.get(operacao_id)
+    if solver is not None:
+        solver.StopSearch()
+    return solver is not None
+
+
+def _registrar_solver(operacao_id: str, solver: cp_model.CpSolver) -> None:
+    with _lock_operacoes:
+        _limpar_cancelamentos_expirados(time.monotonic())
+        if operacao_id in _cancelamentos:
+            raise RuntimeError("Geração cancelada.")
+        _solvers_ativos[operacao_id] = solver
+
+
+def _remover_solver(operacao_id: str) -> bool:
+    with _lock_operacoes:
+        _solvers_ativos.pop(operacao_id, None)
+        return operacao_id in _cancelamentos
 
 
 def janela(dia0: int, opcao: str) -> tuple[int, int]:
@@ -86,6 +123,7 @@ def resolver(problema: Problema) -> Solucao:
 
     x: dict[tuple[int, int, int, str], cp_model.IntVar] = {}  # (p, s, d, o)
     y: dict[tuple[int, int, str], cp_model.IntVar] = {}  # (p, d, o): inicia plantão em algum setor
+    turnos_selecionados = set(problema.turnos_selecionados)
 
     for pi, p in enumerate(profs):
         bloqueados = set(p.dias_bloqueados)
@@ -93,6 +131,9 @@ def resolver(problema: Problema) -> Solucao:
             if (d + 1) in bloqueados:
                 continue
             for o in OPCOES:
+                turnos_opcao = set(cobre(o))
+                if not turnos_opcao.issubset(turnos_selecionados):
+                    continue
                 if janela(d, o)[0] < p.livre_a_partir_horas:
                     continue
                 por_setor = []
@@ -124,6 +165,8 @@ def resolver(problema: Problema) -> Solucao:
     for si, setor in enumerate(setores):
         for d in range(n):
             for turno in ("diurno", "noturno"):
+                if turno not in turnos_selecionados:
+                    continue
                 quant = getattr(setor.turnos, turno)
                 for funcao, formacao in (("enfermeiros", "enfermeiro"), ("tecnicos", "tecnico")):
                     necessario = getattr(quant, funcao)
@@ -176,7 +219,15 @@ def resolver(problema: Problema) -> Solucao:
     solver.parameters.max_time_in_seconds = par.tempo_limite_segundos
     solver.parameters.num_workers = max(1, min(8, os.cpu_count() or 1))
     solver.parameters.random_seed = par.semente
-    status = solver.Solve(modelo)
+    operacao_id = problema.operacao_id
+    if operacao_id:
+        _registrar_solver(operacao_id, solver)
+    try:
+        status = solver.Solve(modelo)
+    finally:
+        cancelada = _remover_solver(operacao_id) if operacao_id else False
+    if cancelada:
+        raise RuntimeError("Geração cancelada.")
     nome_status = solver.StatusName(status)
     if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
         raise RuntimeError(f"Otimizador não encontrou solução (status {nome_status}).")

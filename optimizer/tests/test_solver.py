@@ -1,7 +1,10 @@
 """Testes das restrições do modelo CP-SAT. Rodam com: pytest (dentro de optimizer/)."""
 from collections import Counter
+from threading import Event, Thread
+from types import SimpleNamespace
 
 from app.schemas import Parametros, Problema
+import app.solver as solver_module
 from app.solver import janela, resolver
 
 DIAS = 30  # setembro: 30 dias
@@ -96,11 +99,62 @@ def test_cobre_quantitativo_minimo_quando_ha_gente_suficiente():
             assert cobertura[(dia, t, "tecnico")] >= 2
 
 
+def test_turno_selecionado_restringe_opcoes_e_nao_avalia_turno_fora_do_escopo():
+    p = problema(
+        [prof("e1", c24=0, c12=2, extras=0)],
+        [setor(dia=(1, 0), noite=(1, 0))],
+    )
+    p.turnos_selecionados = ["diurno"]
+
+    sol = resolver(p)
+
+    assert sol.alocacoes
+    assert all(a.opcao == "12d" for a in sol.alocacoes)
+    assert all(d.turno == "diurno" for d in sol.descobertos)
+
+
 def test_tecnico_nao_cobre_vaga_de_enfermeiro():
     sol = resolver(problema([prof("t1", "tecnico", c24=0, c12=0, extras=8)], [setor(dia=(1, 0), noite=(1, 0))]))
     assert sol.alocacoes == []
     assert all(d.funcao == "enfermeiros" for d in sol.descobertos)
     assert sol.estatisticas.total_descobertos == 2 * DIAS
+
+
+def test_cancelamento_interrompe_solver_ativo(monkeypatch):
+    iniciado = Event()
+    interrompido = Event()
+
+    class SolverFalso:
+        def __init__(self):
+            self.parameters = SimpleNamespace()
+
+        def Solve(self, _modelo):
+            iniciado.set()
+            interrompido.wait(timeout=3)
+            return 0
+
+        def StopSearch(self):
+            interrompido.set()
+
+    monkeypatch.setattr(solver_module.cp_model, "CpSolver", SolverFalso)
+    entrada = problema([prof("e1")], [setor()])
+    entrada.operacao_id = "operacao-teste-cancelamento"
+    erros = []
+
+    def executar():
+        try:
+            resolver(entrada)
+        except RuntimeError as erro:
+            erros.append(str(erro))
+
+    thread = Thread(target=executar)
+    thread.start()
+    assert iniciado.wait(timeout=3)
+    assert solver_module.cancelar_operacao(entrada.operacao_id) is True
+    thread.join(timeout=3)
+
+    assert not thread.is_alive()
+    assert erros == ["Geração cancelada."]
 
 
 # ---------- vagas descobertas sem violar restrições ----------

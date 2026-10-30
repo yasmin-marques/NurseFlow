@@ -1,6 +1,7 @@
 import { chaveCarga } from '../configuracoes/configuracao.schema';
 import { Formacao, StatusProfissional, TipoVinculo } from '../profissionais/profissionais.enums';
 import { TipoRestricao } from '../restricoes/restricao.schema';
+import type { TurnoEscala } from './dto/gerar-escala.dto';
 import type { ProblemaOtimizacao, ProfissionalOtimizacao } from './otimizador/otimizador';
 
 /** Horários fixos do regime (iguais aos do modelo em optimizer/app/solver.py). */
@@ -68,6 +69,7 @@ export interface EntradaGeracao {
   configuracao: ConfiguracaoVigente;
   plantoesAnteriores: PlantaoAnterior[];
   tempoLimiteSegundos: number;
+  turnosSelecionados?: TurnoEscala[];
 }
 
 export interface ProblemaMontado {
@@ -86,11 +88,22 @@ const BLOQUEANTES = new Set<TipoRestricao>([
 ]);
 
 /** Validação prévia (retorna erros que impedem a geração). */
-export function validarEntrada(e: Pick<EntradaGeracao, 'ano' | 'mes' | 'profissionais' | 'setores' | 'configuracao'>): string[] {
+export function validarEntrada(
+  e: Pick<EntradaGeracao, 'ano' | 'mes' | 'profissionais' | 'setores' | 'configuracao'> & {
+    turnosSelecionados?: TurnoEscala[];
+  },
+): string[] {
   const erros: string[] = [];
   const dias = diasDoMes(e.ano, e.mes);
-  if (e.setores.length === 0) erros.push('Não há setores ativos cadastrados.');
-  else if (e.setores.every((s) => quantitativoTotal(s) === 0)) {
+  const setoresComEscopo = e.setores.map((setor) => ({
+    ...setor,
+    turnos: {
+      diurno: e.turnosSelecionados?.includes('diurno') === false ? { enfermeiros: 0, tecnicos: 0 } : setor.turnos.diurno,
+      noturno: e.turnosSelecionados?.includes('noturno') === false ? { enfermeiros: 0, tecnicos: 0 } : setor.turnos.noturno,
+    },
+  }));
+  if (setoresComEscopo.length === 0) erros.push('Não há setores ativos cadastrados.');
+  else if (setoresComEscopo.every((s) => quantitativoTotal(s) === 0)) {
     erros.push('Nenhum setor ativo possui quantitativo mínimo definido (enfermeiros/técnicos por turno).');
   }
   const ativos = e.profissionais.filter((p) => p.status === StatusProfissional.ATIVO);
@@ -257,6 +270,7 @@ export function montarProblema(e: EntradaGeracao): ProblemaMontado {
       dias_mes: dias,
       profissionais,
       setores: e.setores.map((s) => ({ id: s.id, nome: s.nome, turnos: s.turnos })),
+      turnos_selecionados: e.turnosSelecionados ?? ['diurno', 'noturno'],
       parametros: { tempo_limite_segundos: e.tempoLimiteSegundos },
     },
     conflitos,

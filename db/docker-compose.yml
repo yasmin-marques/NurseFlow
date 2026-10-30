@@ -7,14 +7,21 @@ services:
 
     restart: always
 
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
+
     ports:
       - "127.0.0.1:27017:27017"
 
     environment:
       MONGO_INITDB_DATABASE: nurseflow
+      MONGO_RS_HOST: localhost
 
     healthcheck:
-      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      test:
+        - CMD-SHELL
+        - >-
+          mongosh --quiet --host 127.0.0.1 --port 27017
+          --eval "try { rs.status() } catch (e) { rs.initiate({_id:'rs0',members:[{_id:0,host:'$$MONGO_RS_HOST:27017'}]}) }; quit(db.hello().isWritablePrimary ? 0 : 1)"
       interval: 5s
       timeout: 5s
       retries: 12

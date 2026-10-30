@@ -1,4 +1,5 @@
 from fastapi.testclient import TestClient
+from uuid import uuid4
 
 from app.main import app
 
@@ -50,3 +51,15 @@ def test_rejeita_ids_duplicados():
     p = corpo()
     p["profissionais"].append(dict(p["profissionais"][0]))
     assert client.post("/otimizar", json=p).status_code == 422
+
+
+def test_cancelamento_antes_do_solver_impede_a_otimizacao():
+    operacao_id = str(uuid4())
+    cancelamento = client.delete(f"/operacoes/{operacao_id}")
+    assert cancelamento.status_code == 200
+    assert cancelamento.json()["cancelamentoSolicitado"] is True
+    assert cancelamento.json()["solverAtivo"] is False
+
+    resposta = client.post("/otimizar", json=corpo(operacao_id=operacao_id))
+    assert resposta.status_code == 503
+    assert resposta.json()["detail"] == "Geração cancelada."

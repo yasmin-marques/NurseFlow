@@ -34,9 +34,9 @@ O NurseFlow é um sistema web de apoio à gestão da equipe de enfermagem de um 
 | Setores | Cadastro com quantitativo mínimo de enfermeiros/técnicos por turno (diurno e noturno), edição por turno, inativação e reativação |
 | Configurações | Limites de trocas, extras e cargas de plantão por vínculo e por mês (restrito à Coordenação) |
 | Restrições / disponibilidade | Registro, consulta e exclusão de indisponibilidades, ausências, vínculos externos e disponibilidades por profissional |
-| Escalas (geração automática) | `POST /escalas/gerar`: otimiza a escala do mês (regime 24x72) com OR-Tools CP-SAT e salva como rascunho, devolvendo vagas descobertas e conflitos — veja [Geração automática de escalas](#geração-automática-de-escalas) |
+| Escalas | Geração automática e manual, calendário/revisão, edição, validação, publicação versionada, notificações e PDF/ZIP — veja [Gestão de escalas](#gestão-de-escalas) |
 
-As limitações atuais (por exemplo, ausência de telas de escala, edição e publicação) estão descritas na seção [Integração das funcionalidades](#5-integração-das-funcionalidades).
+As rotas, DTOs e respostas completos estão disponíveis no Swagger em `http://localhost:3000/docs`.
 
 ## Tecnologias utilizadas
 
@@ -90,7 +90,7 @@ npm run setup
 
 **2. Configure o `.env` do backend** (se o passo anterior não o criou: `cp back-end/.env.example back-end/.env`). Edite `back-end/.env`:
 
-- `MONGODB_URI`: o modelo já aponta para `mongodb://localhost:27017/nurseflow` (MongoDB de `db/docker-compose.yml`, sem autenticação, publicado apenas em `127.0.0.1`). O host `mongo` só vale dentro do Docker Compose da raiz.
+- `MONGODB_URI`: o modelo aponta para `mongodb://localhost:27017/nurseflow?replicaSet=rs0` (MongoDB de `db/docker-compose.yml`, sem autenticação, publicado apenas em `127.0.0.1`). O host `mongo` só vale dentro do Docker Compose da raiz.
 - `JWT_SECRET`: chave aleatória com 16 caracteres ou mais, por exemplo `node -e "console.log(require('crypto').randomBytes(24).toString('hex'))"`.
 - `SEED_COORDENACAO_NOME`, `_EMAIL`, `_CPF` (CPF válido) e `_SENHA` (de 8 a 72 caracteres): dados da primeira conta de Coordenação.
 - (Opcional) dados de demonstração: `DEMO_SEED_ENABLED=true`, `DEMO_ADMIN_PASSWORD` e `DEMO_PRO_PASSWORD` (de 8 a 72 caracteres). Veja [Dados de demonstração](#dados-de-demonstração-docker).
@@ -106,7 +106,7 @@ npm run db:up      # sobe o MongoDB 8 e o otimizador de escalas e aguarda os hea
 npm run db:setup   # migrations + seed da Coordenação + seed de demonstração
 ```
 
-`db:setup` equivale a `db:migrate` (validators e índices; a API **não** os cria sozinha) seguido de `db:seed` (`seed:coordenacao` e `seed:demo`). Também podem ser executados separadamente:
+`db:setup` equivale a `db:migrate` (validators e índices; a API **não** os cria sozinha) seguido de `db:seed` (`seed:coordenacao` e `seed:demo`). O MongoDB local sobe como replica set `rs0`, necessário às transações do ciclo de vida das escalas. Em ambientes externos, configure `MONGODB_URI` para um replica set. `npm run dev` também aplica migrations pendentes antes de iniciar front-end e API. Se a API já estiver rodando com erro de validação do Mongo, execute `npm run db:migrate` e reinicie-a. Também podem ser executados separadamente:
 
 ```bash
 npm --prefix back-end run migrate:up
@@ -222,16 +222,15 @@ Abra http://localhost:5173. Ao desenvolver localmente, a API aceita essa origem 
 | Setores | Listagem/cadastro/edição de quantitativos por API existente |
 | Configurações | Consulta e gravação por `GET /configuracoes`, `PATCH /configuracoes/limites`, `PUT /configuracoes/cargas` |
 | Disponibilidade | Listagem/criação/exclusão via `/profissionais/:id/restricoes` |
-| Conflitos | Endpoint no backend disponível, ainda não conectado à geração de escalas; a geração (`POST /escalas/gerar`) aplica as restrições diretamente |
+| Escalas | Fluxo integrado de geração/montagem, revisão, edição, validação, publicação, notificações e exportação PDF/ZIP via `/escalas/*` e `/notificacoes/escalas/*` |
 
 **Limitações intencionais**:
 
-- O backend ainda não implementa aprovação de trocas, geração automática de coberturas, notificações ou configuração de limites específicos de extras por vínculo. A tela de configurações exibe somente as opções persistidas de verdade.
+- O backend ainda não implementa aprovação de trocas, geração automática de coberturas ou categorias de notificação fora do ciclo de vida de escalas. A tela de configurações exibe somente as opções persistidas de verdade.
 - O schema de restrições persiste períodos e, opcionalmente, **um dia da semana por registro**, mas não turno/horário; o frontend rejeita criação de preferências de turno e vínculo externo com turno definido em vez de fingir persistência. Múltiplos dias selecionados criam múltiplos registros; falha em uma das requisições pode deixar um subconjunto cadastrado, pois não existe endpoint transacional em lote.
 - O backend só expõe criação, consulta e exclusão de restrições, portanto a UI oferece **exclusão e novo cadastro** no lugar de edição.
 - Restrições marcadas como recorrentes sem data utilizam, temporariamente, um período de cinco anos; não há recorrência infinita no modelo atual.
 - O endpoint de restrições está protegido para perfil coordenação no backend. Usuários sem esse perfil podem receber 403 nesta tela até a autorização ser definida.
-- A geração automática de escalas existe apenas como API (`POST /escalas/gerar`, rascunho); **não há** telas, edição nem publicação de escalas.
 
 ## 6. Diagnóstico e encerramento
 
@@ -254,9 +253,9 @@ cd back-end && npm ci && npm run build && cd ..
 
 Esses comandos exigem acesso ao registro npm. O pacote foi montado sem validar execução end-to-end com MongoDB real; execute-os em seu ambiente antes de integrar à branch principal.
 
-## Geração automática de escalas
+## Gestão de escalas
 
-Implementa RF005/US07 (e as regras RN003–RN009 do documento de requisitos). Escopo atual: **apenas a API de geração**; edição, publicação e telas de escala não existem ainda.
+Implementa o ciclo de vida de escalas pela API NestJS e pela tela Escala. A geração automática atende RF005/US07 (regras RN003–RN009); a Coordenação também pode montar e editar rascunhos, revisar e validar cobertura, publicar versões oficiais e exportá-las.
 
 ### Arquitetura
 
@@ -274,7 +273,7 @@ Coordenação ──POST /escalas/gerar──▶ NestJS (módulo escalas)
 
 - **NestJS** (`back-end/src/escalas`): controller, service, schemas, `montar-problema.ts` (função pura, testada) e a porta `OtimizadorEscala` (implementação HTTP; substituível em testes).
 - **Python** (`optimizer/`): `POST /otimizar` e `GET /saude`. Sobe junto de `npm run db:up` (porta 8000 em `127.0.0.1`) e na stack Docker (rede interna, serviço `optimizer`).
-- **Persistência:** coleções existentes `escalas`, `plantoes` e `profissionaisRelacionados`. A migration `20261013000006` reconcilia os validators legados (o antigo exigia `profissionalID`, com typo) e cria o índice único `(ano, mes)` que impede escalas duplicadas.
+- **Persistência:** `escalas`, `plantoes` e `profissionaisRelacionados` guardam a versão de trabalho; `versoesEscala` guarda snapshots oficiais imutáveis; `auditoriaEscalas` e `notificacoesEscala` registram eventos. A migration `20261014000007` adiciona o estado/revisão e os índices únicos de período, versão e notificação.
 
 ### Regras aplicadas
 
@@ -325,6 +324,27 @@ curl -s -X POST localhost:3000/escalas/gerar -H "authorization: Bearer $TOKEN" \
 Também é possível usar o Swagger (http://localhost:3000/docs → **Escalas**). Para gerar um mês é preciso ter a carga configurada (o seed de demonstração cria `2026-10` e `2026-11`; ou `PUT /configuracoes/cargas`).
 
 Testes: unitários (`montar-problema.spec.ts`) e e2e (`back-end/test/escalas.e2e-spec.ts`) rodam em `npm test`; os testes das restrições do modelo ficam em `optimizer/tests` — veja [optimizer/README.md](optimizer/README.md).
+
+### Revisão, validação, publicação e exportação
+
+Todas as rotas abaixo são autenticadas; operações de gestão e exportação são exclusivas da Coordenação. O campo `revisaoEsperada` protege contra atualização concorrente; revisão desatualizada ou transição inválida retorna 409. A API documenta os DTOs e respostas detalhados no Swagger, tag **Escalas**.
+
+| Método e rota | Finalidade |
+|---|---|
+| `GET /escalas?ano=<ano>&mes=<mês>` | Lista escala do período |
+| `POST /escalas` | Cria rascunho manual |
+| `POST /escalas/:id/plantoes` / `PATCH /escalas/:id/plantoes/:plantaoId` | Inclui/edita plantão e equipe, com revisão esperada |
+| `POST /escalas/:id/revisao` | Inicia revisão; em escala publicada copia a última versão oficial |
+| `POST /escalas/:id/validar` | Revalida regras e cobertura antes de publicar |
+| `POST /escalas/:id/publicar` | Publica versão imutável; corpo inclui `revisaoEsperada` e `confirmarPendencias` |
+| `GET /escalas/:id/versao-oficial` / `GET /escalas/:id/auditoria` | Consulta versão oficial e histórico (Coordenação) |
+| `DELETE /escalas/:id` | Remove somente rascunho com `confirmar: true` e `revisaoEsperada` |
+| `GET /escalas/:id/pdf` | Baixa PDF geral; use `?setorId=<id>` para um setor ou `?separarPorSetor=true` para ZIP |
+| `GET /notificacoes/escalas` | Lista as notificações do usuário e a contagem não lida |
+| `PATCH /notificacoes/escalas/:id/lida` | Marca notificação própria como lida |
+| `GET /notificacoes/escalas/:escalaId/versoes/:numero` | Abre a versão oficial associada à notificação do usuário |
+
+O Compose local (`db/docker-compose.yml`) e o Compose integrado (`docker-compose.yml`) inicializam `rs0`; transações exigem replica set também em ambientes de produção. A exportação PDF/ZIP só aceita versões oficiais publicadas; `setorId` e `separarPorSetor=true` não podem ser usados juntos. Pendências aceitas permanecem visíveis no snapshot e no documento.
 
 ## Testes automatizados
 
@@ -409,7 +429,7 @@ docker compose ps -a
 docker compose logs seed-demo
 ```
 
-**Ordem:** `mongo` saudável → `backend` (migrations e API, saudável) → `seed-demo` (execução única) → `frontend`. O serviço de seed deve terminar com `Exited (0)`; **não** fica em execução permanentemente. Para executá-lo novamente em um banco já iniciado: `docker compose run --rm seed-demo`. É idempotente: cria apenas registros inexistentes; **não restaura registros alterados, nem redefine senhas existentes**. Para renovar credenciais de uma conta já existente, utilize a recuperação de senha ou um banco de testes descartável. Para **apagar todos os dados** (destrutivo): `docker compose down -v`.
+**Ordem:** `mongo` saudável → `backend` (migrations e API, saudável) → `seed-demo` (execução única) → `frontend`. O serviço de seed deve terminar com `Exited (0)`; **não** fica em execução permanentemente. Para executá-lo novamente em um banco já iniciado: `docker compose run --rm seed-demo`. O seed é idempotente: cria as contas ausentes e sincroniza somente os profissionais, setores e configurações reservados à demonstração para manter o cenário de geração sem conflitos; não redefine senhas existentes nem apaga escalas. Ele também remove apenas as restrições legadas que o seed de demonstração anterior criou para esses profissionais. Para renovar credenciais de uma conta já existente, utilize a recuperação de senha ou um banco de testes descartável. Para **apagar todos os dados** (destrutivo): `docker compose down -v`.
 
 ### Contas de teste
 
@@ -417,58 +437,50 @@ docker compose logs seed-demo
 |---|---|---|
 | `admin@nurseflow.test` | coordenação | administração |
 | `ana@nurseflow.test` | enfermeiro | enfermeiro / concursado / ativo |
-| `bruno@nurseflow.test` | enfermeiro | enfermeiro / CLT / ativo |
-| `carla@nurseflow.test` | enfermeiro | enfermeiro / RPA / ativo |
+| `bruno@nurseflow.test` | enfermeiro | enfermeiro / concursado / ativo |
+| `carla@nurseflow.test` | enfermeiro | enfermeiro / concursado / ativo |
+| `gabriela@nurseflow.test` | enfermeiro | enfermeiro / concursado / ativo |
 | `daniela@nurseflow.test` | técnico | técnico / concursado / ativo |
-| `eduardo@nurseflow.test` | técnico | técnico / CLT / ativo |
-| `fernanda@nurseflow.test` | técnico | técnico / RPA / ativo |
-| `gabriela@nurseflow.test` | enfermeiro | enfermeiro / concursado / férias |
-| `henrique@nurseflow.test` | técnico | técnico / CLT / afastado |
+| `eduardo@nurseflow.test` | técnico | técnico / concursado / ativo |
+| `fernanda@nurseflow.test` | técnico | técnico / concursado / ativo |
+| `henrique@nurseflow.test` | técnico | técnico / concursado / ativo |
 | `isabela@nurseflow.test` | técnico | técnico / concursado / ativo |
+| `enfermeiro05`–`enfermeiro09` e `tecnico06`–`tecnico09` | respectiva função | concursado / ativo |
+| `enfermeiro10`–`enfermeiro15` e `tecnico10`–`tecnico15` | respectiva função | CLT / ativo |
 
-A senha de `admin@nurseflow.test` é o valor de `DEMO_ADMIN_PASSWORD`; todos os profissionais usam `DEMO_PRO_PASSWORD`. O campo de perfil no login da UI deve corresponder ao tipo do usuário (coordenação, enfermeiro ou técnico). CPFs de teste são gerados com dígitos verificadores válidos, exclusivamente fictícios; os COREN demonstrativos têm formato `CE-10001` ... `CE-10009` (não correspondem a registros reais).
+A senha de `admin@nurseflow.test` é o valor de `DEMO_ADMIN_PASSWORD`; todos os profissionais usam `DEMO_PRO_PASSWORD`. O campo de perfil no login da UI deve corresponder ao tipo do usuário (coordenação, enfermeiro ou técnico). Há 15 enfermeiros e 15 técnicos, todos ativos. CPFs de teste são gerados com dígitos verificadores válidos, exclusivamente fictícios; os COREN demonstrativos têm formato `CE-10001` ... `CE-10030` (não correspondem a registros reais).
 
 ### Setores (quantitativos mínimos)
 
 | Setor | Diurno (enfermeiros/técnicos) | Noturno (enfermeiros/técnicos) |
 |---|---|---|
-| UTI | 2/3 | 2/2 |
-| Emergência | 2/3 | 1/2 |
-| Clínica Médica | 1/2 | 1/1 |
+| UTI | 1/1 | 1/1 |
+| Emergência | 1/1 | 1/1 |
+| Clínica Médica | 1/1 | 1/1 |
 
 ### Configurações que a coordenação pode gerenciar
 
-O seed cria documentos para **outubro e novembro de 2026** (`2026-10` e `2026-11`). Em cada mês: `limiteTrocas=3`, `maxExtras=2`, `limitePlantoes=12`. As cargas para o mês são:
+O seed cria documentos para **outubro e novembro de 2026** (`2026-10` e `2026-11`). Em cada mês: `limiteTrocas=3`, `maxExtras=0`, `limitePlantoes=12`. As cargas regulares para o mês são:
 
 | Vínculo | Plantões 24h | Plantões 12h |
 |---|---:|---:|
-| Concursado | 6 | 1 |
-| CLT | 5 | 2 |
-| RPA | 3 | 2 |
+| Concursado (outubro) | 7 | 0 |
+| CLT (outubro) | 5 | 0 |
+| Concursado e CLT (novembro) | 6 | 0 |
 
-Os parâmetros de carga são armazenados com chave `<vínculo>_<diasDoMês>` (`concursado_31` em outubro e `concursado_30` em novembro). Os endpoints `/configuracoes` e `/setores` são restritos a `coordenacao` no backend. Este seed não cria escalas nem calcula automaticamente plantões.
+Os parâmetros de carga são armazenados com chave `<vínculo>_<diasDoMês>` (`concursado_31` e `clt_31` em outubro; `concursado_30` e `clt_30` em novembro). As quantidades somam exatamente as vagas de cada função: 93 plantões em outubro e 90 em novembro. Com todos os setores e os turnos diurno e noturno selecionados, plantões de 24 horas cobrem os dois turnos; o otimizador consegue preencher todas as vagas, atender às cargas e respeitar o descanso 24x72. Os endpoints `/configuracoes` e `/setores` são restritos a `coordenacao` no backend. Este seed prepara os dados, mas não cria nem gera escalas automaticamente.
 
-### Restrições de demonstração (outubro de 2026)
+### Gerar uma escala demonstrativa sem conflitos
 
-| Profissional | Tipo | Período | Observação |
-|---|---|---|---|
-| Ana | Indisponível | 14/10 | dia inteiro |
-| Bruno | Vínculo externo | 01/10 a 31/10 | terças-feiras (`diaSemana=2`) |
-| Carla | Disponível | 16/10 | dia inteiro |
-| Daniela | Ausência | 19/10 a 21/10 | ausência declarada |
-| Eduardo | Indisponível | 23/10 | compromisso pessoal |
-| Fernanda | Vínculo externo | 01/10 a 31/10 | sextas-feiras (`diaSemana=5`) |
-| Gabriela | Férias | 12/10 a 26/10 | profissional também está no status `ferias` |
-| Henrique | Ausência | 12/10 a 31/10 | profissional também está no status `afastado` |
-| Isabela | Disponível | 18/10 | dia inteiro |
-
-As datas são persistidas em UTC, como indicado no script. A restrição recorrente contém dia da semana mas **não** um horário específico. Não há escala gerada automaticamente, nem aprovação de trocas no projeto atual.
+1. Entre na interface como `admin@nurseflow.test` e selecione perfil Coordenação.
+2. Gere **outubro de 2026** ou **novembro de 2026**, mantendo os três setores e os turnos diurno e noturno selecionados.
+3. A geração deve resultar em cobertura completa, sem conflitos ou plantões extras. Para esse resultado, use um banco local sem escalas no mês anterior (o sistema herda o descanso dos plantões anteriores). O seed não cria nem remove escalas; se o período já tiver uma escala, use um banco local de demonstração limpo.
 
 ### Verificação rápida de autorização
 
 1. Entre com `admin@nurseflow.test` e `DEMO_ADMIN_PASSWORD`, selecione perfil Coordenação.
 2. Consulte `/configuracoes?ano=2026&mes=10` (token Bearer) e verifique `limiteTrocas=3`. Consulte `/setores` para ver os três setores.
 3. Entre como `ana@nurseflow.test`, selecione Enfermeiro, e tente `PATCH /configuracoes/limites?ano=2026&mes=10`: o esperado é **403 Forbidden**, pois a operação exige `coordenacao`.
-4. Consulte restrições na interface com a conta de coordenação. Os profissionais de férias e afastamento servem para conferir status e filtros.
+4. Verifique a autorização tentando consultar `GET /escalas?ano=2026&mes=10` com token de enfermeiro ou técnico; a resposta esperada é **403 Forbidden**.
 
 **Nota:** os registros são demonstrativos; não foram utilizados dados pessoais reais. Não habilite o seed em instâncias públicas.
