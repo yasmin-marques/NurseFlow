@@ -3,8 +3,8 @@ import { Type } from 'class-transformer';
 import { Equals, IsBoolean, IsInt, IsOptional, Max, Min } from 'class-validator';
 
 export class PeriodoEscalaDto {
-  @ApiProperty({ example: 2026, minimum: 2020, maximum: 2100 })
-  @Type(() => Number) @IsInt() @Min(2020) @Max(2100)
+  @ApiProperty({ example: 2026, minimum: 1, maximum: 9999 })
+  @Type(() => Number) @IsInt() @Min(1) @Max(9999)
   ano: number;
 
   @ApiProperty({ example: 10, minimum: 1, maximum: 12 })

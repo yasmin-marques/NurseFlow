@@ -54,6 +54,7 @@ As migrations são idempotentes e funcionam tanto em um banco criado por `db/mon
 | `20261012000005-reconciliar-validacao-restricoes` | Reaplica o contrato atual de validação de restrições em bancos existentes |
 | `20261013000006-escalas-plantoes` | Validators e índices das escalas, plantões e profissionais relacionados |
 | `20261014000007-ciclo-vida-escalas` | Estados e revisões de escala, snapshots oficiais, auditoria, notificações e índices únicos para período, versões e eventos por destinatário |
+| `20261030000008-anos-escalas-independentes` | Permite escalas e versões em qualquer ano civil de quatro dígitos |
 
 ### Primeira conta de Coordenação
 
@@ -72,7 +73,7 @@ Para criar dados fictícios em desenvolvimento, configure `DEMO_SEED_ENABLED=tru
 npm run seed:demo
 ```
 
-O seed cria, quando ausentes, uma conta de Coordenação, nove profissionais, três setores, configurações para os meses de 2026 e restrições de exemplo. É idempotente e não sobrescreve registros existentes. Use somente em ambiente local isolado; o script recusa execução em produção sem autorização explícita. Os logins são `admin@nurseflow.test` e `<nome>@nurseflow.test`.
+O seed cria, quando ausentes, uma conta de Coordenação, nove profissionais, três setores e restrições de exemplo. As configurações mensais são provisionadas automaticamente na primeira consulta do período, com padrões editáveis pela Coordenação. O seed é idempotente e não sobrescreve registros existentes. Use somente em ambiente local isolado; o script recusa execução em produção sem autorização explícita. Os logins são `admin@nurseflow.test` e `<nome>@nurseflow.test`.
 
 ## Execução
 

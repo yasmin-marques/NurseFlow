@@ -5,7 +5,7 @@ import { ExportScaleDrawer } from './ExportScaleDrawer'
 import { PublishScaleDialog } from './PublishScaleDialog'
 import { ScaleShiftDialog } from './ScaleShiftDialog'
 import { canEditScale, stageShiftChange } from './review'
-import { calendarDays, dateKey, dayIndicators, formatMonth, formatWeek, summarizeDayShifts, type CalendarView } from './calendar'
+import { calendarDate, calendarDays, dateKey, dayIndicators, formatMonth, formatWeek, summarizeDayShifts, type CalendarView } from './calendar'
 import { getScaleWorkflow } from './workflow'
 import { CoverageAlert, CoverageBadge, PersonCard } from '../../components/ui/ScaleComponents'
 import { coverageSurfaceClass } from '../../components/ui/coverageStyles'
@@ -210,9 +210,14 @@ export function ScalePage() {
   const year = selectedDate.getFullYear()
   const month = selectedDate.getMonth() + 1
   const days = calendarDays(view, selectedDate)
-  const visibleAnchor = view === 'month' ? new Date(year, month - 1, 1) : calendarDays('week', selectedDate)[0]
+  const visibleAnchor = view === 'month' ? calendarDate(year, month - 1, 1) : calendarDays('week', selectedDate)[0]
   const visibleAnchorKey = dateKey(visibleAnchor)
-  const visiblePeriodKey = [...new Set(calendarDays(view, new Date(`${visibleAnchorKey}T12:00:00`)).map((day) => `${day.getFullYear()}-${day.getMonth() + 1}`))].join(',')
+  const visiblePeriodKey = [...new Set(calendarDays(view, new Date(`${visibleAnchorKey}T12:00:00`))
+    .map((day) => `${day.getFullYear()}-${day.getMonth() + 1}`)
+    .filter((period) => {
+      const year = Number(period.split('-')[0])
+      return year >= 1 && year <= 9999
+    }))].join(',')
 
   useEffect(() => {
     let active = true
@@ -243,14 +248,14 @@ export function ScalePage() {
 
   const changePeriod = (direction: -1 | 1) => {
     if (stagedChanges.length > 0) { setBatchError('Salve ou descarte as alterações staged antes de mudar de período.'); return }
+    const next = view === 'month'
+      ? calendarDate(year, month - 1 + direction, 1)
+      : new Date(selectedDate)
+    if (view === 'week') next.setDate(next.getDate() + direction * 7)
+    if (next.getFullYear() < 1 || next.getFullYear() > 9999) return
     setLoading(true)
     setError('')
-    setSelectedDate((current) => {
-      if (view === 'month') return new Date(current.getFullYear(), current.getMonth() + direction, 1)
-      const next = new Date(current)
-      next.setDate(next.getDate() + direction * 7)
-      return next
-    })
+    setSelectedDate(next)
   }
 
   const retry = () => {
@@ -362,7 +367,7 @@ export function ScalePage() {
   const openReview = async () => {
     if (!matchingScale || matchingScale.escala.status !== 'rascunho') {
       setView('week')
-      setSelectedDate(new Date(year, month - 1, 1))
+      setSelectedDate(calendarDate(year, month - 1, 1))
       return
     }
 
@@ -372,7 +377,7 @@ export function ScalePage() {
       const reviewed = await startScaleReview(matchingScale)
       replaceScale(reviewed)
       setView('week')
-      setSelectedDate(new Date(year, month - 1, 1))
+      setSelectedDate(calendarDate(year, month - 1, 1))
     } catch (cause: unknown) {
       setError(cause instanceof Error ? cause.message : 'Não foi possível iniciar a revisão da escala.')
     } finally {
@@ -546,12 +551,12 @@ export function ScalePage() {
             try {
               const reviewed = await startScaleReview(draft)
               replaceScale(reviewed)
-              setSelectedDate(new Date(reviewed.escala.ano, reviewed.escala.mes - 1, 1))
+              setSelectedDate(calendarDate(reviewed.escala.ano, reviewed.escala.mes - 1, 1))
               setView('week')
               setError('')
             } catch (cause: unknown) {
               replaceScale(draft)
-              setSelectedDate(new Date(draft.escala.ano, draft.escala.mes - 1, 1))
+              setSelectedDate(calendarDate(draft.escala.ano, draft.escala.mes - 1, 1))
               setView('month')
               setError(`Escala gerada como rascunho, mas não foi possível iniciar a revisão: ${cause instanceof Error ? cause.message : 'erro desconhecido.'}`)
             }

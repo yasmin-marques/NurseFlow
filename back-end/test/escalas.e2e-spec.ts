@@ -219,14 +219,13 @@ describe('Geração automática de escalas (e2e)', () => {
 
     it('rejeita mês/ano inválidos', async () => {
       await gerar({ mes: 13, ano: 2026 }).expect(400);
-      await gerar({ mes: 10, ano: 1999 }).expect(400);
+      await gerar({ mes: 10, ano: 0 }).expect(400);
       await gerar({ mes: 10 }).expect(400);
     });
 
-    it('responde 422 com a lista de erros quando faltam setores e cargas configuradas', async () => {
+    it('responde 422 quando faltam setores, mesmo com as cargas padrão provisionadas', async () => {
       const res = await gerar({ mes: 10, ano: 2026 }).expect(422);
       expect(res.body.erros.join(' ')).toMatch(/setores ativos/);
-      expect(res.body.erros.join(' ')).toMatch(/clt/);
       expect(otimizador.problemas).toHaveLength(0);
       expect(await colecao('escalas').countDocuments()).toBe(0);
     });
@@ -241,7 +240,12 @@ describe('Geração automática de escalas (e2e)', () => {
       const turnos = { diurno: { enfermeiros: 1, tecnicos: 1 }, noturno: { enfermeiros: 1, tecnicos: 1 } };
       setorA = (await http.post('/setores').set(auth(tokenCoord)).send({ nome: 'UTI', turnos }).expect(201)).body.id;
       await http.post('/setores').set(auth(tokenCoord)).send({ nome: 'Emergência', turnos }).expect(201);
-      await http.patch('/configuracoes/limites?ano=2026&mes=10').set(auth(tokenCoord)).send({ maxExtras: 2, limitePlantoes: 10 }).expect(200);
+      await http.patch('/configuracoes/limites?ano=2026&mes=10').set(auth(tokenCoord)).send({
+        maxExtras: 2,
+        maxExtrasConcursado: 2,
+        maxExtrasClt: 2,
+        limitePlantoes: 10,
+      }).expect(200);
       await configurarCargas(2026, 10, 8).expect(200);
     });
 
@@ -301,6 +305,15 @@ describe('Geração automática de escalas (e2e)', () => {
 
       await gerar({ ano: 2026, mes: 8, setorIds: ['64b7f0f0f0f0f0f0f0f0f0f0'], turnos: ['diurno'] }).expect(422);
       expect(await colecao('escalas').countDocuments({ ano: 2026, mes: 8 })).toBe(0);
+    });
+
+    it('gera escalas em anos além de 2100 e aplica datas do calendário corretamente', async () => {
+      await configurarCargas(9999, 12, 8).expect(200);
+      const gerada = await gerar({ ano: 9999, mes: 12, setorIds: [setorA], turnos: ['diurno'] }).expect(201);
+
+      expect(gerada.body.escala).toMatchObject({ ano: 9999, mes: 12, status: 'rascunho' });
+      expect(gerada.body.plantoes[0].data).toBe('9999-12-01');
+      expect(otimizador.problemas.at(-1)).toMatchObject({ ano: 9999, mes: 12, dias_mes: 31 });
     });
 
     it('inclui e edita plantões manuais, revalidando cobertura e registrando revisão', async () => {
@@ -407,7 +420,12 @@ describe('Geração automática de escalas (e2e)', () => {
       await http
         .patch('/configuracoes/limites?ano=2030&mes=1')
         .set(auth(tokenCoord))
-        .send({ limitePlantoes: 10, maxExtras: 2 })
+        .send({
+          limitePlantoes: 10,
+          maxExtras: 2,
+          maxExtrasConcursado: 3,
+          maxExtrasClt: 3,
+        })
         .expect(200);
       await configurarCargas(2030, 1, 0).expect(200);
       const criada = await http.post('/escalas').set(auth(tokenCoord)).send({ ano: 2030, mes: 1 }).expect(201);
@@ -668,6 +686,28 @@ describe('Geração automática de escalas (e2e)', () => {
       const plantoesDoMes = await colecao('plantoes').find({ escalaId: new mongoose.Types.ObjectId(escalaId) }, { projection: { _id: 1 } }).toArray();
       expect(plantoesDoMes).toHaveLength(3);
       expect(await colecao('profissionaisRelacionados').countDocuments({ plantaoId: { $in: plantoesDoMes.map((item) => item._id) } })).toBe(3);
+      expect(await colecao('escalas').countDocuments({ ano: 2026, mes: 10 })).toBe(1);
+    });
+
+    it('permite regenerar uma escala em revisão e devolve o resultado como rascunho', async () => {
+      const antes = await http.get(`/escalas/${escalaId}`).set(auth(tokenCoord)).expect(200);
+      await colecao('escalas').updateOne(
+        { _id: new mongoose.Types.ObjectId(escalaId) },
+        { $set: { status: 'em_revisao', validacao: { valido: true } } },
+      );
+      const tentativasAntes = otimizador.problemas.length;
+      const semConfirmacao = await gerar({ mes: 10, ano: 2026 }).expect(409);
+      expect(semConfirmacao.body.message).toMatch(/substituirRascunho/);
+      expect(otimizador.problemas).toHaveLength(tentativasAntes);
+
+      const regenerada = await gerar({ mes: 10, ano: 2026, substituirRascunho: true }).expect(201);
+
+      expect(regenerada.body.escala.id).toBe(escalaId);
+      expect(regenerada.body.escala).toMatchObject({
+        status: 'rascunho',
+        revisao: antes.body.escala.revisao + 1,
+        validacao: null,
+      });
       expect(await colecao('escalas').countDocuments({ ano: 2026, mes: 10 })).toBe(1);
     });
 

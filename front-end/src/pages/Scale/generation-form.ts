@@ -1,4 +1,9 @@
 import type { ScaleShift } from '../../services/scales'
+import { daysInMonth } from './calendar'
+
+export function isScaleReplaceable(status: string | null | undefined): boolean {
+  return status === 'rascunho' || status === 'em_revisao'
+}
 
 export interface GenerationSelection {
   year: number
@@ -14,15 +19,16 @@ export function validateGenerationSelection(selection: GenerationSelection): str
   const end = /^(\d{4})-(\d{2})-(\d{2})$/.exec(selection.endDate)
   if (!start || !end) return 'Informe a data inicial e a data final.'
 
-  if (!Number.isInteger(selection.year) || selection.year < 2020 || selection.year > 2100) {
-    return 'Informe um ano entre 2020 e 2100.'
+  if (!Number.isInteger(selection.year) || selection.year < 1 || selection.year > 9999) {
+    return 'Informe um ano entre 0001 e 9999.'
   }
   if (!Number.isInteger(selection.month) || selection.month < 1 || selection.month > 12) {
     return 'Informe um mês entre 1 e 12.'
   }
-  const expectedStart = `${selection.year}-${String(selection.month).padStart(2, '0')}-01`
-  const lastDay = new Date(selection.year, selection.month, 0).getDate()
-  const expectedEnd = `${selection.year}-${String(selection.month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
+  const year = String(selection.year).padStart(4, '0')
+  const expectedStart = `${year}-${String(selection.month).padStart(2, '0')}-01`
+  const lastDay = daysInMonth(selection.year, selection.month)
+  const expectedEnd = `${year}-${String(selection.month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
   if (
     selection.startDate !== expectedStart ||
     selection.endDate !== expectedEnd ||

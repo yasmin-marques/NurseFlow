@@ -7,6 +7,7 @@ import type { Professional } from '../Professionals/types'
 import { listSectors } from '../../services/sectors'
 import type { Sector } from '../Sectors/types'
 import { stageShiftChange } from './review'
+import { daysInMonth } from './calendar'
 import {
   validateShiftBatch,
   type ShiftBatchChange,
@@ -58,8 +59,8 @@ export function ScaleShiftDialog({ scale, shift, initialDate, stagedChanges, onC
   const [saving, setSaving] = useState(false)
   const [validated, setValidated] = useState(false)
   const [validationSummary, setValidationSummary] = useState('')
-  const monthStart = `${scale.escala.ano}-${String(scale.escala.mes).padStart(2, '0')}-01`
-  const monthEnd = `${scale.escala.ano}-${String(scale.escala.mes).padStart(2, '0')}-${String(new Date(scale.escala.ano, scale.escala.mes, 0).getDate()).padStart(2, '0')}`
+  const monthStart = `${String(scale.escala.ano).padStart(4, '0')}-${String(scale.escala.mes).padStart(2, '0')}-01`
+  const monthEnd = `${String(scale.escala.ano).padStart(4, '0')}-${String(scale.escala.mes).padStart(2, '0')}-${String(daysInMonth(scale.escala.ano, scale.escala.mes)).padStart(2, '0')}`
   const initialShiftSectorId = shift?.setor.id
   const assignedLeaderId = shift?.profissionais.find((person) => person.lideranca)?.id
     ?? shift?.profissionais.find((person) => person.formacao === 'enfermeiro')?.id

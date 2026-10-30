@@ -4,13 +4,14 @@ import { Drawer } from '../../components/ui/Drawer'
 import { SelectionChip } from '../../components/ui/ScaleComponents'
 import { listSectors } from '../../services/sectors'
 import type { Sector } from '../Sectors/types'
+import { daysInMonth } from './calendar'
 import {
   generateScale,
   listScales,
   type ScaleDetail,
   type ScaleShift,
 } from '../../services/scales'
-import { validateGenerationSelection } from './generation-form'
+import { isScaleReplaceable, validateGenerationSelection } from './generation-form'
 
 interface GenerateScaleDialogProps {
   initialDate: Date
@@ -24,7 +25,7 @@ function messageOf(error: unknown) {
 }
 
 function monthDate(year: number, month: number, day: number) {
-  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+  return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
 }
 
 const TURNOS: { id: '24h' | ScaleShift; label: string }[] = [
@@ -37,7 +38,7 @@ export function GenerateScaleDialog({ initialDate, onClose, onGenerated, onGener
   const initialYear = initialDate.getFullYear()
   const initialMonth = initialDate.getMonth() + 1
   const [startDate, setStartDate] = useState(monthDate(initialYear, initialMonth, 1))
-  const [endDate, setEndDate] = useState(monthDate(initialYear, initialMonth, new Date(initialYear, initialMonth, 0).getDate()))
+  const [endDate, setEndDate] = useState(monthDate(initialYear, initialMonth, daysInMonth(initialYear, initialMonth)))
   const [sectors, setSectors] = useState<Sector[]>([])
   const [selectedSectorIds, setSelectedSectorIds] = useState<string[]>([])
   const [selectedShifts, setSelectedShifts] = useState<Array<'24h' | ScaleShift>>(['24h', 'diurno', 'noturno'])
@@ -48,7 +49,7 @@ export function GenerateScaleDialog({ initialDate, onClose, onGenerated, onGener
     scale: ScaleDetail | null
     error: string
   }>({ key: '', scale: null, error: '' })
-  const [substituteDraft, setSubstituteDraft] = useState(false)
+  const [confirmReplacement, setConfirmReplacement] = useState(false)
   const [formError, setFormError] = useState('')
   const [generating, setGenerating] = useState(false)
   const dateParts = /^(\d{4})-(\d{2})-\d{2}$/.exec(startDate)
@@ -80,9 +81,9 @@ export function GenerateScaleDialog({ initialDate, onClose, onGenerated, onGener
 
   const periodKey = `${year}-${month}`
   const validPeriod =
-    Number.isInteger(year) && year >= 2020 && year <= 2100 && Number.isInteger(month) && month >= 1 && month <= 12 &&
+    Number.isInteger(year) && year >= 1 && year <= 9999 && Number.isInteger(month) && month >= 1 && month <= 12 &&
     startDate === monthDate(year, month, 1) &&
-    endDate === monthDate(year, month, new Date(year, month, 0).getDate())
+    endDate === monthDate(year, month, daysInMonth(year, month))
 
   useEffect(() => {
     if (!validPeriod) return
@@ -111,8 +112,8 @@ export function GenerateScaleDialog({ initialDate, onClose, onGenerated, onGener
   const periodLoading = validPeriod && !periodResultIsCurrent
   const periodError = periodResultIsCurrent ? periodResult.error : ''
   const existingScale = periodResultIsCurrent ? periodResult.scale : null
-  const existingDraft = existingScale?.escala.status === 'rascunho'
-  const existingNonDraft = existingScale !== null && !existingDraft
+  const existingReplaceable = isScaleReplaceable(existingScale?.escala.status)
+  const existingNonReplaceable = existingScale !== null && !existingReplaceable
   const canSubmit =
     !generating &&
     !sectorsLoading &&
@@ -121,17 +122,17 @@ export function GenerateScaleDialog({ initialDate, onClose, onGenerated, onGener
     !periodLoading &&
     !periodError &&
     !selectionError &&
-    !existingNonDraft &&
-    (!existingDraft || substituteDraft)
+    !existingNonReplaceable &&
+    (!existingReplaceable || confirmReplacement)
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (!canSubmit) {
       setFormError(
         selectionError ??
-          (existingDraft && !substituteDraft
-            ? 'Confirme a substituição do rascunho existente.'
-            : existingNonDraft
+          (existingReplaceable && !confirmReplacement
+            ? 'Confirme a substituição da escala existente.'
+            : existingNonReplaceable
               ? 'O período já possui uma escala que não pode ser substituída.'
               : 'Aguarde a validação do período e dos setores.'),
       )
@@ -150,7 +151,7 @@ export function GenerateScaleDialog({ initialDate, onClose, onGenerated, onGener
         operacaoId,
         setorIds: selectedSectorIds,
         turnos: apiShifts,
-        substituirRascunho: existingDraft ? substituteDraft : false,
+        substituirRascunho: existingReplaceable ? confirmReplacement : false,
       })
       await onGenerated(scale)
     } catch (error: unknown) {
@@ -201,30 +202,30 @@ export function GenerateScaleDialog({ initialDate, onClose, onGenerated, onGener
 
             <fieldset disabled={generating} className="grid gap-4 sm:grid-cols-2">
               <label className="space-y-2 text-sm font-semibold text-text">Data inicial
-                <input type="date" value={startDate} onChange={(event) => { setSubstituteDraft(false); setStartDate(event.target.value) }} className="w-full rounded-xl border border-border bg-white px-3 py-2.5 font-normal" />
+                <input type="date" value={startDate} onChange={(event) => { setConfirmReplacement(false); setStartDate(event.target.value) }} className="w-full rounded-xl border border-border bg-white px-3 py-2.5 font-normal" />
               </label>
               <label className="space-y-2 text-sm font-semibold text-text">Data final
-                <input type="date" value={endDate} onChange={(event) => { setSubstituteDraft(false); setEndDate(event.target.value) }} className="w-full rounded-xl border border-border bg-white px-3 py-2.5 font-normal" />
+                <input type="date" value={endDate} onChange={(event) => { setConfirmReplacement(false); setEndDate(event.target.value) }} className="w-full rounded-xl border border-border bg-white px-3 py-2.5 font-normal" />
               </label>
             </fieldset>
 
             {periodLoading ? <p role="status" className="text-sm text-text-muted">Verificando escala existente...</p> : null}
             {periodError ? <p role="alert" className="text-sm text-danger">{periodError}</p> : null}
-            {existingDraft ? (
+            {existingReplaceable ? (
               <label className="flex items-start gap-3 rounded-xl border border-warning bg-warning p-3 text-sm text-warning-text">
                 <input
                   type="checkbox"
-                  checked={substituteDraft}
+                  checked={confirmReplacement}
                   disabled={generating}
-                  onChange={(event) => setSubstituteDraft(event.target.checked)}
+                  onChange={(event) => setConfirmReplacement(event.target.checked)}
                   className="mt-0.5 accent-primary"
                 />
-                <span>Substituir o conteúdo do rascunho existente. A escala só será substituída após uma geração concluída.</span>
+                <span>Substituir o conteúdo da escala existente. A versão atual só será substituída após uma geração concluída.</span>
               </label>
             ) : null}
-            {existingNonDraft ? (
+            {existingNonReplaceable ? (
               <p role="alert" className="rounded-xl border border-error bg-error p-3 text-sm text-danger">
-                Este período já possui uma escala {existingScale?.escala.status}. Escolha outro período; versões publicadas não são substituídas.
+                Este período já possui uma escala {existingScale?.escala.status}. Escalas validadas, publicadas ou finalizadas não são substituídas.
               </p>
             ) : null}
 

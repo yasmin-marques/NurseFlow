@@ -100,22 +100,6 @@ async function seed() {
       } }, { upsert: true });
     }
 
-    // Configurações para todos os meses de 2026; não altera configurações já criadas pela coordenação.
-    const anoDemo = 2026;
-    for (let mes = 1; mes <= 12; mes++) {
-      const chave = `${anoDemo}-${String(mes).padStart(2, '0')}`;
-      const dias = new Date(Date.UTC(anoDemo, mes, 0)).getUTCDate();
-      await db.collection('configuracoes').updateOne({ chave }, { $setOnInsert: {
-        chave, limiteTrocas: 3, maxExtras: 2, limitePlantoes: 12,
-        maxExtrasConcursado: 1, maxExtrasClt: 1,
-        cargas: {
-          [`concursado_${dias}`]: { plantoes24h: 6, plantoes12h: 1 },
-          [`clt_${dias}`]: { plantoes24h: 5, plantoes12h: 2 },
-          [`rpa_${dias}`]: { plantoes24h: 3, plantoes12h: 2 },
-        }, createdAt: ts, updatedAt: ts,
-      } }, { upsert: true });
-    }
-
     const restrictions = [
       ['ana', 'indisponivel', '2026-10-14T00:00:00.000Z', '2026-10-14T23:59:59.999Z', null, 'Indisponível na quarta-feira'],
       ['bruno', 'vinculo_externo', '2026-10-01T00:00:00.000Z', '2026-10-31T23:59:59.999Z', 2, 'Outro vínculo às terças (sem horário específico)'],

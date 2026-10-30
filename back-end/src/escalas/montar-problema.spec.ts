@@ -4,6 +4,7 @@ import {
   bloqueiosDoProfissional,
   type ConfiguracaoVigente,
   diasAfetados,
+  diasDoMes,
   livreAPartirDe,
   montarProblema,
   type ProfissionalEntrada,
@@ -62,6 +63,11 @@ const entrada = (profissionais: ProfissionalEntrada[], extras: object = {}) => (
 });
 
 describe('configurações vigentes → problema de otimização', () => {
+  it('calcula meses em anos de um e quatro dígitos sem limites anuais artificiais', () => {
+    expect(diasDoMes(4, 2)).toBe(29)
+    expect(diasDoMes(9999, 12)).toBe(31)
+  });
+
   it('usa cargas e limites da configuração (não valores fixos) e o tamanho do mês', () => {
     const { problema } = montarProblema(
       entrada([prof('c', TipoVinculo.CONCURSADO), prof('l', TipoVinculo.CLT), prof('r', TipoVinculo.RPA)]),

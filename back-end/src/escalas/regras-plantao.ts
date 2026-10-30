@@ -3,6 +3,7 @@ import { Formacao, StatusProfissional, TipoVinculo } from '../profissionais/prof
 import { type ConfiguracaoVigente, type PlantaoAnterior, type ProfissionalEntrada, type RestricaoEntrada, bloqueiosDoProfissional, diasDoMes } from './montar-problema';
 import type { TurnoEscala } from './dto/gerar-escala.dto';
 import { TipoPlantao } from './schemas';
+import { utcDate } from '../common/utils/date';
 
 export interface AlocacaoPlantaoValidacao {
   profissional: ProfissionalEntrada;
@@ -143,7 +144,7 @@ export function calcularPendenciasCobertura(input: {
   const pendencias: PendenciaCobertura[] = [];
   for (const setor of input.setores) {
     for (let dia = 1; dia <= diasDoMes(input.ano, input.mes); dia++) {
-      const data = new Date(Date.UTC(input.ano, input.mes - 1, dia)).toISOString().slice(0, 10);
+      const data = utcDate(input.ano, input.mes - 1, dia).toISOString().slice(0, 10);
       for (const turno of ['diurno', 'noturno'] as const) {
         if (input.turnos && !input.turnos.includes(turno)) continue;
         for (const funcao of ['enfermeiros', 'tecnicos'] as const) {
@@ -202,7 +203,7 @@ const MS_HORA = 3_600_000;
 
 function inicioEmMs(data: Date, horario: string): number {
   const [hora, minuto] = horario.split(':').map(Number);
-  return Date.UTC(data.getUTCFullYear(), data.getUTCMonth(), data.getUTCDate(), hora, minuto);
+  return utcDate(data.getUTCFullYear(), data.getUTCMonth(), data.getUTCDate(), hora, minuto).getTime();
 }
 
 function parDiurnoNoturnoPermitido(

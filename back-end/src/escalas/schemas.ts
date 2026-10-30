@@ -26,7 +26,7 @@ export enum OrigemCobertura {
 export class Escala {
   @Prop({ type: Types.ObjectId, ref: 'Administrador', required: true }) administradorId: Types.ObjectId;
   @Prop({ required: true, min: 1, max: 12 }) mes: number;
-  @Prop({ required: true, min: 2020 }) ano: number;
+  @Prop({ required: true, min: 1, max: 9999 }) ano: number;
   @Prop({ required: true, enum: StatusEscala, default: StatusEscala.RASCUNHO }) status: StatusEscala;
   @Prop({ required: true, min: 1, default: 1 }) revisao: number;
   @Prop({ required: true, min: 0, default: 0 }) versaoPublicada: number;
@@ -74,7 +74,7 @@ export class VersaoEscala {
   @Prop({ type: Types.ObjectId, ref: 'Escala', required: true }) escalaId: Types.ObjectId;
   @Prop({ required: true, min: 1 }) numero: number;
   @Prop({ required: true, min: 1, max: 12 }) mes: number;
-  @Prop({ required: true, min: 2020 }) ano: number;
+  @Prop({ required: true, min: 1, max: 9999 }) ano: number;
   @Prop({ type: Types.ObjectId, ref: 'Administrador', required: true }) publicadoPor: Types.ObjectId;
   @Prop({ required: true, default: () => new Date() }) publicadoEm: Date;
   @Prop({ required: true, type: MongooseSchema.Types.Mixed }) snapshot: Record<string, unknown>;

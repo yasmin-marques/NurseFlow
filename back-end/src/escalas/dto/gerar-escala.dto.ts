@@ -9,8 +9,8 @@ export class GerarEscalaDto {
   @IsInt() @Min(1) @Max(12)
   mes: number;
 
-  @ApiProperty({ minimum: 2020, maximum: 2100, example: 2026 })
-  @IsInt() @Min(2020) @Max(2100)
+  @ApiProperty({ minimum: 1, maximum: 9999, example: 2026 })
+  @IsInt() @Min(1) @Max(9999)
   ano: number;
 
   @ApiPropertyOptional({ format: 'uuid', description: 'Identificador usado para cancelar esta geração em andamento.' })
@@ -19,7 +19,7 @@ export class GerarEscalaDto {
 
   @ApiPropertyOptional({
     default: false,
-    description: 'Se já existir um RASCUNHO do período, substitui seu conteúdo por uma nova geração. Escalas publicadas nunca são substituídas.',
+    description: 'Se já existir um rascunho ou uma escala em revisão no período, substitui seu conteúdo por uma nova geração. Escalas validadas, publicadas ou finalizadas nunca são substituídas.',
   })
   @IsOptional() @IsBoolean()
   substituirRascunho?: boolean;

@@ -1,6 +1,7 @@
 import { chaveCarga } from '../configuracoes/configuracao.schema';
 import { Formacao, StatusProfissional, TipoVinculo } from '../profissionais/profissionais.enums';
 import { TipoRestricao } from '../restricoes/restricao.schema';
+import { utcDate } from '../common/utils/date';
 import type { TurnoEscala } from './dto/gerar-escala.dto';
 import type { ProblemaOtimizacao, ProfissionalOtimizacao } from './otimizador/otimizador';
 
@@ -78,7 +79,7 @@ export interface ProblemaMontado {
   avisos: Mensagem[];
 }
 
-export const diasDoMes = (ano: number, mes: number) => new Date(Date.UTC(ano, mes, 0)).getUTCDate();
+export const diasDoMes = (ano: number, mes: number) => utcDate(ano, mes, 0).getUTCDate();
 
 const BLOQUEANTES = new Set<TipoRestricao>([
   TipoRestricao.INDISPONIVEL,
@@ -127,7 +128,7 @@ const quantitativoTotal = (s: SetorEntrada) =>
 export function diasAfetados(r: RestricaoEntrada, ano: number, mes: number): number[] {
   const dias: number[] = [];
   for (let d = 1; d <= diasDoMes(ano, mes); d++) {
-    const inicioDia = Date.UTC(ano, mes - 1, d);
+    const inicioDia = utcDate(ano, mes - 1, d).getTime();
     const fimDia = inicioDia + 24 * MS_HORA;
     if (!(r.inicio.getTime() < fimDia && r.fim.getTime() >= inicioDia)) continue;
     if (r.diaSemana === null || r.diaSemana === undefined || new Date(inicioDia).getUTCDay() === r.diaSemana) dias.push(d);
@@ -152,10 +153,10 @@ export function bloqueiosDoProfissional(rs: RestricaoEntrada[], ano: number, mes
   const fixas = rs.filter((x) => x.tipo === TipoRestricao.DISPONIVEL && x.diaSemana !== null && x.diaSemana !== undefined);
   for (let d = 1; d <= diasDoMes(ano, mes); d++) {
     const cobrindo = fixas.filter((r) => {
-      const inicioDia = Date.UTC(ano, mes - 1, d);
+      const inicioDia = utcDate(ano, mes - 1, d).getTime();
       return r.inicio.getTime() < inicioDia + 24 * MS_HORA && r.fim.getTime() >= inicioDia;
     });
-    if (cobrindo.length > 0 && !cobrindo.some((r) => new Date(Date.UTC(ano, mes - 1, d)).getUTCDay() === r.diaSemana)) {
+    if (cobrindo.length > 0 && !cobrindo.some((r) => utcDate(ano, mes - 1, d).getUTCDay() === r.diaSemana)) {
       marcar(d, 'fora_dos_dias_fixos');
     }
   }
@@ -164,7 +165,7 @@ export function bloqueiosDoProfissional(rs: RestricaoEntrada[], ano: number, mes
 
 /** Hora (relativa ao dia 1 às 00:00 UTC) a partir da qual o profissional volta a poder iniciar plantão. */
 export function livreAPartirDe(anteriores: PlantaoAnterior[], ano: number, mes: number): number {
-  const inicioMes = Date.UTC(ano, mes - 1, 1);
+  const inicioMes = utcDate(ano, mes - 1, 1).getTime();
   let livre = 0;
   for (const p of anteriores) {
     const [h, m] = p.horarioInicio.split(':').map(Number);

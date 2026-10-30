@@ -86,9 +86,9 @@ A interface SHALL permitir consultar e editar cada dia da semana, apresentando a
 - **AND** o cartão diário, a navegação e a ação "Editar" seguem a composição da captura "NurseFlow Web - Escala (Editar)"
 
 ### Requirement: A geração automática valida o escopo antes de criar a escala
-A interface SHALL permitir configurar período, setores e turnos e informar os critérios usados na geração antes de criar uma escala como rascunho.
+A interface SHALL permitir configurar período, setores e turnos e informar os critérios usados na geração antes de criar uma escala como rascunho. Deve permitir substituir explicitamente escalas em rascunho ou revisão, preservando estados validados e oficiais.
 
-#### Scenario: Coordenação configura uma nova geração
+#### Scenario: Coordenação configura uma geração
 - **WHEN** a Coordenação seleciona "Configurar geração"
 - **THEN** abre um painel lateral "Configurar geração automática" com o subtítulo "Defina o período e o escopo da nova escala."
 - **AND** o aviso "Nova escala" informa "A escala será criada como rascunho e poderá ser revisada antes da publicação."
@@ -102,6 +102,12 @@ A interface SHALL permitir configurar período, setores e turnos e informar os c
 - **WHEN** a Coordenação tenta gerar com datas inválidas ou sem setor ou turno selecionado
 - **THEN** a interface identifica o campo que precisa de correção, preserva as escolhas válidas e não inicia a geração
 
+#### Scenario: Substituir escala em revisão
+- **WHEN** o período selecionado possui uma escala em revisão
+- **THEN** a interface permite confirmar explicitamente a substituição
+- **AND** informa que o conteúdo atual só será substituído após uma geração concluída
+- **AND** não permite substituir escalas validadas, publicadas ou finalizadas
+
 #### Scenario: Geração é solicitada
 - **WHEN** a Coordenação solicita a geração com período e escopo válidos
 - **THEN** o fluxo permanece visível e a área do calendário é substituída pela superfície branca de carregamento com spinner e "Gerando a escala..."
@@ -109,6 +115,14 @@ A interface SHALL permitir configurar período, setores e turnos e informar os c
 - **AND** apresenta os indicadores "Disponibilidade", "Restrições" e "Cobertura por setor"
 - **AND** ao concluir com sucesso, apresenta a escala para revisão sem publicá-la automaticamente
 - **AND** se a geração falhar, reabre o painel com as seleções preservadas e informa o erro sem apresentar sucesso
+
+### Requirement: Selecionar o período das configurações mensais
+A interface SHALL permitir consultar e alterar as configurações mensais para qualquer ano civil de quatro dígitos (0001–9999) e qualquer um dos 12 meses, mantendo cada período isolado.
+
+#### Scenario: Consultar configurações de outro período
+- **WHEN** a Coordenação seleciona um mês diferente na tela de configurações
+- **THEN** a interface carrega os limites correspondentes ao ano e mês selecionados
+- **AND** não permite trocar de período enquanto há alterações não salvas
 
 ### Requirement: O cabeçalho encaminha para os painéis de ação ilustrados
 A interface SHALL abrir os painéis de exportação e geração a partir das duas ações do cabeçalho, sem downloads ou alterações diretas.

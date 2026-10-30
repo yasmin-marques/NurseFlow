@@ -55,7 +55,7 @@ export class EscalasController {
     summary: 'Gera a escala mensal automaticamente (RF005/US07)',
     description:
       'Otimiza o mês inteiro (todos os setores ativos e profissionais ativos) com OR-Tools CP-SAT, usando as configurações vigentes do período. ' +
-      'Salva como rascunho e devolve a escala, as vagas descobertas (pendências) e os conflitos. Um período só admite uma escala.',
+      'Salva como rascunho e devolve a escala, as vagas descobertas (pendências) e os conflitos. Pode substituir explicitamente um rascunho ou uma escala em revisão; versões validadas, publicadas ou finalizadas são preservadas.',
   })
   gerar(@Body() dto: GerarEscalaDto, @UsuarioAtual() usuario: UsuarioAutenticado) {
     return this.service.gerar(dto, usuario);

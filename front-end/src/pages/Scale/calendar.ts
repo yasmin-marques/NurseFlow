@@ -2,13 +2,26 @@ import type { ScaleDetail } from '../../services/scales'
 
 export type CalendarView = 'month' | 'week'
 
-const startOfDay = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate())
+export function calendarDate(year: number, month: number, day = 1): Date {
+  const date = new Date(0)
+  date.setFullYear(year, month, day)
+  date.setHours(0, 0, 0, 0)
+  return date
+}
+
+export function daysInMonth(year: number, month: number): number {
+  const date = new Date(0)
+  date.setUTCFullYear(year, month, 0)
+  return date.getUTCDate()
+}
+
+const startOfDay = (date: Date) => calendarDate(date.getFullYear(), date.getMonth(), date.getDate())
 
 export function dateKey(date: Date): string {
   const year = date.getFullYear()
   const month = String(date.getMonth() + 1).padStart(2, '0')
   const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
+  return `${String(year).padStart(4, '0')}-${month}-${day}`
 }
 
 export function calendarDays(view: CalendarView, anchor: Date): Date[] {
@@ -22,9 +35,9 @@ export function calendarDays(view: CalendarView, anchor: Date): Date[] {
     })
   }
 
-  const first = new Date(start.getFullYear(), start.getMonth(), 1)
+  const first = calendarDate(start.getFullYear(), start.getMonth(), 1)
   const offset = first.getDay()
-  const count = new Date(start.getFullYear(), start.getMonth() + 1, 0).getDate()
+  const count = daysInMonth(start.getFullYear(), start.getMonth() + 1)
   const total = Math.ceil((offset + count) / 7) * 7
   const firstVisible = new Date(first)
   firstVisible.setDate(first.getDate() - offset)

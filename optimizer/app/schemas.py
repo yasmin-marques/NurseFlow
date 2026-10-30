@@ -52,7 +52,7 @@ class Parametros(BaseModel):
 
 class Problema(BaseModel):
     operacao_id: str | None = None
-    ano: int = Field(ge=2000)
+    ano: int = Field(ge=1, le=9999)
     mes: int = Field(ge=1, le=12)
     dias_mes: int = Field(ge=28, le=31)
     profissionais: list[Profissional]

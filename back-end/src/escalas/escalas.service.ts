@@ -5,6 +5,7 @@ import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import { type ClientSession, type Connection, Model, Types } from 'mongoose';
 import type { UsuarioAutenticado } from '../common/auth/usuario-autenticado';
 import { executarTransacao } from '../common/utils/mongo-transaction';
+import { utcDate } from '../common/utils/date';
 import type { AppConfig } from '../config/configuration';
 import { chaveCarga } from '../configuracoes/configuracao.schema';
 import { ConfiguracoesService } from '../configuracoes/configuracoes.service';
@@ -55,7 +56,7 @@ const HORARIOS: Record<OpcaoPlantao, { inicio: string; fim: string; horas: numbe
   '12n': { inicio: '19:00', fim: '07:00', horas: 12 },
 };
 
-const rotuloPeriodo = (ano: number, mes: number) => `${String(mes).padStart(2, '0')}/${ano}`;
+const rotuloPeriodo = (ano: number, mes: number) => `${String(mes).padStart(2, '0')}/${String(ano).padStart(4, '0')}`;
 const isoDia = (d: Date) => d.toISOString().slice(0, 10);
 
 interface SnapshotEscala {
@@ -666,8 +667,8 @@ export class EscalasService {
         tipo: plantao.tipo,
       }];
     });
-    const inicioMes = new Date(Date.UTC(escala.ano, escala.mes - 1, 1));
-    const fimMes = new Date(Date.UTC(escala.ano, escala.mes - 1, diasDoMes(escala.ano, escala.mes), 23, 59, 59, 999));
+    const inicioMes = utcDate(escala.ano, escala.mes - 1, 1);
+    const fimMes = utcDate(escala.ano, escala.mes - 1, diasDoMes(escala.ano, escala.mes), 23, 59, 59, 999);
     const restricoes = idsProfissionais.length
       ? await this.restricoes
           .find({ profissionalId: { $in: idsProfissionais }, inicio: { $lte: fimMes }, fim: { $gte: inicioMes } })
@@ -876,8 +877,8 @@ export class EscalasService {
       throw new UnprocessableEntityException({ message: 'A data do plantão deve pertencer ao período da escala.' });
     }
     const data = new Date(`${dto.data}T00:00:00.000Z`);
-    const fimMes = new Date(Date.UTC(escala.ano, escala.mes - 1, diasDoMes(escala.ano, escala.mes), 23, 59, 59, 999));
-    const inicioMes = new Date(Date.UTC(escala.ano, escala.mes - 1, 1));
+    const fimMes = utcDate(escala.ano, escala.mes - 1, diasDoMes(escala.ano, escala.mes), 23, 59, 59, 999);
+    const inicioMes = utcDate(escala.ano, escala.mes - 1, 1);
     const setor = await this.setores.findOne({ _id: dto.setorId, ativo: true }).session(session).lean().exec();
     if (!setor) throw new NotFoundException('Setor ativo não encontrado.');
 
@@ -1051,8 +1052,8 @@ export class EscalasService {
         },
       ]),
     );
-    const inicioMes = new Date(Date.UTC(escala.ano, escala.mes - 1, 1));
-    const fimMes = new Date(Date.UTC(escala.ano, escala.mes - 1, diasDoMes(escala.ano, escala.mes), 23, 59, 59, 999));
+    const inicioMes = utcDate(escala.ano, escala.mes - 1, 1);
+    const fimMes = utcDate(escala.ano, escala.mes - 1, diasDoMes(escala.ano, escala.mes), 23, 59, 59, 999);
     const restricoes = idsProfissionais.length
       ? await this.restricoes
           .find({
@@ -1363,19 +1364,20 @@ export class EscalasService {
     const rotulo = rotuloPeriodo(ano, mes);
 
     const existente = await this.escalas.findOne({ ano, mes }).lean().exec();
-    if (existente && existente.status !== StatusEscala.RASCUNHO) {
+    const substituivel = existente?.status === StatusEscala.RASCUNHO || existente?.status === StatusEscala.EM_REVISAO;
+    if (existente && !substituivel) {
       throw new ConflictException(`Já existe uma escala ${existente.status} para ${rotulo} (id ${existente._id}). Ela não pode ser substituída.`);
     }
     if (existente && !dto.substituirRascunho) {
       throw new ConflictException(
-        `Já existe um rascunho de escala para ${rotulo} (id ${existente._id}). Envie "substituirRascunho": true para gerar novamente.`,
+        `Já existe uma escala em ${existente.status} para ${rotulo} (id ${existente._id}). Envie "substituirRascunho": true para gerar novamente.`,
       );
     }
 
     // Configuração vigente NO MOMENTO da geração (nunca valores fixos nem reaproveitados de escalas antigas).
     const configuracao = (await this.configuracoes.consultar(ano, mes)) as ConfiguracaoVigente;
-    const inicioMes = new Date(Date.UTC(ano, mes - 1, 1));
-    const fimMes = new Date(Date.UTC(ano, mes - 1, diasDoMes(ano, mes), 23, 59, 59, 999));
+    const inicioMes = utcDate(ano, mes - 1, 1);
+    const fimMes = utcDate(ano, mes - 1, diasDoMes(ano, mes), 23, 59, 59, 999);
 
     const profissionaisDocs = await this.profissionais.find().lean().exec();
     const nomes = await this.nomesDosUsuarios(profissionaisDocs.map((p) => p.usuarioId));
@@ -1449,7 +1451,7 @@ export class EscalasService {
     const pendencias = solucao.descobertos.map((d) => ({
       setorId: d.setor_id,
       setor: nomeSetor.get(d.setor_id) ?? d.setor_id,
-      data: isoDia(new Date(Date.UTC(ano, mes - 1, d.dia))),
+      data: isoDia(utcDate(ano, mes - 1, d.dia)),
       turno: d.turno,
       funcao: d.funcao,
       necessario: d.necessario,
@@ -1532,7 +1534,7 @@ export class EscalasService {
     }
   }
 
-  /** Grava (ou regrava o rascunho) escala, plantões e vínculos profissional-plantão. */
+  /** Grava (ou regrava o rascunho/em revisão) escala, plantões e vínculos profissional-plantão. */
   private async gravar(
     existenteId: Types.ObjectId | undefined,
     revisaoExistente: number | undefined,
@@ -1546,16 +1548,21 @@ export class EscalasService {
         if (existenteId) {
           await this.removerConteudo(escalaId, session);
           const atualizada = await this.escalas.updateOne(
-            { _id: escalaId, status: StatusEscala.RASCUNHO, revisao: revisaoExistente },
+            { _id: escalaId, status: { $in: [StatusEscala.RASCUNHO, StatusEscala.EM_REVISAO] }, revisao: revisaoExistente },
             {
-              $set: { administradorId: base.administradorId, dataCriacao: new Date(), geracao: base.geracao },
+              $set: {
+                administradorId: base.administradorId,
+                dataCriacao: new Date(),
+                geracao: base.geracao,
+                status: StatusEscala.RASCUNHO,
+              },
               $unset: { validacao: 1 },
               $inc: { revisao: 1 },
             },
             { session },
           );
           if (atualizada.matchedCount !== 1) {
-            throw new ConflictException('A escala deixou de ser um rascunho e não pode ser substituída.');
+            throw new ConflictException('A escala deixou de ser um rascunho ou uma escala em revisão e não pode ser substituída.');
           }
         } else {
           await this.escalas.create([{ _id: escalaId, ...base, status: StatusEscala.RASCUNHO }], { session });
@@ -1572,7 +1579,7 @@ export class EscalasService {
                 _id: new Types.ObjectId(),
                 escalaId,
                 setorId: new Types.ObjectId(a.setor_id),
-                data: new Date(Date.UTC(base.ano, base.mes - 1, a.dia)),
+                data: utcDate(base.ano, base.mes - 1, a.dia),
                 horarioInicio: h.inicio,
                 horarioFim: h.fim,
                 duracaoHoras: h.horas,

@@ -40,7 +40,7 @@ export function RemoveDraftDialog({ scale, onClose, onRemoved }: RemoveDraftDial
         <header className="border-b border-border px-5 py-4 sm:px-7 sm:py-5">
           <h2 id="remove-scale-title" className="text-xl font-bold tracking-tight text-text">Remover rascunho</h2>
           <p className="mt-1 text-sm text-text-muted">
-            Escala de {String(scale.escala.mes).padStart(2, '0')}/{scale.escala.ano}
+            Escala de {String(scale.escala.mes).padStart(2, '0')}/{String(scale.escala.ano).padStart(4, '0')}
           </p>
         </header>
         <form onSubmit={submit} noValidate className="space-y-5 px-5 py-5 sm:px-7 sm:py-6">

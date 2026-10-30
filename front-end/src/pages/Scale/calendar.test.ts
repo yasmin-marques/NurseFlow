@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ScaleDetail } from '../../services/scales'
-import { calendarDays, dateKey, dayIndicators, formatWeek, summarizeDayShifts } from './calendar'
+import { calendarDate, calendarDays, dateKey, dayIndicators, daysInMonth, formatWeek, summarizeDayShifts } from './calendar'
 
 const scale: ScaleDetail = {
   escala: {
@@ -54,6 +54,13 @@ const scale: ScaleDetail = {
 }
 
 describe('calendar model', () => {
+  it('handles month lengths and calendar dates across the four-digit year range', () => {
+    expect(daysInMonth(4, 2)).toBe(29)
+    expect(daysInMonth(9999, 2)).toBe(28)
+    expect(dateKey(calendarDate(1, 0, 1))).toBe('0001-01-01')
+    expect(calendarDays('month', calendarDate(1, 1, 1)).some((day) => dateKey(day) === '0001-02-01')).toBe(true)
+  })
+
   it('switches between a complete month grid and the selected week', () => {
     const anchor = new Date(2026, 9, 6)
     const month = calendarDays('month', anchor)

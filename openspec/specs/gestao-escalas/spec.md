@@ -7,7 +7,7 @@ Permite à Coordenação criar e manter escalas mensais de forma controlada, des
 ## Requirements
 
 ### Requirement: Criar escala mensal
-O sistema MUST permitir à Coordenação criar uma escala para um mês e ano sem substituir silenciosamente uma escala existente no mesmo período.
+O sistema MUST permitir à Coordenação criar uma escala para um mês e ano sem substituir silenciosamente uma escala existente no mesmo período. Com confirmação explícita, uma nova geração pode substituir o conteúdo de uma escala em rascunho ou em revisão; escalas validadas, publicadas ou finalizadas são preservadas.
 
 #### Scenario: Gerar uma nova escala automaticamente
 - **WHEN** a Coordenação informa período, setores ativos e turnos a considerar e solicita a geração
@@ -17,9 +17,63 @@ O sistema MUST permitir à Coordenação criar uma escala para um mês e ano sem
 - **WHEN** já existe uma escala não removível para o período solicitado
 - **THEN** o sistema informa o conflito e preserva a escala existente
 
+#### Scenario: Regenerar escala durante a revisão
+- **WHEN** a Coordenação confirma uma geração para um período cuja escala está em revisão
+- **THEN** o sistema mantém a identidade da escala, substitui atomicamente os plantões e vínculos pelo novo resultado e retorna a escala ao estado de rascunho para nova revisão
+- **AND** se a geração ou a gravação falhar, o conteúdo em revisão anterior permanece intacto
+
+#### Scenario: Preservar escala validada ou oficial
+- **WHEN** já existe uma escala validada, publicada ou finalizada no período solicitado
+- **THEN** o sistema recusa a substituição e preserva a versão existente
+
 #### Scenario: Dados insuficientes para gerar
 - **WHEN** faltam setores, profissionais ou parâmetros necessários para a geração
 - **THEN** o sistema informa quais dados precisam ser corrigidos e não cria uma escala parcial
+
+### Requirement: Consultar configuração mensal por ano e mês
+O sistema MUST consultar e atualizar cada configuração pelo par ano/mês, aceitando qualquer ano civil de quatro dígitos (0001–9999), sem depender do ano atual nem reutilizar configuração de outro período.
+
+#### Scenario: Consultar qualquer período permitido
+- **WHEN** a Coordenação seleciona um mês e ano permitidos pela API de configurações
+- **THEN** o sistema carrega os limites daquele período, usando os valores padrão quando ainda não há configuração salva
+
+#### Scenario: Salvar limites de um período
+- **WHEN** a Coordenação salva limites para um período selecionado
+- **THEN** somente a configuração daquele ano e mês é criada ou atualizada e os demais períodos permanecem inalterados
+
+#### Scenario: Provisionar configurações mensais automaticamente
+- **WHEN** a Coordenação consulta um período sem configuração existente
+- **THEN** o sistema cria a configuração daquele período com limites e cargas padrão de concursado (6 plantões de 24h e 1 de 12h) e CLT (5 de 24h e 2 de 12h) para meses de 28, 29, 30 e 31 dias
+- **AND** configurações antigas sem algum desses campos recebem apenas os padrões ausentes, preservando valores já editados
+- **AND** a criação sob demanda evita exigir a pré-geração manual de configurações para anos futuros
+
+#### Scenario: Editar carga regular por período
+- **WHEN** a Coordenação altera os plantões regulares de 24h ou 12h para concursado ou CLT
+- **THEN** o sistema salva os valores na configuração do período selecionado, usando a quantidade de dias daquele mês
+- **AND** as demais durações de mês e períodos permanecem inalteradas
+- **AND** a geração automática aplica as cargas atualizadas e continua respeitando as regras obrigatórias de elegibilidade, plantão e descanso
+
+### Requirement: Gerar plantões respeitando regras de disponibilidade e descanso
+A geração automática MUST observar as restrições obrigatórias de elegibilidade, intervalo entre plantões, carga e limite de extras. Quando não houver profissionais elegíveis suficientes, deve registrar vagas descobertas em vez de violar essas regras.
+
+#### Scenario: Escalar profissional elegível
+- **WHEN** o otimizador atribui um plantão
+- **THEN** o profissional está ativo, possui formação compatível, está disponível na data e não tem outro plantão sobreposto
+
+#### Scenario: Aplicar descanso obrigatório
+- **WHEN** um profissional recebe plantões sucessivos
+- **THEN** há no mínimo 72 horas de descanso após um plantão de 24 horas e 36 horas após um plantão de 12 horas
+- **AND** a combinação de plantões diurno e noturno de 12 horas no mesmo dia é permitida
+- **AND** o descanso pendente de plantão do mês anterior também é respeitado
+
+#### Scenario: Respeitar restrições e limites individuais
+- **WHEN** uma data de início está bloqueada por indisponibilidade, férias, ausência, vínculo externo ou incompatibilidade com dias fixos de disponibilidade
+- **THEN** o profissional não é alocado nessa data
+- **AND** os limites de carga regular, extras e total de plantões por período são respeitados
+
+#### Scenario: Cobertura insuficiente sem violar regras obrigatórias
+- **WHEN** não há profissionais elegíveis suficientes para preencher o quantitativo mínimo de setor, turno e função
+- **THEN** a geração registra a vaga como descoberta e informa o quantitativo faltante, sem relaxar as regras obrigatórias
 
 ### Requirement: Cancelar geração em andamento
 O sistema MUST permitir à Coordenação interromper uma geração ativa no servidor e garantir que uma operação cancelada não salve uma escala parcial.

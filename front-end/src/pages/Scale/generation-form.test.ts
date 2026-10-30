@@ -1,5 +1,19 @@
 import { describe, expect, it } from 'vitest'
-import { validateGenerationSelection } from './generation-form'
+import { isScaleReplaceable, validateGenerationSelection } from './generation-form'
+
+describe('isScaleReplaceable', () => {
+  it('permite regenerar rascunhos e escalas em revisão', () => {
+    expect(isScaleReplaceable('rascunho')).toBe(true)
+    expect(isScaleReplaceable('em_revisao')).toBe(true)
+  })
+
+  it('preserva escalas validadas, publicadas e finalizadas', () => {
+    expect(isScaleReplaceable('validada')).toBe(false)
+    expect(isScaleReplaceable('publicada')).toBe(false)
+    expect(isScaleReplaceable('finalizada')).toBe(false)
+    expect(isScaleReplaceable(null)).toBe(false)
+  })
+})
 
 describe('validateGenerationSelection', () => {
   const valid = {
@@ -15,8 +29,20 @@ describe('validateGenerationSelection', () => {
     expect(validateGenerationSelection(valid)).toBeNull()
   })
 
-  it('valida os limites de ano e mês da API', () => {
-    expect(validateGenerationSelection({ ...valid, year: 2101 })).toMatch(/ano/i)
+  it('aceita os anos civis de quatro dígitos e valida mês inválido', () => {
+    expect(validateGenerationSelection({
+      ...valid,
+      year: 1,
+      startDate: '0001-10-01',
+      endDate: '0001-10-31',
+    })).toBeNull()
+    expect(validateGenerationSelection({
+      ...valid,
+      year: 9999,
+      startDate: '9999-10-01',
+      endDate: '9999-10-31',
+    })).toBeNull()
+    expect(validateGenerationSelection({ ...valid, year: 0 })).toMatch(/ano/i)
     expect(validateGenerationSelection({ ...valid, month: 13 })).toMatch(/mês/i)
   })
 

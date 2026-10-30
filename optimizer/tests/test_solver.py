@@ -45,6 +45,12 @@ def por_profissional(sol):
     return mapa
 
 
+def test_schema_aceita_anos_civis_de_quatro_digitos():
+    base = problema([], [], dias=31).model_dump()
+    for ano in (1, 9999):
+        assert Problema.model_validate({**base, "ano": ano}).ano == ano
+
+
 # ---------- 24x72 ----------
 def test_respeita_descanso_24x72_e_nao_sobrepoe_plantoes():
     profs = [prof(f"e{i}", c24=7, c12=0) for i in range(8)]

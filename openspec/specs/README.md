@@ -5,9 +5,10 @@ Esta pasta reúne as especificações vigentes das capacidades já implementadas
 ## Linha de base observada no repositório
 
 - A aplicação possui autenticação por token e perfis de Coordenação, Enfermeiro e Técnico. A Coordenação mantém profissionais, disponibilidade/restrições, setores e configurações mensais.
-- O back-end gera uma escala mensal como rascunho em `POST /escalas/gerar` e consulta uma escala por identificador em `GET /escalas/:id`. A geração usa NestJS, MongoDB e o serviço interno FastAPI/OR-Tools; há validação de disponibilidade, descanso, cargas, extras e quantitativos mínimos, com vagas descobertas e conflitos no resultado.
-- O modelo atual aceita uma escala por mês, com estados rascunho, publicada e finalizada. Ainda não há rotas para listar por período, montar manualmente, editar plantões, validar/transicionar o fluxo, publicar, exportar PDF ou gerenciar notificações de escala.
-- O front-end já tem páginas integradas para profissionais, disponibilidade, setores e configurações. A opção “Escala” existe na navegação, mas ainda exibe uma área em preparação, não o calendário apresentado nos protótipos.
+- As configurações mensais são consultadas e atualizadas pelo par ano/mês, sem vinculação ao ano atual. O sistema aceita anos civis de quatro dígitos (0001–9999).
+- O back-end gera uma escala mensal como rascunho em `POST /escalas/gerar`, e permite substituir explicitamente um rascunho ou uma escala em revisão. Escalas validadas, publicadas e finalizadas não são substituídas.
+- A geração usa NestJS, MongoDB e o serviço interno FastAPI/OR-Tools. Respeita elegibilidade, restrições, descanso de 72h após plantões de 24h e de 36h após plantões de 12h (com exceção da sequência diurno/noturno de 12h no mesmo dia), limites de carga e extras; insuficiência de equipe é registrada como vaga descoberta.
+- O ciclo de escala inclui consulta por período, montagem e edição de plantões, validação, revisão, publicação, exportação PDF e notificações. Os requisitos vigentes detalham as regras em [gestão de escalas](./gestao-escalas/spec.md), [publicação](./publicacao-escalas/spec.md) e [interface do fluxo](./scale-workflow-interface/spec.md).
 
 Esta linha de base descreve o código observado, não todas as capacidades pretendidas nos documentos de requisitos. Para o fluxo proposto de escala, consulte [a mudança ativa](../changes/gerenciar-ciclo-de-vida-de-escalas/README.md) e seus requisitos delta.
 
