@@ -13,24 +13,24 @@ const PEOPLE = [
   ['gabriela', 'Gabriela Nunes Pinto', 'enfermeiro', 'concursado', 'ferias', 'CE-10007'],
   ['henrique', 'Henrique Oliveira Melo', 'tecnico', 'clt', 'afastado', 'CE-10008'],
   ['isabela', 'Isabela Castro Freitas', 'tecnico', 'concursado', 'ativo', 'CE-10009'],
-  ['joao', 'JoÃ£o Pedro Barbosa', 'enfermeiro', 'concursado', 'ativo', 'CE-10010'],
+  ['joao', 'João Pedro Barbosa', 'enfermeiro', 'concursado', 'ativo', 'CE-10010'],
   ['karina', 'Karina Azevedo Lopes', 'enfermeiro', 'clt', 'ativo', 'CE-10011'],
   ['leonardo', 'Leonardo Teixeira Gomes', 'enfermeiro', 'rpa', 'ativo', 'CE-10012'],
   ['mariana', 'Mariana Cardoso Braga', 'enfermeiro', 'clt', 'ferias', 'CE-10013'],
-  ['nicolas', 'Nicolas AraÃºjo Prado', 'enfermeiro', 'concursado', 'afastado', 'CE-10014'],
-  ['olivia', 'OlÃ­via Santana Reis', 'enfermeiro', 'rpa', 'afastado', 'CE-10015'],
-  ['paulo', 'Paulo VinÃ­cius Moreira', 'enfermeiro', 'clt', 'ativo', 'CE-10016'],
-  ['quiteria', 'QuitÃ©ria Batista Neves', 'enfermeiro', 'concursado', 'desativado', 'CE-10017'],
+  ['nicolas', 'Nicolas Araujo Prado', 'enfermeiro', 'concursado', 'afastado', 'CE-10014'],
+  ['olivia', 'Olivia Santana Reis', 'enfermeiro', 'rpa', 'afastado', 'CE-10015'],
+  ['paulo', 'Paulo Vinicius Moreira', 'enfermeiro', 'clt', 'ativo', 'CE-10016'],
+  ['quiteria', 'Quiteria Batista Neves', 'enfermeiro', 'concursado', 'desativado', 'CE-10017'],
   ['rafael', 'Rafael Monteiro Cunha', 'enfermeiro', 'concursado', 'ativo', 'CE-10018'],
   ['sandra', 'Sandra Vieira Campos', 'tecnico', 'concursado', 'ativo', 'CE-10019'],
   ['tiago', 'Tiago Carvalho Esteves', 'tecnico', 'clt', 'ativo', 'CE-10020'],
-  ['ursula', 'Ãšrsula Medeiros Farias', 'tecnico', 'rpa', 'ativo', 'CE-10021'],
+  ['ursula', 'Ursula Medeiros Farias', 'tecnico', 'rpa', 'ativo', 'CE-10021'],
   ['valter', 'Valter Domingos Peixoto', 'tecnico', 'clt', 'ferias', 'CE-10022'],
   ['wanessa', 'Wanessa Pacheco Ramos', 'tecnico', 'rpa', 'ativo', 'CE-10023'],
   ['xavier', 'Xavier Lacerda Siqueira', 'tecnico', 'concursado', 'ativo', 'CE-10024'],
   ['yara', 'Yara Fontenele Duarte', 'tecnico', 'clt', 'ativo', 'CE-10025'],
-  ['zenilda', 'Zenilda GuimarÃ£es Matos', 'tecnico', 'rpa', 'desativado', 'CE-10026'],
-  ['otavio', 'OtÃ¡vio BrandÃ£o Leite', 'tecnico', 'clt', 'ativo', 'CE-10027'],
+  ['zenilda', 'Zenilda Guimarães Matos', 'tecnico', 'rpa', 'desativado', 'CE-10026'],
+  ['otavio', 'Otavio Brandão Leite', 'tecnico', 'clt', 'ativo', 'CE-10027'],
 ];
 
 function cpf(base9) {
@@ -45,7 +45,7 @@ function cpf(base9) {
 }
 function requirePassword(name) {
   const value = process.env[name];
-  if (!value || value.length < 8 || value.length > 72) throw new Error(`${name}: forneÃ§a uma senha de 8 a 72 caracteres no .env`);
+  if (!value || value.length < 8 || value.length > 72) throw new Error(`${name}: forneça uma senha de 8 a 72 caracteres no .env`);
   return value;
 }
 function date(s) { return new Date(s); }
@@ -53,13 +53,13 @@ const now = () => new Date();
 
 async function seed() {
   if (process.env.DEMO_SEED_ENABLED !== 'true') {
-    console.log('Seed de demonstraÃ§Ã£o desabilitado (DEMO_SEED_ENABLED nÃ£o Ã© true).');
+    console.log('Seed de demonstração desabilitado (DEMO_SEED_ENABLED true).');
     return;
   }
   if (process.env.NODE_ENV === 'production' && process.env.ALLOW_DEMO_IN_PRODUCTION !== 'true') {
     // A imagem Docker usa NODE_ENV=production mesmo em mÃ¡quinas locais.
     // A autorizaÃ§Ã£o explÃ­cita Ã© configurada exclusivamente no serviÃ§o de seed.
-    throw new Error('Seed recusado em NODE_ENV=production sem ALLOW_DEMO_IN_PRODUCTION=true. Use somente numa instÃ¢ncia local isolada.');
+    throw new Error('Seed recusado em NODE_ENV=production sem ALLOW_DEMO_IN_PRODUCTION=true. Use somente numa instância local isolada.');
   }
   const uri = process.env.MONGODB_URI;
   if (!uri) throw new Error('MONGODB_URI ausente');
@@ -77,13 +77,13 @@ async function seed() {
     const adminCpf = cpf('930000001');
     const admin = await usuarios.findOneAndUpdate({ email: adminEmail }, {
       $setOnInsert: {
-        nome: 'CoordenaÃ§Ã£o Demo', email: adminEmail, cpf: adminCpf,
+        nome: 'Coordenação Demo', email: adminEmail, cpf: adminCpf,
         senha: await bcrypt.hash(adminPassword, 10), tipoUsuario: 'administrador',
         senhaTemporaria: false, tentativasFalhasLogin: 0, bloqueadoAte: null,
         ultimoLoginEm: null, createdAt: ts, updatedAt: ts,
       },
     }, { upsert: true, returnDocument: 'after' });
-    if (admin.tipoUsuario !== 'administrador') throw new Error(`Conflito de perfil no usuÃ¡rio ${adminEmail}`);
+    if (admin.tipoUsuario !== 'administrador') throw new Error(`Conflito de perfil no usuário ${adminEmail}`);
     await admins.updateOne({ usuarioId: admin._id }, { $setOnInsert: { usuarioId: admin._id } }, { upsert: true });
 
     const identities = {};
@@ -106,8 +106,8 @@ async function seed() {
 
     const setores = [
       ['UTI', 'Unidade de Terapia Intensiva', [2, 3], [2, 2]],
-      ['EmergÃªncia', 'Pronto atendimento', [2, 3], [1, 2]],
-      ['ClÃ­nica MÃ©dica', 'InternaÃ§Ã£o clÃ­nica', [1, 2], [1, 1]],
+      ['Emergência', 'Pronto atendimento', [2, 3], [1, 2]],
+      ['Clínica Médica', 'Internação clínica', [1, 2], [1, 1]],
     ];
     for (const [nome, descricao, dia, noite] of setores) {
       await db.collection('setores').updateOne({ nome }, { $setOnInsert: {
@@ -119,22 +119,22 @@ async function seed() {
     }
 
     const restrictions = [
-      ['ana', 'indisponivel', '2026-10-14T00:00:00.000Z', '2026-10-14T23:59:59.999Z', null, 'IndisponÃ­vel na quarta-feira'],
-      ['bruno', 'vinculo_externo', '2026-10-01T00:00:00.000Z', '2026-10-31T23:59:59.999Z', 2, 'Outro vÃ­nculo Ã s terÃ§as (sem horÃ¡rio especÃ­fico)'],
+      ['ana', 'indisponivel', '2026-10-14T00:00:00.000Z', '2026-10-14T23:59:59.999Z', null, 'Indisponível na quarta-feira'],
+      ['bruno', 'vinculo_externo', '2026-10-01T00:00:00.000Z', '2026-10-31T23:59:59.999Z', 2, 'Outro vínculo às terças (sem horário específico)'],
       ['carla', 'disponivel', '2026-10-16T00:00:00.000Z', '2026-10-16T23:59:59.999Z', null, 'Disponibilidade declarada'],
-      ['daniela', 'ausencia', '2026-10-19T00:00:00.000Z', '2026-10-21T23:59:59.999Z', null, 'AusÃªncia informada'],
+      ['daniela', 'ausencia', '2026-10-19T00:00:00.000Z', '2026-10-21T23:59:59.999Z', null, 'Ausência informada'],
       ['eduardo', 'indisponivel', '2026-10-23T00:00:00.000Z', '2026-10-23T23:59:59.999Z', null, 'Compromisso pessoal'],
-      ['fernanda', 'vinculo_externo', '2026-10-01T00:00:00.000Z', '2026-10-31T23:59:59.999Z', 5, 'Outro vÃ­nculo Ã s sextas'],
-      ['gabriela', 'ferias', '2026-10-12T00:00:00.000Z', '2026-10-26T23:59:59.999Z', null, 'FÃ©rias programadas'],
+      ['fernanda', 'vinculo_externo', '2026-10-01T00:00:00.000Z', '2026-10-31T23:59:59.999Z', 5, 'Outro vínculo às sextas'],
+      ['gabriela', 'ferias', '2026-10-12T00:00:00.000Z', '2026-10-26T23:59:59.999Z', null, 'Férias programadas'],
       ['henrique', 'ausencia', '2026-10-12T00:00:00.000Z', '2026-10-31T23:59:59.999Z', null, 'Afastamento informado'],
-      ['isabela', 'disponivel', '2026-10-18T00:00:00.000Z', '2026-10-18T23:59:59.999Z', null, 'DisponÃ­vel neste domingo'],
-      ['mariana', 'ferias', '2026-10-05T00:00:00.000Z', '2026-10-19T23:59:59.999Z', null, 'FÃ©rias programadas'],
-      ['valter', 'ferias', '2026-10-19T00:00:00.000Z', '2026-11-02T23:59:59.999Z', null, 'FÃ©rias programadas'],
+      ['isabela', 'disponivel', '2026-10-18T00:00:00.000Z', '2026-10-18T23:59:59.999Z', null, 'Disponível neste domingo'],
+      ['mariana', 'ferias', '2026-10-05T00:00:00.000Z', '2026-10-19T23:59:59.999Z', null, 'Férias programadas'],
+      ['valter', 'ferias', '2026-10-19T00:00:00.000Z', '2026-11-02T23:59:59.999Z', null, 'Férias programadas'],
       ['nicolas', 'ausencia', '2026-10-01T00:00:00.000Z', '2026-10-31T23:59:59.999Z', null, 'Afastamento informado'],
       ['olivia', 'ausencia', '2026-10-15T00:00:00.000Z', '2026-11-15T23:59:59.999Z', null, 'Afastamento informado'],
       ['joao', 'indisponivel', '2026-10-09T00:00:00.000Z', '2026-10-09T23:59:59.999Z', null, 'Compromisso pessoal'],
-      ['tiago', 'vinculo_externo', '2026-10-01T00:00:00.000Z', '2026-10-31T23:59:59.999Z', 3, 'Outro vÃ­nculo Ã s quartas'],
-      ['yara', 'indisponivel', '2026-10-28T00:00:00.000Z', '2026-10-28T23:59:59.999Z', null, 'IndisponÃ­vel neste dia'],
+      ['tiago', 'vinculo_externo', '2026-10-01T00:00:00.000Z', '2026-10-31T23:59:59.999Z', 3, 'Outro vínculo às quartas'],
+      ['yara', 'indisponivel', '2026-10-28T00:00:00.000Z', '2026-10-28T23:59:59.999Z', null, 'Indisponível neste dia'],
     ];
     for (const [slug, tipo, inicio, fim, diaSemana, observacao] of restrictions) {
       const profissionalId = identities[slug];
@@ -153,7 +153,7 @@ module.exports = { PEOPLE, cpf, seed };
 
 if (require.main === module) seed().catch((error) => {
   if (error && error.code === 11000) {
-    console.error('Falha no seed: conflito de unicidade (e-mail, CPF ou COREN jÃ¡ usados por outro registro).', error.keyValue ?? '');
+    console.error('Falha no seed: conflito de unicidade (e-mail, CPF ou COREN já usados por outro registro).', error.keyValue ?? '');
   } else {
     console.error('Falha no seed:', error);
   }
