@@ -6,6 +6,7 @@ export interface AppConfig {
   jwt: { secret: string; expiresInSeconds: number };
   login: { maxAttempts: number; lockMinutes: number };
   passwordResetTtlMinutes: number;
+  otimizador: { url: string; timeoutMs: number; tempoLimiteSegundos: number };
 }
 
 type Env = Record<string, unknown>;
@@ -32,6 +33,8 @@ export function validateEnv(env: Env): Env {
   toInt(env.LOGIN_MAX_ATTEMPTS, 5, 'LOGIN_MAX_ATTEMPTS');
   toInt(env.LOGIN_LOCK_MINUTES, 15, 'LOGIN_LOCK_MINUTES');
   toInt(env.PASSWORD_RESET_TTL_MINUTES, 30, 'PASSWORD_RESET_TTL_MINUTES');
+  toInt(env.OPTIMIZER_TIMEOUT_MS, 120000, 'OPTIMIZER_TIMEOUT_MS');
+  toInt(env.OPTIMIZER_TIME_LIMIT_SECONDS, 30, 'OPTIMIZER_TIME_LIMIT_SECONDS');
   return env;
 }
 
@@ -54,5 +57,10 @@ export default (): AppConfig => {
       lockMinutes: toInt(env.LOGIN_LOCK_MINUTES, 15, 'LOGIN_LOCK_MINUTES'),
     },
     passwordResetTtlMinutes: toInt(env.PASSWORD_RESET_TTL_MINUTES, 30, 'PASSWORD_RESET_TTL_MINUTES'),
+    otimizador: {
+      url: env.OPTIMIZER_URL || 'http://localhost:8000',
+      timeoutMs: toInt(env.OPTIMIZER_TIMEOUT_MS, 120000, 'OPTIMIZER_TIMEOUT_MS'),
+      tempoLimiteSegundos: toInt(env.OPTIMIZER_TIME_LIMIT_SECONDS, 30, 'OPTIMIZER_TIME_LIMIT_SECONDS'),
+    },
   };
 };

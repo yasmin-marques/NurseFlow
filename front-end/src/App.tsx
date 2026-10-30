@@ -9,6 +9,7 @@ import { UNAUTHORIZED_EVENT } from './services/api'
 import { DisponibilityPage } from './pages/Disponibility/DisponibilityPage'
 import { Professional } from './pages/Professionals/Professionals';
 import { SectorsPage } from './pages/Sectors/SectorsPage';
+import { ScalePage } from './pages/Scale/ScalePage'
 
 function App() {
   const [user, setUser] = useState<SessionUser | null>(null)
@@ -70,6 +71,8 @@ function App() {
           <Professional />
       ) : activeItem === 'setores' && isCoordination ? (
         <SectorsPage />
+      ) : activeItem === 'escala' && isCoordination ? (
+        <ScalePage />
       ) : (
         <section className="mx-auto flex min-h-full w-full max-w-5xl items-center px-5 py-10 sm:px-8">
           <div className="w-full rounded-3xl border border-border bg-white p-8 shadow-(--shadow-soft) sm:p-12">

@@ -13,7 +13,8 @@ type SettingsPageProps = {
 }
 
 export function SettingsPage({ searchQuery = '' }: SettingsPageProps) {
-  const { draft, isDirty, isLoading, loadError, isSaving, toast, update, discard, save, reload } = useSettings()
+  const { draft, isDirty, isLoading, loadError, isSaving, toast, period, setPeriod, update, discard, save, reload } = useSettings()
+  const periodValue = `${String(period.year).padStart(4, '0')}-${String(period.month).padStart(2, '0')}`
   const query = searchQuery.trim().toLocaleLowerCase('pt-BR')
   const matches = (...values: string[]) =>
     !query || values.some((value) => value.toLocaleLowerCase('pt-BR').includes(query))
@@ -54,6 +55,27 @@ export function SettingsPage({ searchQuery = '' }: SettingsPageProps) {
           Regras usadas na montagem e gestão das escalas.
         </p>
       </header>
+
+      <section className="mb-5 flex flex-wrap items-end justify-between gap-4 rounded-2xl border border-border bg-white p-5 shadow-(--shadow-soft)">
+        <div>
+          <label htmlFor="settings-period" className="text-sm font-bold text-text">Período das regras mensais</label>
+          <p className="mt-1 text-xs text-text-muted">Selecione qualquer mês entre 0001 e 9999 para consultar e configurar seus limites.</p>
+        </div>
+        <input
+          id="settings-period"
+          type="month"
+          min="0001-01"
+          max="9999-12"
+          value={periodValue}
+          disabled={isDirty || isSaving || isLoading}
+          onChange={(event) => {
+            const match = /^(\d{4})-(\d{2})$/.exec(event.target.value)
+            if (match) setPeriod({ year: Number(match[1]), month: Number(match[2]) })
+          }}
+          className="rounded-xl border border-border bg-white px-3 py-2.5 text-sm font-semibold text-text disabled:cursor-not-allowed disabled:opacity-60"
+        />
+        {isDirty ? <p className="w-full text-xs text-text-muted">Salve ou descarte as alterações antes de trocar o período.</p> : null}
+      </section>
 
       {isLoading ? <p role="status" className="mb-4 text-sm text-text-muted">Carregando configurações...</p> : null}
       {loadError ? (
@@ -103,39 +125,71 @@ export function SettingsPage({ searchQuery = '' }: SettingsPageProps) {
           <div className="grid grid-cols-1 gap-5 bg-[#f7f8f6] p-6 md:grid-cols-2 xl:grid-cols-3">
             {showConcursado ? <EmploymentTypeCard
               title="Concursado"
-              badge="CARGA FIXA"
-              headline="6 plantões de 24h + 1 de 12h"
-              detail="7 alocações · 156 horas regulares"
+              badge="CARGA CONFIGURÁVEL"
+              headline={`${draft.concursadoShift24h} plantões de 24h + ${draft.concursadoShift12h} de 12h`}
+              detail={`${draft.concursadoShift24h + draft.concursadoShift12h} alocações · ${draft.concursadoShift24h * 24 + draft.concursadoShift12h * 12} horas regulares`}
             >
-              <div className="flex items-end justify-between gap-4">
-                <div>
-                  <p className="text-[13px] font-semibold text-text">Máximo de extras</p>
-                  <p className="text-[12px] text-text-muted">Por profissional no mês</p>
+              <div className="space-y-4">
+                <SettingRow title="Plantões regulares de 24h" description="Carga mensal para concursados">
+                  <NumberStepper
+                    label="Plantões regulares de 24h para concursado"
+                    value={draft.concursadoShift24h}
+                    onChange={(value) => update('concursadoShift24h', value)}
+                  />
+                </SettingRow>
+                <SettingRow title="Plantões regulares de 12h" description="Carga mensal para concursados">
+                  <NumberStepper
+                    label="Plantões regulares de 12h para concursado"
+                    value={draft.concursadoShift12h}
+                    onChange={(value) => update('concursadoShift12h', value)}
+                  />
+                </SettingRow>
+                <div className="flex items-end justify-between gap-4 border-t border-border pt-4">
+                  <div>
+                    <p className="text-[13px] font-semibold text-text">Máximo de extras</p>
+                    <p className="text-[12px] text-text-muted">Por profissional no mês</p>
+                  </div>
+                  <NumberStepper
+                    label="Máximo de extras para concursado"
+                    value={draft.concursadoExtraLimit}
+                    onChange={(value) => update('concursadoExtraLimit', value)}
+                  />
                 </div>
-                <NumberStepper
-                  label="Máximo de extras para concursado"
-                  value={draft.concursadoExtraLimit}
-                  onChange={(value) => update('concursadoExtraLimit', value)}
-                />
               </div>
             </EmploymentTypeCard> : null}
 
             {showClt ? <EmploymentTypeCard
               title="CLT"
-              badge="CARGA FIXA"
-              headline="8 plantões de 24h"
-              detail="8 cargas para meses de 30 ou 31 dias"
+              badge="CARGA CONFIGURÁVEL"
+              headline={`${draft.cltShift24h} plantões de 24h + ${draft.cltShift12h} de 12h`}
+              detail={`${draft.cltShift24h + draft.cltShift12h} alocações · ${draft.cltShift24h * 24 + draft.cltShift12h * 12} horas regulares`}
             >
-              <div className="flex items-end justify-between gap-4">
-                <div>
-                  <p className="text-[13px] font-semibold text-text">Máximo de extras</p>
-                  <p className="text-[12px] text-text-muted">Por profissional no mês</p>
+              <div className="space-y-4">
+                <SettingRow title="Plantões regulares de 24h" description="Carga mensal para CLT">
+                  <NumberStepper
+                    label="Plantões regulares de 24h para CLT"
+                    value={draft.cltShift24h}
+                    onChange={(value) => update('cltShift24h', value)}
+                  />
+                </SettingRow>
+                <SettingRow title="Plantões regulares de 12h" description="Carga mensal para CLT">
+                  <NumberStepper
+                    label="Plantões regulares de 12h para CLT"
+                    value={draft.cltShift12h}
+                    onChange={(value) => update('cltShift12h', value)}
+                  />
+                </SettingRow>
+                <div className="flex items-end justify-between gap-4 border-t border-border pt-4">
+                  <div>
+                    <p className="text-[13px] font-semibold text-text">Máximo de extras</p>
+                    <p className="text-[12px] text-text-muted">Por profissional no mês</p>
+                  </div>
+                  <NumberStepper
+                    label="Máximo de extras para CLT"
+                    value={draft.cltExtraLimit}
+                    onChange={(value) => update('cltExtraLimit', value)}
+                  />
                 </div>
-                <NumberStepper
-                  label="Máximo de extras para CLT"
-                  value={draft.cltExtraLimit}
-                  onChange={(value) => update('cltExtraLimit', value)}
-                />
               </div>
             </EmploymentTypeCard> : null}
 

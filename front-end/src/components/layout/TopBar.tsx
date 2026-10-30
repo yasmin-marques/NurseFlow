@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { Bell, Menu, Search, X } from '../icons'
+import { Menu, Search, X } from '../icons'
+import { NotificationCenter } from './NotificationCenter'
 
 type TopBarProps = {
   title: string
@@ -29,7 +30,7 @@ export function TopBar({
   }
 
   return (
-    <header className="flex h-[68px] shrink-0 items-center justify-between border-b border-border bg-page px-5 sm:px-7 lg:px-9">
+    <header className="flex h-[78px] shrink-0 items-center justify-between border-b border-border bg-page px-5 sm:px-7 lg:px-9">
       <div className="flex items-center gap-3">
         <button
           type="button"
@@ -39,7 +40,7 @@ export function TopBar({
         >
           <Menu className="size-4" strokeWidth={1.8} />
         </button>
-        <h1 className="text-[20px] font-bold leading-none tracking-[-0.03em] text-text">{title}</h1>
+        <h1 className="text-base font-semibold leading-none tracking-tight text-text">{title}</h1>
       </div>
 
       <div className="flex items-center gap-2">
@@ -90,16 +91,9 @@ export function TopBar({
             </button>
           )}
         </div>
-        <button
-          type="button"
-          className="relative flex size-10 items-center justify-center rounded-xl border border-border bg-white/80 text-text-muted shadow-sm transition-colors hover:bg-white"
-          aria-label="Notificações"
-        >
-          <Bell className="size-4" strokeWidth={1.8} />
-          <span className="absolute top-2 right-2 size-2 rounded-full bg-danger" aria-hidden />
-        </button>
+        <NotificationCenter />
         <span
-          className="ml-1 flex size-10 items-center justify-center rounded-full bg-secondary text-[11px] font-bold text-primary shadow-sm"
+          className="ml-1 flex size-9 items-center justify-center rounded-full bg-secondary text-[11px] font-bold text-primary shadow-sm"
           aria-hidden
         >
           {userInitials}

@@ -35,6 +35,46 @@ export function SideMenu({
   onLogout,
   user = DEFAULT_USER,
 }: SideMenuProps) {
+  const items = NAV_ITEMS.filter(
+    (item) => item.id !== 'configuracoes' && (user.isCoordination !== false || !COORDINATION_ONLY.includes(item.id)),
+  )
+  const settingsItem = user.isCoordination !== false ? NAV_ITEMS.find((item) => item.id === 'configuracoes') : undefined
+
+  const renderItem = (item: (typeof NAV_ITEMS)[number]) => {
+    const Icon = item.icon
+    const isActive = item.id === activeItem
+
+    return (
+      <li key={item.id}>
+        <a
+          href={item.href}
+          aria-current={isActive ? 'page' : undefined}
+          onClick={(event) => {
+            event.preventDefault()
+            onNavigate?.(item.id)
+            onClose?.()
+          }}
+          className={`flex h-[42px] items-center gap-2.5 overflow-hidden rounded-xl px-3 text-[14px] transition-all duration-200 ${
+            isActive
+              ? 'bg-secondary font-semibold text-primary shadow-[inset_0_0_0_1px_rgba(46,120,61,0.04)]'
+              : 'font-medium text-text hover:bg-neutral'
+          }`}
+        >
+          <Icon
+            className={`size-[17px] shrink-0 ${isActive ? 'text-primary' : 'text-text-muted'}`}
+            strokeWidth={1.9}
+          />
+          <span className="min-w-0 flex-1 truncate">{item.label}</span>
+          {item.badge ? (
+            <span className="flex size-[18px] items-center justify-center rounded-full bg-badge-red text-[9px] font-semibold text-badge-red-text">
+              {item.badge}
+            </span>
+          ) : null}
+        </a>
+      </li>
+    )
+  }
+
   return (
     <>
       {isOpen ? (
@@ -64,42 +104,12 @@ export function SideMenu({
         </p>
 
         <nav className="flex-1 overflow-y-auto px-2" aria-label="Navegação principal">
-          <ul className="flex flex-col gap-1">
-            {NAV_ITEMS.filter((item) => user.isCoordination !== false || !COORDINATION_ONLY.includes(item.id)).map((item) => {
-              const Icon = item.icon
-              const isActive = item.id === activeItem
-
-              return (
-                <li key={item.id}>
-                  <a
-                    href={item.href}
-                    aria-current={isActive ? 'page' : undefined}
-                    onClick={(event) => {
-                      event.preventDefault()
-                      onNavigate?.(item.id)
-                      onClose?.()
-                    }}
-                    className={`flex h-[42px] items-center gap-2.5 overflow-hidden rounded-xl px-3 text-[14px] transition-all duration-200 ${
-                      isActive
-                        ? 'bg-secondary font-semibold text-primary shadow-[inset_0_0_0_1px_rgba(46,120,61,0.04)]'
-                        : 'font-medium text-text hover:bg-white/75'
-                    }`}
-                  >
-                    <Icon
-                      className={`size-[17px] shrink-0 ${isActive ? 'text-primary' : 'text-text-muted'}`}
-                      strokeWidth={1.9}
-                    />
-                    <span className="min-w-0 flex-1 truncate">{item.label}</span>
-                    {item.badge ? (
-                      <span className="flex size-[18px] items-center justify-center rounded-full bg-badge-red text-[9px] font-semibold text-badge-red-text">
-                        {item.badge}
-                      </span>
-                    ) : null}
-                  </a>
-                </li>
-              )
-            })}
-          </ul>
+          <ul className="flex flex-col gap-1">{items.map(renderItem)}</ul>
+          {settingsItem ? (
+            <div className="mt-3 border-t border-border pt-3">
+              <ul className="flex flex-col gap-1">{renderItem(settingsItem)}</ul>
+            </div>
+          ) : null}
         </nav>
 
         <div className="p-3">
@@ -108,14 +118,14 @@ export function SideMenu({
             onClick={onLogout}
             title="Sair"
             aria-label={`Sair (${user.name})`}
-            className="flex w-full items-center gap-3 rounded-2xl border border-border bg-white px-3 py-3 text-left shadow-[0_8px_20px_rgba(16,24,16,0.03)] transition-transform hover:-translate-y-0.5"
+            className="flex w-full items-center gap-2.5 rounded-2xl border border-border bg-white px-2.5 py-2.5 text-left shadow-[0_8px_20px_rgba(16,24,16,0.03)] transition-transform hover:-translate-y-0.5"
           >
-            <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-secondary text-[13px] font-bold text-primary shadow-[inset_0_0_0_1px_rgba(46,120,61,0.08)]">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-secondary text-[12px] font-bold text-primary shadow-[inset_0_0_0_1px_rgba(46,120,61,0.08)]">
               {user.initials}
             </span>
             <span className="min-w-0 flex-1 leading-tight">
-              <span className="block truncate text-[13px] font-semibold text-text">{user.name}</span>
-              <span className="mt-1 block truncate text-[11px] text-text-muted">{user.role}</span>
+              <span className="block truncate text-[12px] font-semibold text-text">{user.name}</span>
+              <span className="mt-1 block truncate text-[10px] text-text-muted">{user.role}</span>
             </span>
             <ChevronRight className="size-4 shrink-0 text-text-muted" strokeWidth={1.8} />
           </button>

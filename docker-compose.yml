@@ -2,10 +2,12 @@ services:
   mongo:
     image: mongo:8
     restart: unless-stopped
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USERNAME:?Defina MONGO_ROOT_USERNAME no .env}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:?Defina MONGO_ROOT_PASSWORD no .env}
       MONGO_INITDB_DATABASE: nurseflow
+      MONGO_RS_HOST: mongo
     volumes:
       - mongo_data:/data/db
     networks:
@@ -18,10 +20,28 @@ services:
           --username "$$MONGO_INITDB_ROOT_USERNAME"
           --password "$$MONGO_INITDB_ROOT_PASSWORD"
           --authenticationDatabase admin
-          --eval "db.adminCommand('ping').ok" | grep -q '^1$$'
+          --eval "try { rs.status() } catch (e) { rs.initiate({_id:'rs0',members:[{_id:0,host:'$$MONGO_RS_HOST:27017'}]}) }; quit(db.hello().isWritablePrimary ? 0 : 1)"
       interval: 10s
       timeout: 5s
       retries: 12
+      start_period: 30s
+
+  optimizer:
+    build:
+      context: ./optimizer
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    networks:
+      - nurseflow_internal
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/saude').status==200 else 1)"
+      interval: 15s
+      timeout: 5s
+      retries: 5
       start_period: 30s
 
   backend:
@@ -31,6 +51,8 @@ services:
     restart: unless-stopped
     depends_on:
       mongo:
+        condition: service_healthy
+      optimizer:
         condition: service_healthy
     environment:
       NODE_ENV: production
@@ -42,6 +64,9 @@ services:
       LOGIN_MAX_ATTEMPTS: ${LOGIN_MAX_ATTEMPTS:-5}
       LOGIN_LOCK_MINUTES: ${LOGIN_LOCK_MINUTES:-15}
       PASSWORD_RESET_TTL_MINUTES: ${PASSWORD_RESET_TTL_MINUTES:-30}
+      OPTIMIZER_URL: http://optimizer:8000
+      OPTIMIZER_TIMEOUT_MS: ${OPTIMIZER_TIMEOUT_MS:-120000}
+      OPTIMIZER_TIME_LIMIT_SECONDS: ${OPTIMIZER_TIME_LIMIT_SECONDS:-30}
       SEED_COORDENACAO_NOME: ${SEED_COORDENACAO_NOME:-}
       SEED_COORDENACAO_EMAIL: ${SEED_COORDENACAO_EMAIL:-}
       SEED_COORDENACAO_CPF: ${SEED_COORDENACAO_CPF:-}

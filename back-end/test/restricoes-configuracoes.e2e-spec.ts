@@ -84,7 +84,20 @@ describe('Restrições e Configurações (e2e)', () => {
 
     it('devolve os valores padrão quando o período ainda não foi configurado', async () => {
       const res = await http.get(`/configuracoes${periodo}`).set(auth(tokenCoord)).expect(200);
-      expect(res.body).toMatchObject({ periodo: '2026-10', limiteTrocas: 3, maxExtras: 0, limitePlantoes: 0, cargas: {} });
+      expect(res.body).toMatchObject({
+        periodo: '2026-10',
+        limiteTrocas: 3,
+        maxExtras: 2,
+        limitePlantoes: 12,
+        maxExtrasConcursado: 1,
+        maxExtrasClt: 1,
+        cargas: {
+          concursado_31: { plantoes24h: 6, plantoes12h: 1 },
+          clt_31: { plantoes24h: 5, plantoes12h: 2 },
+        },
+      });
+      expect(Object.keys(res.body.cargas)).toHaveLength(8);
+      expect(await colecao('configuracoes').countDocuments({ chave: '2026-10' })).toBe(1);
     });
 
     it('salva o limite de trocas e os máximos de extras no MongoDB e os devolve na leitura', async () => {
@@ -108,7 +121,40 @@ describe('Restrições e Configurações (e2e)', () => {
 
     it('mantém cada período isolado', async () => {
       const res = await http.get('/configuracoes?ano=2026&mes=11').set(auth(tokenCoord)).expect(200);
-      expect(res.body).toMatchObject({ periodo: '2026-11', limiteTrocas: 3, maxExtras: 0 });
+      expect(res.body).toMatchObject({ periodo: '2026-11', limiteTrocas: 3, maxExtras: 2 });
+    });
+
+    it('consulta e salva configurações em qualquer mês dos anos permitidos', async () => {
+      const limite = { limiteTrocas: 8 };
+      const salvo = await http
+        .patch('/configuracoes/limites?ano=9999&mes=12')
+        .set(auth(tokenCoord))
+        .send({
+          ...limite,
+          cargas: [{ vinculo: 'clt', diasMes: 31, plantoes24h: 7, plantoes12h: 1 }],
+        })
+        .expect(200);
+      expect(salvo.body).toMatchObject({
+        periodo: '9999-12',
+        ...limite,
+        cargas: {
+          clt_31: { plantoes24h: 7, plantoes12h: 1 },
+          concursado_31: { plantoes24h: 6, plantoes12h: 1 },
+        },
+      });
+
+      const outroPeriodo = await http.get('/configuracoes?ano=1&mes=1').set(auth(tokenCoord)).expect(200);
+      expect(outroPeriodo.body).toMatchObject({ periodo: '0001-01', limiteTrocas: 3 });
+      expect(await colecao('configuracoes').countDocuments({ chave: '9999-12' })).toBe(1);
+    });
+
+    it('calcula cargas para ano de um dígito sem converter a data para 1900+', async () => {
+      await http.put('/configuracoes/cargas?ano=4&mes=2')
+        .set(auth(tokenCoord))
+        .send({ vinculo: 'clt', diasMes: 29, plantoes24h: 2, plantoes12h: 0 })
+        .expect(200);
+      const carga = await http.get('/configuracoes/cargas/clt?ano=4&mes=2').set(auth(tokenCoord)).expect(200);
+      expect(carga.body).toEqual({ plantoes24h: 2, plantoes12h: 0 });
     });
 
     it('rejeita valores inválidos e campos desconhecidos', async () => {

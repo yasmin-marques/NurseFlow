@@ -1,6 +1,6 @@
 import { vi } from 'vitest'
 
-type Reply = { status?: number; body?: unknown }
+type Reply = { status?: number; body?: unknown; blob?: Blob; headers?: Record<string, string> }
 export type Call = { url: string; method: string; body: unknown; headers: Record<string, string> }
 
 /** Substitui fetch/sessionStorage/window para exercitar os serviços sem navegador. */
@@ -23,8 +23,16 @@ export function mockBackend(handler: (call: Call) => Reply) {
         headers: init.headers as Record<string, string>,
       }
       calls.push(call)
-      const { status = 200, body = {} } = handler(call)
-      return { ok: status < 400, status, json: async () => body }
+      const { status = 200, body = {}, blob = new Blob(), headers = {} } = handler(call)
+      return {
+        ok: status < 400,
+        status,
+        json: async () => body,
+        blob: async () => blob,
+        headers: {
+          get: (name: string) => Object.entries(headers).find(([key]) => key.toLowerCase() === name.toLowerCase())?.[1] ?? null,
+        },
+      }
     }),
   )
   return { calls, store }

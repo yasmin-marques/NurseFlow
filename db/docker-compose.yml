@@ -7,14 +7,21 @@ services:
 
     restart: always
 
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
+
     ports:
-      - "27017:27017"
+      - "127.0.0.1:27017:27017"
 
     environment:
       MONGO_INITDB_DATABASE: nurseflow
+      MONGO_RS_HOST: localhost
 
     healthcheck:
-      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      test:
+        - CMD-SHELL
+        - >-
+          mongosh --quiet --host 127.0.0.1 --port 27017
+          --eval "try { rs.status() } catch (e) { rs.initiate({_id:'rs0',members:[{_id:0,host:'$$MONGO_RS_HOST:27017'}]}) }; quit(db.hello().isWritablePrimary ? 0 : 1)"
       interval: 5s
       timeout: 5s
       retries: 12
@@ -24,6 +31,21 @@ services:
       - ./mongo/script.js:/docker-entrypoint-initdb.d/script.js:ro
       - mongo_data:/data/db
 
+
+  # Otimizador de escalas (FastAPI + OR-Tools). A API NestJS local o acessa em http://localhost:8000.
+  optimizer:
+    build:
+      context: ../optimizer
+    container_name: nurseflow-optimizer
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/saude').status==200 else 1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
 
 volumes:
   mongo_data:

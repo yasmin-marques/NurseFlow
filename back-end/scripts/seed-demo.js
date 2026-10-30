@@ -100,18 +100,6 @@ async function seed() {
       } }, { upsert: true });
     }
 
-    // Configurações para outubro e novembro de 2026; não altera configurações já criadas pela coordenação.
-    for (const [chave, dias] of [['2026-10', 31], ['2026-11', 30]]) {
-      await db.collection('configuracoes').updateOne({ chave }, { $setOnInsert: {
-        chave, limiteTrocas: 3, maxExtras: 2, limitePlantoes: 12,
-        cargas: {
-          [`concursado_${dias}`]: { plantoes24h: 6, plantoes12h: 1 },
-          [`clt_${dias}`]: { plantoes24h: 5, plantoes12h: 2 },
-          [`rpa_${dias}`]: { plantoes24h: 3, plantoes12h: 2 },
-        }, createdAt: ts, updatedAt: ts,
-      } }, { upsert: true });
-    }
-
     const restrictions = [
       ['ana', 'indisponivel', '2026-10-14T00:00:00.000Z', '2026-10-14T23:59:59.999Z', null, 'Indisponível na quarta-feira'],
       ['bruno', 'vinculo_externo', '2026-10-01T00:00:00.000Z', '2026-10-31T23:59:59.999Z', 2, 'Outro vínculo às terças (sem horário específico)'],
@@ -130,10 +118,17 @@ async function seed() {
           observacao, createdAt: ts, updatedAt: ts },
       }, { upsert: true });
     }
-    console.log('Seed concluído: 1 coordenação, 9 profissionais, 3 setores, 2 configurações mensais e 9 restrições.');
+    console.log('Seed concluído: 1 coordenação, 9 profissionais, 3 setores, 12 configurações mensais e 9 restrições.');
     console.log('Logins: admin@nurseflow.test e <nome>@nurseflow.test; senhas conforme DEMO_ADMIN_PASSWORD/DEMO_PRO_PASSWORD.');
   } finally {
     await client.close();
   }
 }
-seed().catch((error) => { console.error('Falha no seed:', error); process.exitCode = 1; });
+seed().catch((error) => {
+  if (error && error.code === 11000) {
+    console.error('Falha no seed: conflito de unicidade (e-mail, CPF ou COREN já usados por outro registro).', error.keyValue ?? '');
+  } else {
+    console.error('Falha no seed:', error);
+  }
+  process.exitCode = 1;
+});

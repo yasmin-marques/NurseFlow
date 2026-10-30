@@ -21,7 +21,16 @@ async function main() {
   await client.connect();
   try {
     const db = client.db();
-    if (await db.collection('usuarios').findOne({ $or: [{ email }, { cpf }] })) {
+    const existente = await db.collection('usuarios').findOne({ $or: [{ email }, { cpf }] });
+    if (existente) {
+      // Repara apenas o vínculo ausente (execução anterior interrompida); nunca altera dados do usuário.
+      if (existente.tipoUsuario === 'administrador') {
+        await db.collection('administradores').updateOne(
+          { usuarioId: existente._id },
+          { $setOnInsert: { usuarioId: existente._id } },
+          { upsert: true },
+        );
+      }
       console.log(`Já existe um usuário com o e-mail ${email} ou o CPF informado. Nada foi alterado.`);
       return;
     }
