@@ -7,9 +7,9 @@ import { ScaleShiftDialog } from './ScaleShiftDialog'
 import { canEditScale, stageShiftChange } from './review'
 import { calendarDate, calendarDays, dateKey, dayIndicators, formatMonth, formatWeek, summarizeDayShifts, type CalendarView } from './calendar'
 import { getScaleWorkflow } from './workflow'
-import { CoverageAlert, CoverageBadge, PersonCard } from '../../components/ui/ScaleComponents'
+import { CoverageAlert } from '../../components/ui/ScaleComponents'
 import { coverageSurfaceClass } from '../../components/ui/coverageStyles'
-import { describeShift, describeShiftBadge, groupDailyTeam, type DailyTeamMember } from './weeklyTeam'
+import { WeeklyDayCard } from './WeeklyDayCard'
 
 const WEEKDAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 
@@ -20,47 +20,6 @@ function monthLabel(date: Date) {
 
 function statusStyle(state: ReturnType<typeof dayIndicators>['state']) {
   return coverageSurfaceClass(state)
-}
-
-function formatList(items: string[]) {
-  if (items.length < 2) return items[0] ?? ''
-  if (items.length === 2) return `${items[0]} e ${items[1]}`
-  return `${items.slice(0, -1).join(', ')} e ${items[items.length - 1]}`
-}
-
-function DailyTeamSection({
-  title,
-  members,
-  role,
-  emptyMessage,
-  leadership = false,
-}: {
-  title: string
-  members: DailyTeamMember[]
-  role: string
-  emptyMessage: string
-  leadership?: boolean
-}) {
-  return <section className="space-y-2">
-    <h5 className="text-[10px] font-bold tracking-wide text-text-muted">{title}</h5>
-    {members.length ? <ul className="space-y-2">{members.map((member) => {
-      const badges = [...new Map(member.shifts.map((shift) => {
-        const badge = describeShiftBadge(member.professional, shift)
-        return [badge.label, badge] as const
-      })).values()]
-      const detail = leadership
-        ? 'Enfermeiro chefe'
-        : `${role} · ${formatList(member.sectors)}`
-      const leadershipDetails = [...new Set(member.shifts.map(describeShift))]
-
-      return <li key={member.professional.id} className="space-y-1">
-        <PersonCard name={member.professional.nome} detail={detail} badges={badges} />
-        {leadership ? <p className="pl-1 text-[10px] leading-relaxed text-text-muted">
-          Plantão {formatList(leadershipDetails)} · Responsável pelos setores {formatList(member.sectors)}
-        </p> : null}
-      </li>
-    })}</ul> : <p className="text-[11px] text-text-muted">{emptyMessage}</p>}
-  </section>
 }
 
 function WorkflowCard({ scale, onGenerate, onReview, onValidateAndPublish, stagedCount, onSave, saving, validating, changesSaved }: {
@@ -485,55 +444,21 @@ export function ScalePage() {
           })}
         </div> : <div className="grid gap-3 p-4">
           {days.map((date) => {
-            const key = dateKey(date)
             const dayScale = scales.find((item) => item.escala.ano === date.getFullYear() && item.escala.mes === date.getMonth() + 1) ?? null
-            const dayShifts = dayScale?.plantoes.filter((shift) => shift.data === key) ?? []
-            const indicator = dayIndicators(dayScale, key)
-            const belowMinimumSectors = new Set(dayScale?.pendencias.filter((item) => item.data === key).map((item) => item.setorId) ?? []).size
-            const coverage = indicator.state === 'conflict' || indicator.state === 'partial'
-            const team = groupDailyTeam(dayShifts)
-            const technicianCounts = team.technicianCoverage.map((item) => item.count)
-            const minTechnicians = Math.min(...technicianCounts)
-            const maxTechnicians = Math.max(...technicianCounts)
-            const technicianCountLabel = minTechnicians === maxTechnicians
-              ? `${minTechnicians}`
-              : `${minTechnicians}–${maxTechnicians}`
-            return <article key={key} className={`rounded-xl border p-4 ${statusStyle(indicator.state)}`}>
-              <header className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-xs font-bold uppercase text-text-muted">{date.toLocaleDateString('pt-BR', { weekday: 'long' })}</p>
-                  <h4 className="mt-1 text-base font-bold text-text">{date.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' })}</h4>
-                </div>
-                <div className="flex shrink-0 items-center gap-3">
-                  <CoverageBadge state={indicator.state}>{coverage ? 'Revisar cobertura' : dayShifts.length ? 'Cobertura diária' : 'Sem plantões'}</CoverageBadge>
-                  {dayScale && canEditScale(dayScale.escala.status) ? <button type="button" className="text-xs font-semibold text-primary hover:underline" onClick={() => { setSelectedDate(date); setEditingShift(dayShifts[0] ?? null); setShowShiftDialog(true) }}>Editar</button> : null}
-                </div>
-              </header>
-              {coverage ? <CoverageAlert state={indicator.state === 'conflict' ? 'conflict' : 'partial'}>{belowMinimumSectors ? `${belowMinimumSectors} setor(es) abaixo do mínimo` : `${indicator.conflictCount} conflito(s) para revisar`}</CoverageAlert> : null}
-              <div className="mt-4 space-y-4">
-                {dayShifts.length === 0 ? <p className="text-xs text-text-muted">Sem plantões registrados.</p> : <>
-                  <DailyTeamSection
-                    title="ENFERMEIRO CHEFE · LIDERANÇA GERAL"
-                    members={team.leaders}
-                    role="Enfermeiro chefe"
-                    emptyMessage="Nenhum enfermeiro chefe escalado para este dia."
-                    leadership
-                  />
-                  <DailyTeamSection
-                    title={`ENFERMEIROS · ${team.nurses.length} EM CAMPO`}
-                    members={team.nurses}
-                    role="Enfermeiro"
-                    emptyMessage="Nenhum enfermeiro em campo neste dia."
-                  />
-                  <DailyTeamSection
-                    title={`TÉCNICOS · ${technicianCountLabel} POR SETOR EM CADA TURNO`}
-                    members={team.technicians}
-                    role="Técnico"
-                    emptyMessage="Nenhum técnico escalado neste dia."
-                  />
-                </>}
-              </div>
-            </article>
+            return <WeeklyDayCard
+              key={dateKey(date)}
+              date={date}
+              dayScale={dayScale}
+              onEdit={dayScale && canEditScale(dayScale.escala.status)
+                ? () => {
+                  const key = dateKey(date)
+                  const dayShifts = dayScale.plantoes.filter((shift) => shift.data === key)
+                  setSelectedDate(date)
+                  setEditingShift(dayShifts[0] ?? null)
+                  setShowShiftDialog(true)
+                }
+                : undefined}
+            />
           })}
         </div>}
       </section>
