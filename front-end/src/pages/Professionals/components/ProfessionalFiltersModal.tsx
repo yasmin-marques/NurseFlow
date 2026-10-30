@@ -1,25 +1,11 @@
 import { useState, type ReactNode } from "react";
 import { Check, ChevronRight, Filter, X } from "../../../components/icons";
-import type { FormationType, Professional, bondType } from "../types";
-
-export type ProfessionalFilters = {
-    formation: FormationType | "all";
-    status: "all" | "active" | "inactive";
-    bond: bondType | "all";
-    sort: "asc" | "desc";
-};
+import { initialFilters as initialValues, STATUS_LABEL, type ProfessionalFilters } from "../filters";
 
 type ProfessionalFiltersModalProps = {
     onClose: () => void;
     onApply: (filters: ProfessionalFilters) => void;
     initialFilters: ProfessionalFilters;
-};
-
-const initialValues: ProfessionalFilters = {
-    formation: "all",
-    status: "all",
-    bond: "all",
-    sort: "asc",
 };
 
 function FilterOption({
@@ -108,8 +94,10 @@ export function ProfessionalFiltersModal({ onClose, onApply, initialFilters }: P
 
                     <FilterSection title="Status" description="Disponibilidade cadastral do profissional">
                         <FilterOption label="Todos" selected={filters.status === "all"} onClick={() => update("status", "all")} />
-                        <FilterOption label="Ativos" selected={filters.status === "active"} onClick={() => update("status", "active")} />
-                        <FilterOption label="Desativados" selected={filters.status === "inactive"} onClick={() => update("status", "inactive")} />
+                        <FilterOption label="Ativos" selected={filters.status === "ativo"} onClick={() => update("status", "ativo")} />
+                        <FilterOption label="Desativados" selected={filters.status === "desativado"} onClick={() => update("status", "desativado")} />
+                        <FilterOption label="Afastados" selected={filters.status === "afastado"} onClick={() => update("status", "afastado")} />
+                        <FilterOption label="Férias" selected={filters.status === "ferias"} onClick={() => update("status", "ferias")} />
                     </FilterSection>
 
                     <FilterSection title="Tipo de vínculo" description="Filtre pela modalidade de contratação">
@@ -160,7 +148,7 @@ export function ProfessionalFiltersModal({ onClose, onApply, initialFilters }: P
                         <Filter className="size-4 shrink-0" />
                         {filters.formation === "all" ? "Todos" : filters.formation === "Enfemeiro" ? "Enfermeiro" : "Técnico"}
                         <span>·</span>
-                        {filters.status === "all" ? "Todos" : filters.status === "active" ? "Ativos" : "Desativados"}
+                        {filters.status === "all" ? "Todos" : STATUS_LABEL[filters.status]}
                         <span>·</span>
                         Nome {filters.sort === "asc" ? "A—Z" : "Z—A"}
                     </div>
@@ -175,15 +163,3 @@ export function ProfessionalFiltersModal({ onClose, onApply, initialFilters }: P
         </div>
     );
 }
-
-// eslint-disable-next-line react-refresh/only-export-components
-export function filterProfessionals(professionals: Professional[], filters: ProfessionalFilters) {
-    return professionals
-        .filter((professional) => filters.formation === "all" || professional.formation === filters.formation)
-        .filter((professional) => filters.status === "all" || professional.status === (filters.status === "active"))
-        .filter((professional) => filters.bond === "all" || professional.bond === filters.bond)
-        .sort((a, b) => filters.sort === "asc"
-            ? a.name.localeCompare(b.name, "pt-BR")
-            : b.name.localeCompare(a.name, "pt-BR"));
-}
-

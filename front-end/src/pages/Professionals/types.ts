@@ -1,9 +1,12 @@
 export type FormationType = 'Enfemeiro' | 'Técnico'
 export type bondType = 'CLT' | 'RPA' | 'Concursado'
+export type ProfessionalStatus = 'ativo' | 'desativado' | 'afastado' | 'ferias'
 
 export type Professional = {
     id?: string,
-    apiStatus?: 'ativo' | 'desativado' | 'afastado' | 'ferias',
+    apiStatus?: ProfessionalStatus,
+    createdAt?: string,
+    updatedAt?: string,
     name: string,
     cpf: string
     email: string,

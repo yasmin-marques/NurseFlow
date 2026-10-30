@@ -10,6 +10,8 @@ type ApiProfessional = {
   formacao: 'enfermeiro' | 'tecnico'
   tipoVinculo: 'concursado' | 'clt' | 'rpa'
   status: 'ativo' | 'desativado' | 'afastado' | 'ferias'
+  createdAt?: string
+  updatedAt?: string
 }
 
 const BOND_FROM_API = { concursado: 'Concursado', clt: 'CLT', rpa: 'RPA' } as const
@@ -24,6 +26,8 @@ const fromApi = (p: ApiProfessional): Professional => ({
   bond: BOND_FROM_API[p.tipoVinculo],
   status: p.status === 'ativo',
   apiStatus: p.status,
+  createdAt: p.createdAt,
+  updatedAt: p.updatedAt,
   formation: p.formacao === 'enfermeiro' ? 'Enfemeiro' : 'Técnico',
 })
 
