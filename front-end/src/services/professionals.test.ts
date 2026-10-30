@@ -13,6 +13,8 @@ const apiPro = (over = {}) => ({
   formacao: 'enfermeiro',
   tipoVinculo: 'clt',
   status: 'ativo',
+  createdAt: '2026-10-05T13:30:00.000Z',
+  updatedAt: '2026-10-06T13:30:00.000Z',
   ...over,
 })
 const page = (data: unknown[]) => ({ body: { data, meta: { totalPages: 1 } } })
@@ -29,7 +31,7 @@ describe('services/professionals', () => {
     }))
     const all = await listProfessionals()
     expect(calls).toHaveLength(2)
-    expect(all[0]).toMatchObject({ name: 'Ana', bond: 'CLT', formation: 'Enfemeiro', status: true })
+    expect(all[0]).toMatchObject({ name: 'Ana', bond: 'CLT', formation: 'Enfemeiro', status: true, createdAt: '2026-10-05T13:30:00.000Z' })
     expect(all[1]).toMatchObject({ bond: 'RPA', formation: 'Técnico', status: false, apiStatus: 'ferias' })
   })
 

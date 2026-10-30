@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
-import { Filter, Plus, Search } from "../../components/icons";
+import { Download, Filter, Plus, Search } from "../../components/icons";
 import { ProfessionalCard } from "./components/ProfesssionalCard";
-import { filterProfessionals, ProfessionalFiltersModal, type ProfessionalFilters } from "./components/ProfessionalFiltersModal";
+import { ProfessionalFiltersModal } from "./components/ProfessionalFiltersModal";
+import { applyProfessionalView, initialFilters, type ProfessionalFilters } from "./filters";
 import { ProfessionalFormModal } from "./components/ProfessionalFormModal";
 import type { Professional as ProfessionalData } from "./types";
+import { exportProfessionalsXlsx } from "../../services/professionalsExport";
 import { createProfessional, listProfessionals, updateProfessional } from "../../services/professionals";
 
 export function Professional() {
@@ -14,19 +16,21 @@ export function Professional() {
     const [showFilters, setShowFilters] = useState(false);
     const [editingProfessional, setEditingProfessional] = useState<ProfessionalData | null>(null);
     const [isCreatingProfessional, setIsCreatingProfessional] = useState(false);
-    const [filters, setFilters] = useState<ProfessionalFilters>({
-        formation: "all",
-        status: "all",
-        bond: "all",
-        sort: "asc",
-    });
-    const term = search.trim().toLowerCase();
-    const digits = term.replace(/\D/g, "");
-    const visibleProfessionals = filterProfessionals(professionals, filters).filter((p) =>
-        !term
-        || p.name.toLowerCase().includes(term)
-        || p.coren.toLowerCase().includes(term)
-        || (digits !== "" && p.cpf.replace(/\D/g, "").includes(digits)));
+    const [filters, setFilters] = useState<ProfessionalFilters>(initialFilters);
+    const [exporting, setExporting] = useState(false);
+    const visibleProfessionals = applyProfessionalView(professionals, filters, search);
+
+    const handleExport = async () => {
+        setExporting(true);
+        setError("");
+        try {
+            await exportProfessionalsXlsx(visibleProfessionals);
+        } catch {
+            setError("Não foi possível gerar a planilha.");
+        } finally {
+            setExporting(false);
+        }
+    };
 
     useEffect(() => {
         listProfessionals()
@@ -73,6 +77,15 @@ export function Professional() {
                                     className="h-7 w-7"
                                 />
                                 <p className="font-bold text-sx">Filtros</p>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleExport}
+                                disabled={loading || exporting || visibleProfessionals.length === 0}
+                                className="flex items-center gap-1 p-2 md:px-6 py-0.5 border-2 border-border rounded-2xl disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                                <Download className="h-7 w-7" />
+                                <p className="font-bold text-sx">{exporting ? "Exportando..." : "Exportar Excel"}</p>
                             </button>
                         </div>
                         <hr className="my-6 text-border" />

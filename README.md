@@ -445,9 +445,26 @@ docker compose logs seed-demo
 | `gabriela@nurseflow.test` | enfermeiro | enfermeiro / concursado / férias |
 | `henrique@nurseflow.test` | técnico | técnico / CLT / afastado |
 | `isabela@nurseflow.test` | técnico | técnico / concursado / ativo |
+| `joao@nurseflow.test` | enfermeiro | enfermeiro / concursado / ativo |
+| `karina@nurseflow.test` | enfermeiro | enfermeiro / CLT / ativo |
+| `leonardo@nurseflow.test` | enfermeiro | enfermeiro / RPA / ativo |
+| `mariana@nurseflow.test` | enfermeiro | enfermeiro / CLT / férias |
+| `nicolas@nurseflow.test` | enfermeiro | enfermeiro / concursado / afastado |
+| `olivia@nurseflow.test` | enfermeiro | enfermeiro / RPA / afastado |
+| `paulo@nurseflow.test` | enfermeiro | enfermeiro / CLT / ativo |
+| `quiteria@nurseflow.test` | enfermeiro | enfermeiro / concursado / desativado |
+| `rafael@nurseflow.test` | enfermeiro | enfermeiro / concursado / ativo |
+| `sandra@nurseflow.test` | técnico | técnico / concursado / ativo |
+| `tiago@nurseflow.test` | técnico | técnico / CLT / ativo |
+| `ursula@nurseflow.test` | técnico | técnico / RPA / ativo |
+| `valter@nurseflow.test` | técnico | técnico / CLT / férias |
+| `wanessa@nurseflow.test` | técnico | técnico / RPA / ativo |
+| `xavier@nurseflow.test` | técnico | técnico / concursado / ativo |
+| `yara@nurseflow.test` | técnico | técnico / CLT / ativo |
+| `zenilda@nurseflow.test` | técnico | técnico / RPA / desativado |
+| `otavio@nurseflow.test` | técnico | técnico / CLT / ativo |
 
-A senha de `admin@nurseflow.test` é o valor de `DEMO_ADMIN_PASSWORD`; todos os profissionais usam `DEMO_PRO_PASSWORD`. O campo de perfil no login da UI deve corresponder ao tipo do usuário (coordenação, enfermeiro ou técnico). CPFs e COREN de demonstração são fictícios.
-
+A senha de `admin@nurseflow.test` é o valor de `DEMO_ADMIN_PASSWORD`; todos os profissionais usam `DEMO_PRO_PASSWORD`. O campo de perfil no login da UI deve corresponder ao tipo do usuário (coordenação, enfermeiro ou técnico). CPFs de teste são gerados com dígitos verificadores válidos, exclusivamente fictícios; os COREN demonstrativos têm formato `CE-10001` ... `CE-10027` (não correspondem a registros reais).
 ### Setores (quantitativos mínimos)
 
 | Setor | Diurno (enfermeiros/técnicos) | Noturno (enfermeiros/técnicos) |
@@ -473,6 +490,32 @@ Os parâmetros são armazenados com chave `<vínculo>_<diasDoMês>` (por exemplo
 1. Entre na interface como `admin@nurseflow.test` e selecione perfil Coordenação.
 2. Gere um mês de **2026**, selecionando os setores e turnos desejados.
 3. Revise as vagas descobertas e os conflitos retornados. A escala do mês anterior influencia o descanso herdado; o seed não cria nem remove escalas. Se o período já tiver escala, escolha outro mês ou use um banco local de demonstração.
+
+### Restrições de demonstração (outubro de 2026)
+
+| Profissional | Tipo | Período | Observação |
+|---|---|---|---|
+| Ana | Indisponível | 14/10 | dia inteiro |
+| Bruno | Vínculo externo | 01/10 a 31/10 | terças-feiras (`diaSemana=2`) |
+| Carla | Disponível | 16/10 | dia inteiro |
+| Daniela | Ausência | 19/10 a 21/10 | ausência declarada |
+| Eduardo | Indisponível | 23/10 | compromisso pessoal |
+| Fernanda | Vínculo externo | 01/10 a 31/10 | sextas-feiras (`diaSemana=5`) |
+| Gabriela | Férias | 12/10 a 26/10 | profissional também está no status `ferias` |
+| Henrique | Ausência | 12/10 a 31/10 | profissional também está no status `afastado` |
+| Isabela | Disponível | 18/10 | dia inteiro |
+| Mariana | Férias | 05/10 a 19/10 | profissional também está no status `ferias` |
+| Valter | Férias | 19/10 a 02/11 | profissional também está no status `ferias` |
+| Nicolas | Ausência | 01/10 a 31/10 | profissional também está no status `afastado` |
+| Olívia | Ausência | 15/10 a 15/11 | profissional também está no status `afastado` |
+| João | Indisponível | 09/10 | compromisso pessoal |
+| Tiago | Vínculo externo | 01/10 a 31/10 | quartas-feiras (`diaSemana=3`) |
+| Yara | Indisponível | 28/10 | dia inteiro |
+
+As datas são persistidas em UTC, como indicado no script. A restrição recorrente contém dia da semana mas **não** um horário específico. Não há escala gerada automaticamente, nem aprovação de trocas no projeto atual.
+### Exportação de profissionais (Excel)
+
+Em **Profissionais**, o botão **Exportar Excel** (ao lado de *Filtros*) baixa `nurseflow-profissionais-AAAA-MM-DD.xlsx` com a aba `Profissionais`. A planilha contém exatamente o que está na tela: aplica a busca, os filtros (formação, vínculo e situação: ativo, desativado, afastado ou férias) e a ordenação selecionados. Sem filtros, exporta todos. A planilha é gerada no navegador a partir dos dados já carregados pela API (acesso restrito à Coordenação) e não inclui dados de autenticação.
 
 ### Verificação rápida de autorização
 
