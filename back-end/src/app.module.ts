@@ -13,6 +13,7 @@ import configuration, { type AppConfig, validateEnv } from './config/configurati
 import { ProfissionaisModule } from './profissionais/profissionais.module';
 import { SetoresModule } from './setores/setores.module';
 import { UsuariosModule } from './usuarios/usuarios.module';
+import { TrocasModule } from './trocas/trocas.module';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { UsuariosModule } from './usuarios/usuarios.module';
     ConfiguracoesModule,
     RestricoesModule,
     EscalasModule,
+    TrocasModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: AllExceptionsFilter },

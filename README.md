@@ -113,9 +113,20 @@ npm --prefix back-end run migrate:up
 npm --prefix back-end run migrate:status   # opcional: lista o que foi aplicado
 npm --prefix back-end run seed:coordenacao # cria a Coordenação (não faz nada se já existir)
 npm --prefix back-end run seed:demo        # dados fictícios (somente com DEMO_SEED_ENABLED=true)
+npm run db:seed:trocas-demo               # cenário local da fila Trocas (NODE_ENV=development)
 ```
 
 Os seeds são **idempotentes**: só criam o que não existe, nunca sobrescrevem nem apagam registros e não redefinem senhas. Pode executá-los de novo com segurança.
+
+O seed `db:seed:trocas-demo` é separado e restrito a MongoDB local com `NODE_ENV=development` e `DEMO_TROCAS_SEED_ENABLED=true`. No PowerShell, habilite somente para a execução:
+
+```powershell
+$env:DEMO_TROCAS_SEED_ENABLED = "true"
+npm run db:seed:trocas-demo
+Remove-Item Env:DEMO_TROCAS_SEED_ENABLED
+```
+
+Ele usa a competência livre 2027-01, IDs determinísticos identificáveis como demo, e não altera escala ou profissional preexistente. Cria uma escala publicada e 7 solicitações; as duas aprovações atualizam vínculos, snapshots versionados, auditoria e notificações. Execute depois de aplicar migrations e criar as contas `.test`. Se 2027-01 já estiver ocupada, o comando aborta sem escrever.
 
 
 ## Execução (desenvolvimento local)

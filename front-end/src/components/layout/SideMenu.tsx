@@ -17,10 +17,11 @@ type SideMenuProps = {
   onProfileClick?: () => void
   onLogout?: () => void
   user?: SideMenuUser
+  exchangeCount?: number | null
 }
 
 /** Páginas de gestão restritas à Coordenação (o back-end também bloqueia o acesso). */
-const COORDINATION_ONLY: NavItemId[] = ['profissionais', 'setores', 'disponibilidade', 'configuracoes']
+const COORDINATION_ONLY: NavItemId[] = ['profissionais', 'setores', 'disponibilidade', 'configuracoes', 'trocas']
 
 const DEFAULT_USER: SideMenuUser = {
   name: 'Paloma Ferreira',
@@ -36,6 +37,7 @@ export function SideMenu({
   onProfileClick,
   onLogout,
   user = DEFAULT_USER,
+  exchangeCount,
 }: SideMenuProps) {
   const items = NAV_ITEMS.filter(
     (item) => item.id !== 'configuracoes' && (user.isCoordination !== false || !COORDINATION_ONLY.includes(item.id)),
@@ -67,7 +69,11 @@ export function SideMenu({
             strokeWidth={1.9}
           />
           <span className="min-w-0 flex-1 truncate">{item.label}</span>
-          {item.badge ? (
+          {item.id === 'trocas' && exchangeCount !== null && exchangeCount !== undefined ? (
+            <span aria-label={`${exchangeCount} solicitações aguardando`} className="flex size-[18px] items-center justify-center rounded-full bg-badge-red text-[9px] font-semibold text-badge-red-text">
+              {exchangeCount}
+            </span>
+          ) : item.badge !== undefined ? (
             <span className="flex size-[18px] items-center justify-center rounded-full bg-badge-red text-[9px] font-semibold text-badge-red-text">
               {item.badge}
             </span>

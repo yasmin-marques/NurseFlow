@@ -11,12 +11,15 @@ import { Professional } from './pages/Professionals/Professionals';
 import { SectorsPage } from './pages/Sectors/SectorsPage';
 import { ScalePage } from './pages/Scale/ScalePage'
 import { ProfilePage } from './pages/Profile/ProfilePage'
+import { ExchangesPage } from './pages/Exchanges/ExchangesPage'
+import { api } from './services/api'
 
 function App() {
   const [user, setUser] = useState<SessionUser | null>(null)
   const [checkingSession, setCheckingSession] = useState(true)
   const [activeItem, setActiveItem] = useState<NavItemId>('visao-geral')
   const [searchQuery, setSearchQuery] = useState('')
+  const [exchangeCount, setExchangeCount] = useState<number | null>(null)
   const lastNonProfileItem = useRef<NavItemId>('visao-geral')
   const activePage = NAV_ITEMS.find((item) => item.id === activeItem)
 
@@ -35,6 +38,16 @@ function App() {
     window.addEventListener(UNAUTHORIZED_EVENT, onUnauthorized)
     return () => window.removeEventListener(UNAUTHORIZED_EVENT, onUnauthorized)
   }, [])
+
+  useEffect(() => {
+    if (!user || user.perfil !== 'coordenacao') { setExchangeCount(null); return }
+    const loadCount = () => api<{ contadores: { aguardandoCoordenacao: number } }>('/trocas?status=pendentes&pagina=1&limite=1')
+      .then((result) => setExchangeCount(result.contadores.aguardandoCoordenacao))
+      .catch(() => setExchangeCount(null))
+    void loadCount()
+    window.addEventListener('nurseflow:trocas-updated', loadCount)
+    return () => window.removeEventListener('nurseflow:trocas-updated', loadCount)
+  }, [user])
 
   const handleLogout = () => {
     logout()
@@ -68,13 +81,14 @@ function App() {
 
   return (
     <AppLayout
-      title={activePage?.label ?? (activeItem === 'perfil' ? 'Meu perfil' : 'NurseFlow')}
+      title={activePage?.label ?? 'NurseFlow'}
       activeItem={activeItem}
       onNavigate={navigate}
       onSearchChange={setSearchQuery}
       onProfileClick={() => navigate('perfil')}
       user={{ name: user.nome, role, initials, isCoordination }}
       onLogout={handleLogout}
+      exchangeCount={exchangeCount}
     >
       {activeItem === 'configuracoes' && isCoordination ? (
         <SettingsPage searchQuery={searchQuery} />
@@ -88,6 +102,8 @@ function App() {
         <SectorsPage />
       ) : activeItem === 'escala' && isCoordination ? (
         <ScalePage />
+      ) : activeItem === 'trocas' && isCoordination ? (
+        <ExchangesPage onCountChange={setExchangeCount} />
       ) : (
         <section className="mx-auto flex min-h-full w-full max-w-5xl items-center px-5 py-10 sm:px-8">
           <div className="w-full rounded-3xl border border-border bg-white p-8 shadow-(--shadow-soft) sm:p-12">
