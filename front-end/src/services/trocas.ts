@@ -21,8 +21,14 @@ export type Troca = {
 }
 export type TrocasPage = { itens: Troca[]; pagina: number; limite: number; total: number; totalPaginas: number; contadores: { pendentes: number; aprovadas: number; recusadas: number; aguardandoCoordenacao: number } }
 
-export function listarTrocas(input: { status: TrocaTab; ano: number; mes: number; pagina?: number }) {
-  const query = new URLSearchParams({ status: input.status, ano: String(input.ano), mes: String(input.mes), pagina: String(input.pagina ?? 1), limite: '50' })
+export function listarTrocas(input: { status: TrocaTab; ano: number; mes?: number; pagina?: number }) {
+  const query = new URLSearchParams({
+    status: input.status,
+    ano: String(input.ano),
+    ...(input.mes !== undefined ? { mes: String(input.mes) } : {}),
+    pagina: String(input.pagina ?? 1),
+    limite: '50',
+  })
   return trocarApi<TrocasPage>(`/trocas?${query}`)
 }
 export function obterTroca(id: string) { return trocarApi<Troca>(`/trocas/${id}`) }

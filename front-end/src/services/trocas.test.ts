@@ -16,6 +16,16 @@ describe('exchange API service', () => {
     expect(init.signal).toBeInstanceOf(AbortSignal)
   })
 
+  it('omits the month filter when listing exchanges across the selected year', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ itens: [], contadores: { pendentes: 0, aprovadas: 0, recusadas: 0, aguardandoCoordenacao: 0 } }), { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+    vi.stubGlobal('sessionStorage', { getItem: () => 'jwt-token', removeItem: () => undefined })
+    await listarTrocas({ status: 'pendentes', ano: 2026 })
+    const [url] = fetchMock.mock.calls[0] as [string, RequestInit]
+    expect(url).toContain('status=pendentes&ano=2026&pagina=1&limite=50')
+    expect(url).not.toContain('mes=')
+  })
+
   it('sends decision DTOs and preserves conflict details for the interface', async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ message: 'A escala foi atualizada.', impedimentos: [{ codigo: 'REVISAO_ABERTA', mensagem: 'A escala está em revisão.' }] }), { status: 409 }))
     vi.stubGlobal('fetch', fetchMock)

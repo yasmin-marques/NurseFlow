@@ -103,6 +103,20 @@ describe('ExchangesPage accessibility and interaction', () => {
     await waitFor(() => expect(listarTrocas).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'recusadas', mes: 10 })))
   })
 
+  it('loads all months without sending an invalid month filter', async () => {
+    const user = userEvent.setup()
+    render(<ExchangesPage />)
+    await screen.findByRole('button', { name: 'Aprovar' })
+
+    await user.selectOptions(screen.getByLabelText('Mês'), '')
+
+    await waitFor(() => expect(listarTrocas).toHaveBeenLastCalledWith(expect.objectContaining({
+      status: 'pendentes',
+      ano: new Date().getFullYear(),
+      mes: undefined,
+    })))
+  })
+
   it('expands details below the summary in all tabs and keeps real impediments visible', async () => {
     const user = userEvent.setup()
     validarTroca.mockResolvedValue({ apta: false, impedimentos: [{ codigo: 'COBERTURA_AGRAVADA', mensagem: 'A cobertura do setor seria agravada.' }], avisos: [{ codigo: 'COBERTURA_INSUFICIENTE', mensagem: '124 posições de cobertura permanecerão sem preencher.' }], revisaoEsperada: 4 })
