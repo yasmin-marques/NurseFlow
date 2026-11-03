@@ -3,9 +3,9 @@ import {
   assignedLeaderId,
   buildShiftChanges,
   emptiedShifts,
-  searchTechnicians,
+  searchProfessionals,
   seedDayMembers,
-  techniciansAvailableToAdd,
+  professionalsAvailableToAdd,
 } from './shift-dialog.helpers'
 import { stageShiftChanges } from './review'
 import type { ScheduledShift, ShiftBatchChange } from '../../services/scales'
@@ -49,13 +49,13 @@ describe('ScaleShiftDialog technician search', () => {
     { id: 'tech-inactive', name: 'Técnico Inativo', formation: 'Técnico', status: false, bond: 'CLT', cpf: '', email: '', coren: '' },
   ]
 
-  it('only offers active, unassigned registered technicians', () => {
-    expect(techniciansAvailableToAdd(professionals, ['tech-2']).map((person) => person.id)).toEqual(['tech-1'])
+  it('offers active, unassigned nurses and technicians', () => {
+    expect(professionalsAvailableToAdd(professionals, ['tech-2']).map((person) => person.id)).toEqual(['tech-1', 'nurse-1'])
   })
 
   it('filters eligible technicians by name without case sensitivity', () => {
-    const eligible = techniciansAvailableToAdd(professionals, [])
-    expect(searchTechnicians(eligible, 'RAFAEL').map((person) => person.id)).toEqual(['tech-1'])
+    const eligible = professionalsAvailableToAdd(professionals, [])
+    expect(searchProfessionals(eligible, 'RAFAEL').map((person) => person.id)).toEqual(['tech-1'])
   })
 })
 
