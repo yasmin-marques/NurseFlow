@@ -32,6 +32,37 @@ const PEOPLE = [
   ['zenilda', 'Zenilda Guimarães Matos', 'tecnico', 'rpa', 'desativado', 'CE-10026'],
   ['otavio', 'Otavio Brandão Leite', 'tecnico', 'clt', 'ativo', 'CE-10027'],
 ];
+
+/**
+ * Efetivo adicional para a geração automática fechar a cobertura mínima dos 3 setores
+ * (demanda diária: enfermeiros 5 dia/4 noite; técnicos 8 dia/5 noite) com a carga padrão
+ * (concursado 6x24h+1x12h, CLT 5x24h+2x12h) e descanso de 72h/36h. Todos ativos, sem RPA.
+ */
+const EXTRA_ENFERMEIROS = [
+  'Helena Rangel Moura', 'Igor Vasconcelos Assis', 'Julia Bezerra Tavares', 'Kleber Antunes Lobo',
+  'Larissa Coutinho Vaz', 'Murilo Sampaio Noronha', 'Natalia Figueiredo Brito', 'Osvaldo Quintela Lemos',
+  'Patricia Bastos Meireles', 'Renato Galvao Pontes', 'Simone Aragao Teles', 'Thales Nogueira Rios',
+  'Vanessa Portela Cruz', 'William Cavalcante Dantas', 'Aline Prates Moraes', 'Caio Valadares Seixas',
+  'Debora Lacerda Furtado', 'Elias Montenegro Paiva', 'Flavia Meneses Orlando',
+];
+const EXTRA_TECNICOS = [
+  'Gustavo Albuquerque Sa', 'Heloisa Barreto Viana', 'Ivan Camargo Rezende', 'Jessica Dornelas Maia',
+  'Kaue Escobar Ventura', 'Lorena Faria Calado', 'Marcelo Gusmao Ibiapina', 'Nayara Holanda Bessa',
+  'Orlando Itapemirim Sales', 'Priscila Jardim Nery', 'Ricardo Kruger Lyra', 'Silvia Linhares Macedo',
+  'Tatiane Mourao Nobre', 'Ubirajara Neiva Osorio', 'Viviane Padilha Quaresma', 'Wagner Queiroz Rabelo',
+  'Adriana Sobral Tolentino', 'Bernardo Uchoa Valente', 'Camila Xavier Zagallo', 'Diego Amaral Bittencourt',
+  'Emanuele Cordeiro Falcao', 'Fabio Garcia Honorato', 'Giovana Inacio Jucá', 'Hugo Kerr Lessa',
+  'Ingrid Loureiro Maranhao', 'Jonas Neves Ouriques', 'Karen Pimentel Rosario', 'Luciano Salgado Tamandare',
+  'Monica Teixeira Uchoa', 'Nelson Vilar Wanderley',
+];
+// Concursado/CLT alternados em proporção 10:9 (enfermeiros) e 16:14 (técnicos).
+const vinculoExtra = (i, nConcursado, total) => (i * nConcursado) % total < nConcursado ? 'concursado' : 'clt';
+const slugOf = (name) => name.split(' ')[0].normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+for (const [lista, formacao, nConcursado] of [[EXTRA_ENFERMEIROS, 'enfermeiro', 10], [EXTRA_TECNICOS, 'tecnico', 16]]) {
+  lista.forEach((name, i) => {
+    PEOPLE.push([slugOf(name), name, formacao, vinculoExtra(i, nConcursado, lista.length), 'ativo', `CE-${10028 + PEOPLE.length - 27}`]);
+  });
+}
 const DEMO_CONFIGURATIONS = ['2026-10', '2026-11'];
 
 function defaultLoads() {

@@ -467,7 +467,7 @@ docker compose logs seed-demo
 | `zenilda@nurseflow.test` | técnico | técnico / RPA / desativado |
 | `otavio@nurseflow.test` | técnico | técnico / CLT / ativo |
 
-A senha de `admin@nurseflow.test` é o valor de `DEMO_ADMIN_PASSWORD`; todos os profissionais usam `DEMO_PRO_PASSWORD`. O campo de perfil no login da UI deve corresponder ao tipo do usuário (coordenação, enfermeiro ou técnico). CPFs de teste são gerados com dígitos verificadores válidos, exclusivamente fictícios; os COREN demonstrativos têm formato `CE-10001` ... `CE-10027` (não correspondem a registros reais).
+A senha de `admin@nurseflow.test` é o valor de `DEMO_ADMIN_PASSWORD`; todos os profissionais usam `DEMO_PRO_PASSWORD`. O campo de perfil no login da UI deve corresponder ao tipo do usuário (coordenação, enfermeiro ou técnico). CPFs de teste são gerados com dígitos verificadores válidos, exclusivamente fictícios; os COREN demonstrativos têm formato `CE-10001` ... `CE-10076` (não correspondem a registros reais).
 ### Setores (quantitativos mínimos)
 
 | Setor | Diurno (enfermeiros/técnicos) | Noturno (enfermeiros/técnicos) |

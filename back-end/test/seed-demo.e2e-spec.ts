@@ -43,15 +43,15 @@ describe('seed de demonstração (e2e)', () => {
     await banco.parar();
   });
 
-  it('cria 27 profissionais com a distribuição aprovada', async () => {
+  it('cria 76 profissionais com a distribuição aprovada', async () => {
     await seed();
     const profs = await db.collection('profissionaisDaSaude').find().toArray();
     const por = (campo: string) =>
       profs.reduce<Record<string, number>>((acc, p) => ({ ...acc, [p[campo]]: (acc[p[campo]] ?? 0) + 1 }), {});
-    expect(profs).toHaveLength(27);
-    expect(por('formacao')).toEqual({ enfermeiro: 13, tecnico: 14 });
-    expect(por('tipoVinculo')).toEqual({ concursado: 10, clt: 10, rpa: 7 });
-    expect(por('status')).toEqual({ ativo: 19, ferias: 3, afastado: 3, desativado: 2 });
+    expect(profs).toHaveLength(76);
+    expect(por('formacao')).toEqual({ enfermeiro: 32, tecnico: 44 });
+    expect(por('tipoVinculo')).toEqual({ concursado: 36, clt: 33, rpa: 7 });
+    expect(por('status')).toEqual({ ativo: 68, ferias: 3, afastado: 3, desativado: 2 });
     for (const p of profs.filter((x) => x.status === 'desativado')) expect(p.desativadoEm).toBeInstanceOf(Date);
     for (const p of profs.filter((x) => x.status !== 'desativado')) expect(p.desativadoEm).toBeNull();
   });
@@ -59,12 +59,12 @@ describe('seed de demonstração (e2e)', () => {
   it('gera CPFs válidos e únicos, e-mails e COREN únicos, e vincula usuários e profissionais', async () => {
     const usuarios = await db.collection('usuarios').find().toArray();
     const profs = await db.collection('profissionaisDaSaude').find().toArray();
-    expect(usuarios).toHaveLength(28); // 27 profissionais + coordenação
+    expect(usuarios).toHaveLength(77); // 76 profissionais + coordenação
     expect(usuarios.every((u) => cpfValido(u.cpf))).toBe(true);
-    expect(new Set(usuarios.map((u) => u.cpf)).size).toBe(28);
-    expect(new Set(usuarios.map((u) => u.email)).size).toBe(28);
+    expect(new Set(usuarios.map((u) => u.cpf)).size).toBe(77);
+    expect(new Set(usuarios.map((u) => u.email)).size).toBe(77);
     expect(usuarios.every((u) => u.email.endsWith('.test'))).toBe(true);
-    expect(new Set(profs.map((p) => p.coren)).size).toBe(27);
+    expect(new Set(profs.map((p) => p.coren)).size).toBe(76);
     expect(PEOPLE.map((p) => p[5])).toEqual([...new Set(PEOPLE.map((p) => p[5]))]);
 
     const porId = new Map(usuarios.map((u) => [String(u._id), u]));

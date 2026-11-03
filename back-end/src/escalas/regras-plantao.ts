@@ -32,6 +32,16 @@ export interface ResumoCobertura {
   percentual: number | null;
 }
 
+// Limite de extras por profissional em cada mês (não acumula entre meses).
+export function limiteExtrasMensal(
+  vinculo: TipoVinculo,
+  configuracao: { maxExtras: number; maxExtrasConcursado: number; maxExtrasClt: number },
+): number {
+  if (vinculo === TipoVinculo.CONCURSADO && configuracao.maxExtrasConcursado > 0) return configuracao.maxExtrasConcursado;
+  if (vinculo === TipoVinculo.CLT && configuracao.maxExtrasClt > 0) return configuracao.maxExtrasClt;
+  return configuracao.maxExtras;
+}
+
 export function validarAlocacoesPlantao(input: {
   ano: number;
   mes: number;
@@ -102,12 +112,7 @@ export function validarAlocacoesPlantao(input: {
     if (regulares24h > (carga?.plantoes24h ?? 0) || regulares12h > (carga?.plantoes12h ?? 0)) {
       erros.push(`${profissional.nome} excede a carga regular configurada.`);
     }
-    const maxExtras =
-      profissional.tipoVinculo === TipoVinculo.CONCURSADO && input.configuracao.maxExtrasConcursado > 0
-        ? input.configuracao.maxExtrasConcursado
-        : profissional.tipoVinculo === TipoVinculo.CLT && input.configuracao.maxExtrasClt > 0
-          ? input.configuracao.maxExtrasClt
-          : input.configuracao.maxExtras;
+    const maxExtras = limiteExtrasMensal(profissional.tipoVinculo, input.configuracao);
     if (extras > maxExtras) erros.push(`${profissional.nome} excede o limite de plantões extras.`);
     const total = mesAtual.length;
     if (input.configuracao.limitePlantoes > 0 && total > input.configuracao.limitePlantoes) {
