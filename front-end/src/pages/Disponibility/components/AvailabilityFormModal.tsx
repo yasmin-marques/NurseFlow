@@ -79,6 +79,15 @@ function formatDate(value: string) {
   return `${day}/${month}/${year}`;
 }
 
+function formatShiftLabel(value?: string) {
+  const normalized = value?.trim().toLowerCase();
+  if (!normalized) return "";
+  if (normalized === "day") return "Diurno";
+  if (normalized === "night") return "Noturno";
+  if (normalized === "flexible") return "Flexível";
+  return "";
+}
+
 function normalizeLegacyAbsenceType(value?: string) {
   const trimmed = value?.trim();
   if (!trimmed) return "";
@@ -425,7 +434,7 @@ export function AvailabilityFormModal({
       rule =
         ruleType === "unavailableDays"
           ? `Não disponível às ${formatDays(days)}`
-          : `Somente turno ${shift === "day" ? "diurno" : "noturno"}`;
+          : `Somente turno ${formatShiftLabel(shift) || "turno"}`;
       period = `${formatDate(validFrom)} a ${formatDate(validTo)}`;
       details = {
         ruleType,
@@ -441,13 +450,7 @@ export function AvailabilityFormModal({
       rule = `${linkType} · ${institution.trim()}`;
       const periodParts = [
         linkDays.length ? formatDays(linkDays) : "",
-        linkShift
-          ? linkShift === "day"
-            ? "Diurno"
-            : linkShift === "night"
-              ? "Noturno"
-              : "Horário flexível"
-          : "",
+        linkShift ? formatShiftLabel(linkShift) : "",
         linkStartDate && linkEndDate
           ? `${formatDate(linkStartDate)} a ${formatDate(linkEndDate)}`
           : "",
@@ -812,7 +815,7 @@ export function AvailabilityFormModal({
                       ? `Indisponível às ${formatDays(days)}.`
                       : "Selecione os dias em que o profissional estará indisponível."
                     : shift
-                      ? `Disponível apenas no turno ${shift === "day" ? "diurno" : "noturno"}.`
+                      ? `Disponível apenas no turno ${formatShiftLabel(shift) || "selecionado"}.`
                       : "Selecione o turno em que o profissional poderá ser escalado."}{" "}
                   {validFrom && validTo
                     ? `Válida de ${formatDate(validFrom)} a ${formatDate(validTo)}.`
@@ -912,7 +915,7 @@ export function AvailabilityFormModal({
                       <option value="">Não especificado</option>
                       <option value="day">Diurno · 07h–19h</option>
                       <option value="night">Noturno · 19h–07h</option>
-                      <option value="flexible">Horário flexível</option>
+                      <option value="flexible">Flexível</option>
                     </select>
                   </Field>
                 </section>

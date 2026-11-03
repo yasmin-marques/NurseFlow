@@ -149,6 +149,15 @@ function formatWeekdays(days: number[]): string {
     .join(", ");
 }
 
+function formatShiftLabel(value?: string | null): string | undefined {
+  const normalized = value?.trim().toLowerCase();
+  if (!normalized) return undefined;
+  if (normalized === "day" || normalized === "diurno") return "Diurno";
+  if (normalized === "night" || normalized === "noturno") return "Noturno";
+  if (normalized === "flexible" || normalized === "flexivel") return "Flexível";
+  return undefined;
+}
+
 export async function fetchAllRestrictions(): Promise<{
   records: RestrictionList;
   professionals: ProfessionalOption[];
@@ -183,6 +192,7 @@ export async function fetchAllRestrictions(): Promise<{
               : label;
 
         const normalizedShift = normalizeApiShift(restriction.turno);
+        const shiftLabel = formatShiftLabel(normalizedShift);
         const absenceType = getAbsenceType(restriction);
         records[category].push({
           id: restriction._id,
@@ -194,7 +204,7 @@ export async function fetchAllRestrictions(): Promise<{
           rule,
           period: `${datePart(restriction.inicio)} a ${datePart(restriction.fim)}${
             diasSemana.length ? ` · ${formatWeekdays(diasSemana)}` : ""
-          }${normalizedShift ? ` · ${normalizedShift}` : ""}`,
+          }${shiftLabel ? ` · ${shiftLabel}` : ""}`,
           details: {
             note: restriction.observacao ?? undefined,
             startDate: datePart(restriction.inicio),
