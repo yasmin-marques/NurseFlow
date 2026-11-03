@@ -34,6 +34,7 @@ import {
   type AlocacaoPlantaoValidacao,
   type PendenciaCobertura,
   type ResumoCobertura,
+  limiteExtrasMensal,
   resumirCobertura,
   validarAlocacoesPlantao,
 } from './regras-plantao';
@@ -1379,6 +1380,7 @@ export class EscalasService {
         esperada,
         atribuida: { plantoes24h, plantoes12h },
         extras,
+        limiteExtras: limiteExtrasMensal(profissional.tipoVinculo, configuracao),
       };
     });
     const conflitos = [
@@ -1395,12 +1397,12 @@ export class EscalasService {
     const avisos = [
       ...(geracao.avisos ?? []).filter((item) => item.tipo !== 'EXTRAS_ALOCADOS'),
       ...cargas
-        .filter((item) => item.extras > 0)
+        .filter((item) => item.extras > item.limiteExtras)
         .map((item) => ({
           tipo: 'EXTRAS_ALOCADOS',
           profissionalId: item.profissionalId,
           profissional: item.profissional,
-          motivo: `${item.extras} plantão(ões) extra(s) além da carga regular.`,
+          motivo: `${item.extras} plantão(ões) extra(s), acima do limite mensal de ${item.limiteExtras}.`,
         })),
     ];
     await this.escalas.updateOne(
@@ -1667,12 +1669,12 @@ export class EscalasService {
           motivo: `Faltam ${c.faltam_24h} plantão(ões) de 24h e ${c.faltam_12h} de 12h para a carga esperada do vínculo ${p.tipoVinculo}.`,
         });
       }
-      if (c.extras > 0) {
+      if (c.extras > esperada.max_extras) {
         avisos.push({
           tipo: 'EXTRAS_ALOCADOS',
           profissionalId: p.id,
           profissional: p.nome,
-          motivo: `${c.extras} plantão(ões) extra(s) além da carga regular.`,
+          motivo: `${c.extras} plantão(ões) extra(s), acima do limite mensal de ${esperada.max_extras}.`,
         });
       }
       return {

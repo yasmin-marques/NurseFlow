@@ -35,12 +35,16 @@ export class ConfiguracoesService {
       maxExtrasConcursado: 1,
       maxExtrasClt: 1,
     };
-    // Aproveita a configuração mensal mais recente já salva, para não perder ajustes feitos antes.
-    const legado = await this.model
-      .findOne({ chave: { $ne: chave } })
-      .sort({ updatedAt: -1 })
-      .lean()
-      .exec();
+    // Aproveita a configuração mensal do mês atual (ou do mais recente até ele), ignorando meses futuros.
+    const hoje = new Date();
+    const atual = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
+    const legado =
+      (await this.model
+        .findOne({ chave: { $ne: chave, $lte: atual } })
+        .sort({ chave: -1 })
+        .lean()
+        .exec()) ??
+      (await this.model.findOne({ chave: { $ne: chave } }).sort({ chave: 1 }).lean().exec());
     const cargas = { ...this.cargasPadrao(), ...(legado?.cargas ?? {}) };
     const inicial = legado
       ? {
