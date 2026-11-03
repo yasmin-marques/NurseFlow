@@ -77,6 +77,7 @@ export class EscalasController {
   @ApiBadRequestResponse({ description: 'Dados do plantão inválidos' })
   @ApiNotFoundResponse({ description: 'Escala, setor ou profissional não encontrado' })
   @ApiConflictResponse({ description: 'Escala publicada/finalizada ou revisão concorrente' })
+  @ApiUnprocessableEntityResponse({ description: 'O plantão viola regras ou as pendências de cobertura não foram reconhecidas; nenhuma alteração é persistida.' })
   incluirPlantao(
     @Param('id', ParseObjectIdPipe) id: string,
     @Body() dto: PlantaoDto,
@@ -88,7 +89,7 @@ export class EscalasController {
   @Post(':id/plantoes/validar-lote')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Pré-valida alterações em lote sem persistir plantões' })
-  @ApiOkResponse({ description: 'Retorna a revisão consultada, o resultado da validação e os conflitos encontrados.' })
+  @ApiOkResponse({ description: 'Retorna conflitos, cobertura projetada, pendências por setor/turno/função e se é necessário reconhecê-las.' })
   @ApiConflictResponse({ description: 'Escala publicada/finalizada ou revisão concorrente.' })
   validarLotePlantoes(@Param('id', ParseObjectIdPipe) id: string, @Body() dto: LotePlantoesDto) {
     return this.service.validarLotePlantoes(id, dto);
@@ -101,7 +102,7 @@ export class EscalasController {
   @ApiBadRequestResponse({ description: 'Dados do lote inválidos.' })
   @ApiNotFoundResponse({ description: 'Escala, plantão, setor ou profissional não encontrado.' })
   @ApiConflictResponse({ description: 'Escala publicada/finalizada ou revisão concorrente.' })
-  @ApiUnprocessableEntityResponse({ description: 'Uma alteração viola as regras da escala; nenhuma alteração é persistida.' })
+  @ApiUnprocessableEntityResponse({ description: 'Uma alteração viola regras ou as pendências de cobertura não foram reconhecidas; nenhuma alteração é persistida.' })
   salvarLotePlantoes(
     @Param('id', ParseObjectIdPipe) id: string,
     @Body() dto: LotePlantoesDto,
@@ -116,6 +117,7 @@ export class EscalasController {
   @ApiBadRequestResponse({ description: 'Dados do plantão inválidos' })
   @ApiNotFoundResponse({ description: 'Escala, plantão, setor ou profissional não encontrado' })
   @ApiConflictResponse({ description: 'Escala publicada/finalizada ou revisão concorrente' })
+  @ApiUnprocessableEntityResponse({ description: 'O plantão viola regras ou as pendências de cobertura não foram reconhecidas; nenhuma alteração é persistida.' })
   editarPlantao(
     @Param('id', ParseObjectIdPipe) id: string,
     @Param('plantaoId', ParseObjectIdPipe) plantaoId: string,

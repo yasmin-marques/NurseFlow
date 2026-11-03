@@ -19,7 +19,7 @@ export class GerarEscalaDto {
 
   @ApiPropertyOptional({
     default: false,
-    description: 'Se já existir um rascunho ou uma escala em revisão no período, substitui seu conteúdo por uma nova geração. Escalas validadas, publicadas ou finalizadas nunca são substituídas.',
+    description: 'Se já existir um rascunho, uma escala em revisão ou uma escala validada ainda não publicada no período, substitui seu conteúdo por uma nova geração. Escalas publicadas ou finalizadas nunca são substituídas.',
   })
   @IsOptional() @IsBoolean()
   substituirRascunho?: boolean;

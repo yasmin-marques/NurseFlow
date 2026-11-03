@@ -2,7 +2,7 @@ import { dayIndicators, dateKey } from './calendar'
 import { CoverageBadge } from '../../components/ui/ScaleComponents'
 import { coverageSurfaceClass } from '../../components/ui/coverageStyles'
 import type { ScaleDetail } from '../../services/scales'
-import { describeShift, describeShiftBadge, groupDailyTeam, type DailyTeamMember } from './weeklyTeam'
+import { describeShiftBadge, groupDailyTeam, type DailyTeamMember } from './weeklyTeam'
 
 function formatList(items: string[]) {
   if (items.length < 2) return items[0] ?? ''
@@ -20,25 +20,19 @@ function DailyTeamSection({
   members,
   role,
   emptyMessage,
-  leadership = false,
 }: {
   title: string
   members: DailyTeamMember[]
   role: string
   emptyMessage: string
-  leadership?: boolean
 }) {
-  return <section className={`space-y-2 ${leadership ? 'rounded-lg bg-soft-green p-4' : ''}`}>
+  return <section className="space-y-2">
     <h5 className="text-[10px] font-bold tracking-wide text-primary">{title}</h5>
     {members.length ? <ul className="space-y-2">{members.map((member) => {
       const badges = [...new Map(member.shifts.map((shift) => {
         const badge = describeShiftBadge(member.professional, shift)
         return [badge.label, badge] as const
       })).values()]
-      const detail = leadership
-        ? 'Enfermeiro chefe'
-        : `${role} · ${formatList(member.sectors)}`
-      const leadershipDetails = [...new Set(member.shifts.map(describeShift))]
 
       const initials = member.professional.nome
         .split(/\s+/)
@@ -58,15 +52,12 @@ function DailyTeamSection({
           </span>
           <span className="min-w-0">
             <span className="block truncate text-xs font-semibold text-text">{member.professional.nome}</span>
-            <span className="block truncate text-[10px] text-text-muted">
-              {leadership ? detail : role}
-              {leadership ? ` · Plantão ${formatList(leadershipDetails)} · Responsável pelos setores ${formatList(member.sectors)}` : ''}
-            </span>
+            <span className="block truncate text-[10px] text-text-muted">{role}</span>
           </span>
         </div>
-        {!leadership ? <span className="pl-11 text-[10px] text-text-muted sm:min-w-32 sm:pl-0">
+        <span className="pl-11 text-[10px] text-text-muted sm:min-w-32 sm:pl-0">
           {formatList(member.sectors)}
-        </span> : null}
+        </span>
         <div className="flex flex-wrap gap-1.5 pl-11 sm:shrink-0 sm:pl-0">
           {badges.map((badge) => <span
             key={badge.label}
@@ -154,13 +145,6 @@ export function WeeklyDayCard({
     </div> : null}
     <div className="space-y-4 p-4">
       {dayShifts.length === 0 ? <p className="text-xs text-text-muted">Sem plantões registrados.</p> : <>
-        <DailyTeamSection
-          title="ENFERMEIRO CHEFE · LIDERANÇA GERAL"
-          members={team.leaders}
-          role="Enfermeiro chefe"
-          emptyMessage="Nenhum enfermeiro chefe escalado para este dia."
-          leadership
-        />
         <DailyTeamSection
           title={`ENFERMEIROS · ${team.nurses.length} EM CAMPO`}
           members={team.nurses}

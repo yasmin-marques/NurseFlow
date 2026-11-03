@@ -51,6 +51,10 @@ export class PlantaoDto {
   @IsArray() @ArrayMinSize(1) @ArrayUnique((item: ProfissionalPlantaoDto) => item.profissionalId)
   @ValidateNested({ each: true }) @Type(() => ProfissionalPlantaoDto)
   equipe: ProfissionalPlantaoDto[];
+
+  @ApiPropertyOptional({ description: 'Confirmação explícita das pendências de cobertura exibidas na pré-validação.' })
+  @IsOptional() @IsBoolean()
+  coberturaReconhecida?: boolean;
 }
 
 export class PlantaoAlteracaoDto extends OmitType(PlantaoDto, ['revisaoEsperada'] as const) {
