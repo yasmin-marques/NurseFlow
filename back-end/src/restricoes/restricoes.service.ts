@@ -290,14 +290,9 @@ export class RestricoesService {
         "Vínculo externo deve informar a instituição.",
       );
     }
-    if (tipo === TipoRestricao.FERIAS && !motivo) {
-      throw new BadRequestException("Férias devem informar um motivo.");
-    }
-    if (tipo === TipoRestricao.AUSENCIA && !motivo) {
-      throw new BadRequestException("Ausência deve informar um motivo.");
-    }
+    const motivoFinal = motivo ?? observacao ?? null;
 
-    return { motivo, observacao, instituicao, tipoVinculo, diasSemana };
+    return { motivo: motivoFinal, observacao, instituicao, tipoVinculo, diasSemana };
   }
 
   private datas(

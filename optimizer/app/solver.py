@@ -9,7 +9,8 @@ Unidade de decisão: o profissional `p` inicia, no dia `d`, um plantão do tipo 
 Restrições obrigatórias (duras):
   * cada plantão ocupa um único setor e o profissional não faz dois plantões ao mesmo tempo;
   * descanso mínimo após cada plantão: 72 h após 24h (regime 24x72) e 36 h após 12h;
-  * dia de início bloqueado (férias, ausência, indisponibilidade, vínculo externo...) não é alocado;
+  * dia ou turno de início bloqueado (férias, ausência, indisponibilidade, vínculo externo...) não é alocado;
+  * disponibilidade por turno e dias fixos recorrentes respeitados na seleção de opções;
   * descanso herdado do mês anterior;
   * teto de extras por profissional e teto total de plantões no mês;
   * cada função (enfermeiro/técnico) só é coberta por profissionais da respectiva formação.
@@ -127,12 +128,15 @@ def resolver(problema: Problema) -> Solucao:
 
     for pi, p in enumerate(profs):
         bloqueados = set(p.dias_bloqueados)
+        turnos_bloq = {(tb.dia, tb.turno) for tb in getattr(p, "turnos_bloqueados", [])}
         for d in range(n):
             if (d + 1) in bloqueados:
                 continue
             for o in OPCOES:
                 turnos_opcao = set(cobre(o))
                 if not turnos_opcao.issubset(turnos_selecionados):
+                    continue
+                if any((d + 1, t) in turnos_bloq for t in turnos_opcao):
                     continue
                 if janela(d, o)[0] < p.livre_a_partir_horas:
                     continue

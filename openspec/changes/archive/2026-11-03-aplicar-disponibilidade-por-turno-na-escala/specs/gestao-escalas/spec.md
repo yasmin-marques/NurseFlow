@@ -48,30 +48,60 @@ O sistema MUST aplicar disponibilidade por turno e recorrência semanal ao cálc
 - **WHEN** não há profissionais elegíveis suficientes para preencher o quantitativo mínimo de setor, turno e função
 - **THEN** a geração registra a vaga como descoberta e informa o quantitativo faltante, sem relaxar as regras obrigatórias
 
-### Requirement: Montar escala manualmente respeitando disponibilidade por turno
+### Requirement: Montar escala manualmente
 
 O sistema MUST permitir à Coordenação iniciar ou completar um rascunho por meio da inclusão manual de plantões e profissionais cadastrados, respeitando a disponibilidade por turno e a vigência das restrições do profissional.
+
+#### Scenario: Adicionar alocação válida
+
+- **WHEN** a Coordenação seleciona um setor, data, turno e profissional compatível e confirma a inclusão
+- **THEN** o plantão é persistido no rascunho e passa a aparecer na revisão e no calendário
 
 #### Scenario: Adicionar alocação válida por turno
 
 - **WHEN** a Coordenação seleciona um setor, data, turno e profissional compatível e confirma a inclusão
 - **THEN** o plantão é persistido no rascunho, passa a aparecer na revisão e no calendário e considera a disponibilidade do profissional naquele turno
 
+#### Scenario: Rejeitar profissional não elegível
+
+- **WHEN** o profissional está inativo, indisponível, em ausência ou não corresponde à função exigida
+- **THEN** o sistema recusa a alocação e informa o motivo sem alterar o rascunho
+
 #### Scenario: Rejeitar profissional não elegível por turno
 
 - **WHEN** o profissional está inativo, indisponível naquele turno, em ausência ou não corresponde à função exigida
 - **THEN** o sistema recusa a alocação e informa o motivo sem alterar o rascunho
 
-### Requirement: Validar cobertura e conflitos com dados estruturados
+### Requirement: Validar cobertura e conflitos
 
 O sistema MUST validar as alocações de uma escala antes da publicação usando dados estruturados de disponibilidade por turno, recorrência semanal e compromissos externos, e apresentar resultados por plantão e profissional.
+
+#### Scenario: Validar escala sem pendências
+
+- **WHEN** todos os plantões respeitam as regras e os quantitativos mínimos
+- **THEN** o sistema informa validação concluída e permite avançar para publicação
 
 #### Scenario: Validar escala com restrições estruturadas
 
 - **WHEN** todos os plantões respeitam as regras de disponibilidade, descanso, turno e quantitativos mínimos
 - **THEN** o sistema informa validação concluída e permite avançar para publicação
 
+#### Scenario: Encontrar cobertura insuficiente
+
+- **WHEN** um turno/setor possui menos profissionais que o mínimo configurado
+- **THEN** o sistema destaca a vaga, informa quantidade necessária, alocada e faltante e impede que a pendência seja apresentada como cobertura completa
+
+#### Scenario: Encontrar conflito de profissional
+
+- **WHEN** uma alocação viola disponibilidade, descanso, carga ou outro limite aplicável
+- **THEN** o sistema identifica o profissional, plantão e regra violada e mantém a escala em revisão até correção ou decisão permitida
+
 #### Scenario: Encontrar conflito de profissional por disponibilidade por turno
 
 - **WHEN** uma alocação viola disponibilidade, descanso, carga ou outro limite aplicável em um turno específico
 - **THEN** o sistema identifica o profissional, plantão e regra violada e mantém a escala em revisão até correção ou decisão permitida
+
+#### Scenario: Revalidar após alteração
+
+- **WHEN** a Coordenação altera um plantão depois de uma validação
+- **THEN** o resultado de validação anterior é invalidado e a escala precisa ser validada novamente

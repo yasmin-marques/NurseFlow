@@ -1,6 +1,14 @@
 import { chaveCarga } from '../configuracoes/configuracao.schema';
 import { Formacao, StatusProfissional, TipoVinculo } from '../profissionais/profissionais.enums';
-import { type ConfiguracaoVigente, type PlantaoAnterior, type ProfissionalEntrada, type RestricaoEntrada, bloqueiosDoProfissional, diasDoMes } from './montar-problema';
+import {
+  type ConfiguracaoVigente,
+  type PlantaoAnterior,
+  type ProfissionalEntrada,
+  type RestricaoEntrada,
+  type TurnoEscalaTipo,
+  calcularBloqueiosDoProfissional,
+  diasDoMes,
+} from './montar-problema';
 import type { TurnoEscala } from './dto/gerar-escala.dto';
 import { TipoPlantao } from './schemas';
 import { utcDate } from '../common/utils/date';
@@ -52,8 +60,22 @@ export function validarAlocacoesPlantao(input: {
       erros.push(`${profissional.nome} não possui a formação exigida (${alocacao.funcao}).`);
     }
     const restricoes = input.restricoes.filter((item) => item.profissionalId === profissional.id);
-    if (bloqueiosDoProfissional(restricoes, input.ano, input.mes).has(alocacao.data.getUTCDate())) {
+    const bloqueios = calcularBloqueiosDoProfissional(restricoes, input.ano, input.mes);
+    const diaAlocacao = alocacao.data.getUTCDate();
+    if (bloqueios.diasBloqueados.includes(diaAlocacao)) {
       erros.push(`${profissional.nome} está indisponível na data selecionada.`);
+    } else {
+      const turnosAlocacao: TurnoEscalaTipo[] =
+        alocacao.duracaoHoras >= 24
+          ? ['diurno', 'noturno']
+          : alocacao.horarioInicio === '07:00'
+            ? ['diurno']
+            : ['noturno'];
+      for (const t of turnosAlocacao) {
+        if (bloqueios.turnosBloqueados.some((tb) => tb.dia === diaAlocacao && tb.turno === t)) {
+          erros.push(`${profissional.nome} está indisponível no turno ${t} na data selecionada.`);
+        }
+      }
     }
     candidatasPorProfissional.set(profissional.id, [...(candidatasPorProfissional.get(profissional.id) ?? []), alocacao]);
   }

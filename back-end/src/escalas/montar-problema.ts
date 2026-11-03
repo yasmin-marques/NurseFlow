@@ -40,7 +40,13 @@ export interface RestricaoEntrada {
   tipo: TipoRestricao;
   inicio: Date;
   fim: Date;
+  diasSemana?: number[] | null;
   diaSemana?: number | null;
+  turno?: 'diurno' | 'noturno' | 'flexivel' | null;
+  motivo?: string | null;
+  observacao?: string | null;
+  instituicao?: string | null;
+  tipoVinculo?: string | null;
 }
 
 /** Último plantão do mês anterior (para herdar o descanso obrigatório). */
@@ -124,43 +130,183 @@ export function validarEntrada(
 const quantitativoTotal = (s: SetorEntrada) =>
   s.turnos.diurno.enfermeiros + s.turnos.diurno.tecnicos + s.turnos.noturno.enfermeiros + s.turnos.noturno.tecnicos;
 
+export type TurnoEscalaTipo = 'diurno' | 'noturno';
+
+export interface TurnoBloqueadoDetalhe {
+  dia: number;
+  turno: TurnoEscalaTipo;
+  motivo: string;
+}
+
+export interface BloqueiosProfissionalCalculados {
+  diasBloqueados: number[];
+  turnosBloqueados: TurnoBloqueadoDetalhe[];
+  motivosPorDia: Map<number, Set<string>>;
+  motivosPorTurno: Map<string, Set<string>>;
+}
+
+export function diasDaRecorrencia(r: RestricaoEntrada): number[] {
+  if (Array.isArray(r.diasSemana) && r.diasSemana.length > 0) {
+    return r.diasSemana;
+  }
+  if (r.diaSemana !== null && r.diaSemana !== undefined) {
+    return [r.diaSemana];
+  }
+  return [];
+}
+
 /** Dias (1-based) do mês cobertos pela restrição, respeitando a recorrência semanal. Datas em UTC. */
 export function diasAfetados(r: RestricaoEntrada, ano: number, mes: number): number[] {
   const dias: number[] = [];
+  const recorrencia = diasDaRecorrencia(r);
   for (let d = 1; d <= diasDoMes(ano, mes); d++) {
     const inicioDia = utcDate(ano, mes - 1, d).getTime();
     const fimDia = inicioDia + 24 * MS_HORA;
     if (!(r.inicio.getTime() < fimDia && r.fim.getTime() >= inicioDia)) continue;
-    if (r.diaSemana === null || r.diaSemana === undefined || new Date(inicioDia).getUTCDay() === r.diaSemana) dias.push(d);
+    if (recorrencia.length === 0 || recorrencia.includes(new Date(inicioDia).getUTCDay())) {
+      dias.push(d);
+    }
   }
   return dias;
 }
 
 /**
- * RN003/RN005: um profissional não inicia plantão em dia indisponível, de férias, ausência ou com vínculo externo.
- * Restrições "disponível" com dia da semana são dias fixos de trabalho: dentro do período dessa restrição,
- * o profissional só pode ser escalado nos dias da semana informados. "Disponível" sem dia da semana é apenas informativa.
+ * RN003/RN005: calcula a disponibilidade por dia e por turno.
+ * - Indisponibilidade, férias, ausência e vínculos externos bloqueiam os dias ou turnos informados.
+ * - Restrições "disponível" com dia da semana ou turno definem dias/turnos fixos de trabalho.
+ * - Registros legados (diaSemana único, sem turno) continuam suportados.
  */
-export function bloqueiosDoProfissional(rs: RestricaoEntrada[], ano: number, mes: number) {
-  const bloqueados = new Map<number, Set<TipoRestricao | 'fora_dos_dias_fixos'>>();
-  const marcar = (dia: number, motivo: TipoRestricao | 'fora_dos_dias_fixos') => {
-    if (!bloqueados.has(dia)) bloqueados.set(dia, new Set());
-    bloqueados.get(dia)!.add(motivo);
+export function calcularBloqueiosDoProfissional(
+  rs: RestricaoEntrada[],
+  ano: number,
+  mes: number,
+): BloqueiosProfissionalCalculados {
+  const totalDias = diasDoMes(ano, mes);
+  const diasBloqueadosSet = new Set<number>();
+  const turnosBloqueadosList: TurnoBloqueadoDetalhe[] = [];
+  const motivosPorDia = new Map<number, Set<string>>();
+  const motivosPorTurno = new Map<string, Set<string>>();
+
+  const registrarMotivoDia = (dia: number, motivo: string) => {
+    if (!motivosPorDia.has(dia)) motivosPorDia.set(dia, new Set());
+    motivosPorDia.get(dia)!.add(motivo);
   };
-  for (const r of rs.filter((x) => BLOQUEANTES.has(x.tipo))) {
-    for (const d of diasAfetados(r, ano, mes)) marcar(d, r.tipo);
-  }
-  const fixas = rs.filter((x) => x.tipo === TipoRestricao.DISPONIVEL && x.diaSemana !== null && x.diaSemana !== undefined);
-  for (let d = 1; d <= diasDoMes(ano, mes); d++) {
-    const cobrindo = fixas.filter((r) => {
-      const inicioDia = utcDate(ano, mes - 1, d).getTime();
-      return r.inicio.getTime() < inicioDia + 24 * MS_HORA && r.fim.getTime() >= inicioDia;
-    });
-    if (cobrindo.length > 0 && !cobrindo.some((r) => utcDate(ano, mes - 1, d).getUTCDay() === r.diaSemana)) {
-      marcar(d, 'fora_dos_dias_fixos');
+
+  const registrarMotivoTurno = (dia: number, turno: TurnoEscalaTipo, motivo: string) => {
+    const chave = `${dia}_${turno}`;
+    if (!motivosPorTurno.has(chave)) motivosPorTurno.set(chave, new Set());
+    motivosPorTurno.get(chave)!.add(motivo);
+  };
+
+  const disponivelRs = rs.filter((r) => r.tipo === TipoRestricao.DISPONIVEL);
+  const temRegraDisponibilidade = disponivelRs.some(
+    (r) => diasDaRecorrencia(r).length > 0 || r.turno === 'diurno' || r.turno === 'noturno',
+  );
+
+  for (let d = 1; d <= totalDias; d++) {
+    const dataDia = utcDate(ano, mes - 1, d);
+    const diaSemana = dataDia.getUTCDay();
+    const inicioDia = dataDia.getTime();
+    const fimDia = inicioDia + 24 * MS_HORA;
+
+    const turnosPermitidos = new Set<TurnoEscalaTipo>(['diurno', 'noturno']);
+
+    if (temRegraDisponibilidade) {
+      const cobrindoDia = disponivelRs.filter(
+        (r) => r.inicio.getTime() < fimDia && r.fim.getTime() >= inicioDia,
+      );
+
+      if (cobrindoDia.length > 0) {
+        const comDias = cobrindoDia.filter((r) => diasDaRecorrencia(r).length > 0);
+        if (comDias.length > 0) {
+          const noDia = comDias.filter((r) => diasDaRecorrencia(r).includes(diaSemana));
+          if (noDia.length === 0) {
+            turnosPermitidos.clear();
+            registrarMotivoDia(d, 'fora_dos_dias_fixos');
+          } else {
+            turnosPermitidos.clear();
+            for (const r of noDia) {
+              if (r.turno === 'diurno') turnosPermitidos.add('diurno');
+              else if (r.turno === 'noturno') turnosPermitidos.add('noturno');
+              else {
+                turnosPermitidos.add('diurno');
+                turnosPermitidos.add('noturno');
+              }
+            }
+            if (!turnosPermitidos.has('diurno')) registrarMotivoTurno(d, 'diurno', 'disponibilidade');
+            if (!turnosPermitidos.has('noturno')) registrarMotivoTurno(d, 'noturno', 'disponibilidade');
+          }
+        } else {
+          turnosPermitidos.clear();
+          for (const r of cobrindoDia) {
+            if (r.turno === 'diurno') turnosPermitidos.add('diurno');
+            else if (r.turno === 'noturno') turnosPermitidos.add('noturno');
+            else {
+              turnosPermitidos.add('diurno');
+              turnosPermitidos.add('noturno');
+            }
+          }
+          if (!turnosPermitidos.has('diurno')) registrarMotivoTurno(d, 'diurno', 'disponibilidade');
+          if (!turnosPermitidos.has('noturno')) registrarMotivoTurno(d, 'noturno', 'disponibilidade');
+        }
+      }
+    }
+
+    for (const r of rs.filter((x) => BLOQUEANTES.has(x.tipo))) {
+      if (diasAfetados(r, ano, mes).includes(d)) {
+        const rotuloMotivo =
+          r.motivo && r.motivo.toLowerCase() !== r.tipo.toLowerCase()
+            ? `${r.tipo}: ${r.motivo}`
+            : r.tipo;
+        if (r.turno === 'diurno') {
+          turnosPermitidos.delete('diurno');
+          registrarMotivoTurno(d, 'diurno', rotuloMotivo);
+        } else if (r.turno === 'noturno') {
+          turnosPermitidos.delete('noturno');
+          registrarMotivoTurno(d, 'noturno', rotuloMotivo);
+        } else {
+          turnosPermitidos.delete('diurno');
+          turnosPermitidos.delete('noturno');
+          registrarMotivoDia(d, rotuloMotivo);
+        }
+      }
+    }
+
+    if (!turnosPermitidos.has('diurno') && !turnosPermitidos.has('noturno')) {
+      diasBloqueadosSet.add(d);
+      if (!motivosPorDia.has(d)) {
+        registrarMotivoDia(d, 'indisponivel');
+      }
+    } else {
+      if (!turnosPermitidos.has('diurno')) {
+        const motivos = motivosPorTurno.get(`${d}_diurno`);
+        const motivo = motivos ? [...motivos].join(', ') : 'turno_diurno_bloqueado';
+        turnosBloqueadosList.push({ dia: d, turno: 'diurno', motivo });
+      }
+      if (!turnosPermitidos.has('noturno')) {
+        const motivos = motivosPorTurno.get(`${d}_noturno`);
+        const motivo = motivos ? [...motivos].join(', ') : 'turno_noturno_bloqueado';
+        turnosBloqueadosList.push({ dia: d, turno: 'noturno', motivo });
+      }
     }
   }
-  return bloqueados;
+
+  return {
+    diasBloqueados: [...diasBloqueadosSet].sort((a, b) => a - b),
+    turnosBloqueados: turnosBloqueadosList,
+    motivosPorDia,
+    motivosPorTurno,
+  };
+}
+
+export function bloqueiosDoProfissional(rs: RestricaoEntrada[], ano: number, mes: number) {
+  const calc = calcularBloqueiosDoProfissional(rs, ano, mes);
+  const mapa = new Map<number, Set<TipoRestricao | 'fora_dos_dias_fixos'>>();
+  for (const d of calc.diasBloqueados) {
+    const motivos = calc.motivosPorDia.get(d) ?? new Set(['indisponivel' as TipoRestricao]);
+    mapa.set(d, motivos as Set<TipoRestricao | 'fora_dos_dias_fixos'>);
+  }
+  return mapa;
 }
 
 /** Hora (relativa ao dia 1 às 00:00 UTC) a partir da qual o profissional volta a poder iniciar plantão. */
@@ -202,12 +348,29 @@ export function montarProblema(e: EntradaGeracao): ProblemaMontado {
   for (const a of e.plantoesAnteriores) anterioresPor.set(a.profissionalId, [...(anterioresPor.get(a.profissionalId) ?? []), a]);
 
   const profissionais: ProfissionalOtimizacao[] = ativos.map((p) => {
-    const bloqueios = bloqueiosDoProfissional(porProfissional.get(p.id) ?? [], e.ano, e.mes);
+    const calc = calcularBloqueiosDoProfissional(porProfissional.get(p.id) ?? [], e.ano, e.mes);
     const porMotivo = new Map<string, number[]>();
-    for (const [dia, motivos] of bloqueios) for (const m of motivos) porMotivo.set(m, [...(porMotivo.get(m) ?? []), dia]);
+    for (const [dia, motivos] of calc.motivosPorDia) {
+      for (const m of motivos) porMotivo.set(m, [...(porMotivo.get(m) ?? []), dia]);
+    }
     for (const [motivo, diasBloqueados] of porMotivo) {
       conflitos.push({
         tipo: 'INDISPONIBILIDADE',
+        profissionalId: p.id,
+        profissional: p.nome,
+        motivo,
+        dias: diasBloqueados.sort((a, b) => a - b),
+      });
+    }
+
+    const porMotivoTurno = new Map<string, number[]>();
+    for (const tb of calc.turnosBloqueados) {
+      const chave = `${tb.motivo} (${tb.turno})`;
+      porMotivoTurno.set(chave, [...(porMotivoTurno.get(chave) ?? []), tb.dia]);
+    }
+    for (const [motivo, diasBloqueados] of porMotivoTurno) {
+      conflitos.push({
+        tipo: 'INDISPONIBILIDADE_TURNO',
         profissionalId: p.id,
         profissional: p.nome,
         motivo,
@@ -243,7 +406,8 @@ export function montarProblema(e: EntradaGeracao): ProblemaMontado {
       carga_12h: carga?.plantoes12h ?? 0,
       max_extras: maxExtras,
       max_plantoes: cfg.limitePlantoes,
-      dias_bloqueados: [...bloqueios.keys()].sort((a, b) => a - b),
+      dias_bloqueados: calc.diasBloqueados,
+      turnos_bloqueados: calc.turnosBloqueados.map((tb) => ({ dia: tb.dia, turno: tb.turno })),
       livre_a_partir_horas: livre,
     };
   });

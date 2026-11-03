@@ -25,6 +25,11 @@ class Setor(BaseModel):
     turnos: TurnosSetor
 
 
+class TurnoBloqueado(BaseModel):
+    dia: int = Field(ge=1)
+    turno: Turno
+
+
 class Profissional(BaseModel):
     id: str
     formacao: Formacao
@@ -38,6 +43,8 @@ class Profissional(BaseModel):
     max_plantoes: int = Field(default=0, ge=0)
     # Dias do mês (1-based) em que o profissional NÃO pode iniciar um plantão.
     dias_bloqueados: list[int] = Field(default_factory=list)
+    # Turnos específicos bloqueados em determinados dias do mês.
+    turnos_bloqueados: list[TurnoBloqueado] = Field(default_factory=list)
     # Horas, contadas a partir de 00:00 do dia 1, antes das quais o profissional não pode
     # iniciar plantão (descanso herdado do mês anterior). Valor <= 0 significa "livre".
     livre_a_partir_horas: int = 0
@@ -79,6 +86,8 @@ class Problema(BaseModel):
         for p in self.profissionais:
             if any(d < 1 or d > self.dias_mes for d in p.dias_bloqueados):
                 raise ValueError(f"dias_bloqueados fora do mês para o profissional {p.id}")
+            if any(tb.dia < 1 or tb.dia > self.dias_mes for tb in p.turnos_bloqueados):
+                raise ValueError(f"turnos_bloqueados fora do mês para o profissional {p.id}")
         return self
 
 

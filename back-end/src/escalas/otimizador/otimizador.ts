@@ -5,6 +5,11 @@ import type { AppConfig } from '../../config/configuration';
 /** Contrato com o serviço Python (optimizer/app/schemas.py). */
 export type OpcaoPlantao = '24h' | '12d' | '12n';
 
+export interface TurnoBloqueadoOtimizacao {
+  dia: number;
+  turno: 'diurno' | 'noturno';
+}
+
 export interface ProfissionalOtimizacao {
   id: string;
   formacao: 'enfermeiro' | 'tecnico';
@@ -14,6 +19,7 @@ export interface ProfissionalOtimizacao {
   max_extras: number;
   max_plantoes: number;
   dias_bloqueados: number[];
+  turnos_bloqueados?: TurnoBloqueadoOtimizacao[];
   livre_a_partir_horas: number;
 }
 
