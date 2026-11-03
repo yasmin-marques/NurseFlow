@@ -55,10 +55,6 @@ export function SettingsPage({ searchQuery = '' }: SettingsPageProps) {
         </p>
       </header>
 
-      <p className="mb-5 rounded-2xl border border-border bg-white p-4 text-xs text-text-muted shadow-(--shadow-soft)">
-        As regras abaixo valem para todos os meses; não é necessário alterá-las a cada mês.
-      </p>
-
       {isLoading ? <p role="status" className="mb-4 text-sm text-text-muted">Carregando configurações...</p> : null}
       {loadError ? (
         <div role="alert" className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
@@ -69,7 +65,7 @@ export function SettingsPage({ searchQuery = '' }: SettingsPageProps) {
         </div>
       ) : null}
 
-      <div className="flex flex-1 flex-col gap-5 xl:grid xl:grid-rows-[0.9fr_1.8fr_0.9fr]">
+      <div className="flex flex-1 flex-col gap-4">
         {showSwapSettings ? (
           <SettingsCard icon={ArrowLeftRight} title="Trocas" subtitle="Limites e fluxo de aprovação">
             {showSwapLimit ? (
@@ -104,14 +100,14 @@ export function SettingsPage({ searchQuery = '' }: SettingsPageProps) {
           title="Carga e limites de plantões"
           subtitle="Parâmetros por tipo de vínculo"
         >
-          <div className="grid grid-cols-1 gap-5 bg-[#f7f8f6] p-6 md:grid-cols-2 xl:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 border-b border-border bg-[#f7f8f6] p-4 sm:p-5 md:grid-cols-2 xl:grid-cols-3">
             {showConcursado ? <EmploymentTypeCard
               title="Concursado"
               badge="CARGA CONFIGURÁVEL"
               headline={`${draft.concursadoShift24h} plantões de 24h + ${draft.concursadoShift12h} de 12h`}
               detail={`${draft.concursadoShift24h + draft.concursadoShift12h} alocações · ${draft.concursadoShift24h * 24 + draft.concursadoShift12h * 12} horas regulares`}
             >
-              <div className="space-y-4">
+              <div>
                 <SettingRow title="Plantões regulares de 24h" description="Carga mensal para concursados">
                   <NumberStepper
                     label="Plantões regulares de 24h para concursado"
@@ -126,17 +122,13 @@ export function SettingsPage({ searchQuery = '' }: SettingsPageProps) {
                     onChange={(value) => update('concursadoShift12h', value)}
                   />
                 </SettingRow>
-                <div className="flex items-end justify-between gap-4 border-t border-border pt-4">
-                  <div>
-                    <p className="text-[13px] font-semibold text-text">Máximo de extras</p>
-                    <p className="text-[12px] text-text-muted">Por profissional a cada mês</p>
-                  </div>
+                <SettingRow title="Máximo de extras" description="Por profissional a cada mês">
                   <NumberStepper
                     label="Máximo de extras para concursado"
                     value={draft.concursadoExtraLimit}
                     onChange={(value) => update('concursadoExtraLimit', value)}
                   />
-                </div>
+                </SettingRow>
               </div>
             </EmploymentTypeCard> : null}
 
@@ -146,7 +138,7 @@ export function SettingsPage({ searchQuery = '' }: SettingsPageProps) {
               headline={`${draft.cltShift24h} plantões de 24h + ${draft.cltShift12h} de 12h`}
               detail={`${draft.cltShift24h + draft.cltShift12h} alocações · ${draft.cltShift24h * 24 + draft.cltShift12h * 12} horas regulares`}
             >
-              <div className="space-y-4">
+              <div>
                 <SettingRow title="Plantões regulares de 24h" description="Carga mensal para CLT">
                   <NumberStepper
                     label="Plantões regulares de 24h para CLT"
@@ -161,17 +153,13 @@ export function SettingsPage({ searchQuery = '' }: SettingsPageProps) {
                     onChange={(value) => update('cltShift12h', value)}
                   />
                 </SettingRow>
-                <div className="flex items-end justify-between gap-4 border-t border-border pt-4">
-                  <div>
-                    <p className="text-[13px] font-semibold text-text">Máximo de extras</p>
-                    <p className="text-[12px] text-text-muted">Por profissional a cada mês</p>
-                  </div>
+                <SettingRow title="Máximo de extras" description="Por profissional a cada mês">
                   <NumberStepper
                     label="Máximo de extras para CLT"
                     value={draft.cltExtraLimit}
                     onChange={(value) => update('cltExtraLimit', value)}
                   />
-                </div>
+                </SettingRow>
               </div>
             </EmploymentTypeCard> : null}
 
@@ -181,9 +169,9 @@ export function SettingsPage({ searchQuery = '' }: SettingsPageProps) {
               headline="Sem carga regular fixa"
               detail="Alocação conforme cobertura programada"
             >
-              <span className="inline-flex rounded-lg bg-badge-blue px-3 py-1.5 text-[11px] font-bold tracking-[0.04em] text-badge-blue-text">
+              <div className="px-4 pb-4"><span className="inline-flex rounded-lg bg-badge-blue px-3 py-1.5 text-[11px] font-bold tracking-[0.04em] text-badge-blue-text">
                 SEM LIMITE
-              </span>
+              </span></div>
             </EmploymentTypeCard> : null}
           </div>
 
