@@ -9,7 +9,7 @@ Aplicação web em React 19, TypeScript e Vite para gestão de profissionais, se
 
 ## Desenvolvimento local
 
-Na raiz do repositório, prepare os serviços e inicie a aplicação:
+Na raiz do repositório, instale as dependências, prepare o banco e inicie a aplicação:
 
 ```bash
 npm run setup

@@ -82,6 +82,24 @@ describe('seed de demonstração (e2e)', () => {
     expect(restricoes.every((r) => profs.find((p) => String(p._id) === String(r.profissionalId))?.status !== 'desativado')).toBe(true);
   });
 
+  it('cria configurações mensais padrão para outubro e novembro de 2026', async () => {
+    const configs = await db.collection('configuracoes').find({ chave: { $in: ['2026-10', '2026-11'] } }).toArray();
+    expect(configs).toHaveLength(2);
+    for (const config of configs) {
+      expect(config).toMatchObject({
+        limiteTrocas: 3,
+        maxExtras: 2,
+        limitePlantoes: 12,
+        maxExtrasConcursado: 1,
+        maxExtrasClt: 1,
+        cargas: {
+          concursado_31: { plantoes24h: 6, plantoes12h: 1 },
+          clt_31: { plantoes24h: 5, plantoes12h: 2 },
+        },
+      });
+    }
+  });
+
   it('é idempotente: executar de novo não duplica nem altera registros', async () => {
     const antes = await db.collection('profissionaisDaSaude').find().sort({ coren: 1 }).toArray();
     const contagens = async () => [await contar('usuarios'), await contar('profissionaisDaSaude'), await contar('restricoes'), await contar('setores'), await contar('configuracoes')];

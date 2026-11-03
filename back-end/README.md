@@ -67,13 +67,13 @@ npm run seed:coordenacao
 
 ### Dados de demonstração
 
-Para criar dados fictícios em desenvolvimento, configure `DEMO_SEED_ENABLED=true`, `DEMO_ADMIN_PASSWORD` e `DEMO_PRO_PASSWORD` no `.env` e execute:
+Para criar dados fictícios em desenvolvimento, incluindo o cenário de trocas, configure `DEMO_SEED_ENABLED=true`, `DEMO_ADMIN_PASSWORD` e `DEMO_PRO_PASSWORD` no `.env` e execute:
 
 ```bash
 npm run seed:demo
 ```
 
-O seed cria, quando ausentes, uma conta de Coordenação, nove profissionais, três setores e restrições de exemplo. As configurações mensais são provisionadas automaticamente na primeira consulta do período, com padrões editáveis pela Coordenação. O seed é idempotente e não sobrescreve registros existentes. Use somente em ambiente local isolado; o script recusa execução em produção sem autorização explícita. Os logins são `admin@nurseflow.test` e `<nome>@nurseflow.test`.
+O seed cria, quando ausentes, 27 profissionais, três setores, configurações e restrições de exemplo, além da escala e das solicitações de troca demo. As configurações mensais são provisionadas automaticamente na primeira consulta do período, com padrões editáveis pela Coordenação. O seed é idempotente e não sobrescreve registros existentes. Use somente em ambiente local isolado; o script recusa execução em produção sem autorização explícita. Os logins são `admin@nurseflow.test` e `<nome>@nurseflow.test`.
 
 ## Execução
 
