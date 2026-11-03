@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
-import { exportScalePdf, listScales, saveShiftBatch, startReview, validateScale, validateShiftBatch, type ShiftBatchChange, type ScaleDetail, type ScheduledShift } from '../../services/scales'
+import { createDraft, exportScalePdf, listScales, saveShiftBatch, startReview, validateScale, validateShiftBatch, type ShiftBatchChange, type ScaleDetail } from '../../services/scales'
 import { GenerateScaleDialog } from './GenerateScaleDialog'
 import { ExportScaleDrawer } from './ExportScaleDrawer'
 import { PublishScaleDialog } from './PublishScaleDialog'
 import { ScaleShiftDialog } from './ScaleShiftDialog'
-import { canEditScale, stageShiftChange } from './review'
+import { canEditScale, formatValidationErrors, stageShiftChanges } from './review'
 import { calendarDate, calendarDays, dateKey, dayIndicators, formatMonth, formatWeek, summarizeDayShifts, type CalendarView } from './calendar'
 import { getScaleWorkflow } from './workflow'
 import { CoverageAlert } from '../../components/ui/ScaleComponents'
@@ -22,9 +22,12 @@ function statusStyle(state: ReturnType<typeof dayIndicators>['state']) {
   return coverageSurfaceClass(state)
 }
 
-function WorkflowCard({ scale, onGenerate, onReview, onValidateAndPublish, stagedCount, onSave, saving, validating, changesSaved }: {
+function WorkflowCard({ scale, onGenerate, onCreateManual, creatingManual, manualCreationDisabled, onReview, onValidateAndPublish, stagedCount, onSave, saving, validating, changesSaved }: {
   scale: ScaleDetail | null
   onGenerate: () => void
+  onCreateManual: () => void
+  creatingManual: boolean
+  manualCreationDisabled: boolean
   onReview: () => void
   onValidateAndPublish: () => void
   stagedCount: number
@@ -53,8 +56,9 @@ function WorkflowCard({ scale, onGenerate, onReview, onValidateAndPublish, stage
         <span>{step.label}</span>{index < workflow.steps.length - 1 ? <span aria-hidden className="hidden h-px flex-1 bg-border sm:block" /> : null}
       </li>)}
     </ol>
-    {!scale ? <div className="mx-5 mb-5 grid gap-4 rounded-xl bg-soft-green p-4 sm:grid-cols-[1fr_auto] sm:items-center">
+    {!scale ? <div className="mx-5 mb-5 grid gap-4 rounded-xl bg-soft-green p-4 sm:grid-cols-[1fr_auto_auto] sm:items-center">
       <div><p className="text-xs font-bold text-text">Crie uma escala usando os dados da equipe</p><p className="mt-1 max-w-xl text-[11px] leading-relaxed text-text-muted">O sistema considera status, restrições, ausências, descanso, cobertura mínima, extras, setores e turnos individuais.</p></div>
+      <button type="button" disabled={creatingManual || manualCreationDisabled} onClick={onCreateManual} className="rounded-xl border border-primary px-5 py-3 text-sm font-bold text-primary hover:bg-white disabled:cursor-not-allowed disabled:opacity-50">{creatingManual ? 'Criando rascunho...' : 'Montar manualmente'}</button>
       <button type="button" onClick={onGenerate} className="rounded-xl bg-primary px-5 py-3 text-sm font-bold text-white hover:brightness-95">Configurar geração</button>
     </div> : <div className="flex flex-wrap gap-2 px-5 pb-5">
       {!published ? <>
@@ -155,9 +159,9 @@ export function ScalePage() {
   const [reload, setReload] = useState(0)
   const [showGenerateDialog, setShowGenerateDialog] = useState(false)
   const [generationInProgress, setGenerationInProgress] = useState(false)
+  const [creatingManual, setCreatingManual] = useState(false)
   const [showExportDrawer, setShowExportDrawer] = useState(false)
   const [showPublishDialog, setShowPublishDialog] = useState(false)
-  const [editingShift, setEditingShift] = useState<ScheduledShift | null>(null)
   const [showShiftDialog, setShowShiftDialog] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [exportError, setExportError] = useState('')
@@ -265,6 +269,24 @@ export function ScalePage() {
     ])
   }
 
+  const createManualDraft = async () => {
+    if (matchingScale || creatingManual || loading || generationInProgress) return
+    setCreatingManual(true)
+    setError('')
+    try {
+      const draft = await createDraft(year, month)
+      replaceScale(draft)
+      setSelectedDate(calendarDate(year, month - 1, 1))
+      setView('week')
+      setShowShiftDialog(true)
+      setReload((value) => value + 1)
+    } catch (cause: unknown) {
+      setError(cause instanceof Error ? cause.message : 'Não foi possível criar o rascunho para montagem manual.')
+    } finally {
+      setCreatingManual(false)
+    }
+  }
+
   const startScaleReview = async (scale: ScaleDetail) => {
     const reviewed = scale.escala.status === 'rascunho'
       ? await startReview(scale.escala.id, scale.escala.revisao)
@@ -275,14 +297,17 @@ export function ScalePage() {
     return reviewed
   }
 
-  const saveStagedChanges = async () => {
-    if (!matchingScale || stagedChanges.length === 0 || savingBatch) return
+  const saveStagedChanges = async (pending: ShiftBatchChange[] = stagedChanges) => {
+    if (!matchingScale || pending.length === 0 || savingBatch) return
     setSavingBatch(true)
     setBatchError('')
     try {
-      const validation = await validateShiftBatch(matchingScale.escala.id, matchingScale.escala.revisao, stagedChanges)
-      if (!validation.valida) throw new Error(validation.erros.map((item) => item.motivo ?? item.tipo ?? 'Conflito de validação').join(' '))
-      const updated = await saveShiftBatch(matchingScale.escala.id, matchingScale.escala.revisao, stagedChanges)
+      const validation = await validateShiftBatch(matchingScale.escala.id, matchingScale.escala.revisao, pending)
+      if (!validation.valida) throw new Error(formatValidationErrors(validation.erros))
+      if (validation.requerConfirmacaoCobertura && pending.some((change) => change.coberturaReconhecida !== true)) {
+        throw new Error('Reconheça as pendências de cobertura antes de salvar as alterações.')
+      }
+      const updated = await saveShiftBatch(matchingScale.escala.id, matchingScale.escala.revisao, pending)
       replaceScale(updated)
       setStagedChanges([])
       setChangesSaved(true)
@@ -383,7 +408,7 @@ export function ScalePage() {
       ) : null}
 
 
-      <WorkflowCard scale={matchingScale} onGenerate={() => setShowGenerateDialog(true)} onReview={() => void openReview()} onValidateAndPublish={() => void validateAndPublish()} stagedCount={stagedChanges.length} onSave={() => void saveStagedChanges()} saving={savingBatch} validating={validating} changesSaved={changesSaved} />
+      <WorkflowCard scale={matchingScale} onGenerate={() => setShowGenerateDialog(true)} onCreateManual={() => void createManualDraft()} creatingManual={creatingManual} manualCreationDisabled={loading || generationInProgress} onReview={() => void openReview()} onValidateAndPublish={() => void validateAndPublish()} stagedCount={stagedChanges.length} onSave={() => void saveStagedChanges()} saving={savingBatch} validating={validating} changesSaved={changesSaved} />
       {batchError ? <p role="alert" className="rounded-xl border border-error bg-error px-4 py-3 text-sm text-danger">{batchError}</p> : null}
 
       {generationInProgress ? <GenerationLoading /> : <>
@@ -451,10 +476,7 @@ export function ScalePage() {
               dayScale={dayScale}
               onEdit={dayScale && canEditScale(dayScale.escala.status)
                 ? () => {
-                  const key = dateKey(date)
-                  const dayShifts = dayScale.plantoes.filter((shift) => shift.data === key)
                   setSelectedDate(date)
-                  setEditingShift(dayShifts[0] ?? null)
                   setShowShiftDialog(true)
                 }
                 : undefined}
@@ -504,20 +526,18 @@ export function ScalePage() {
 
       {matchingScale && showShiftDialog ? (
         <ScaleShiftDialog
-          key={editingShift?.id ?? selectedDate.toISOString()}
+          key={selectedDate.toISOString()}
           scale={matchingScale}
-          shift={editingShift}
+          dayShifts={matchingScale.plantoes.filter((shift) => shift.data === dateKey(selectedDate))}
           initialDate={dateKey(selectedDate)}
           stagedChanges={stagedChanges}
-          onClose={() => {
-            setShowShiftDialog(false)
-            setEditingShift(null)
-          }}
-          onStaged={(change) => {
-            setStagedChanges((current) => stageShiftChange(current, change))
+          onClose={() => setShowShiftDialog(false)}
+          onStaged={(changes, scope) => {
+            const pending = stageShiftChanges(stagedChanges, changes, scope)
+            setStagedChanges(pending)
             setChangesSaved(false)
             setShowShiftDialog(false)
-            setEditingShift(null)
+            void saveStagedChanges(pending)
           }}
         />
       ) : null}

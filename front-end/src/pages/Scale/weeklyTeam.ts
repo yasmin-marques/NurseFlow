@@ -32,10 +32,7 @@ function membersFor(
 
 export function groupDailyTeam(shifts: readonly ScheduledShift[]) {
   const leaders = membersFor(shifts, (professional) => professional.lideranca)
-  const nurses = membersFor(
-    shifts,
-    (professional) => !professional.lideranca && professional.formacao === 'enfermeiro',
-  )
+  const nurses = membersFor(shifts, (professional) => professional.formacao === 'enfermeiro')
   const technicians = membersFor(shifts, (professional) => professional.formacao === 'tecnico')
   const responsibleSectors = [...new Set(leaders.flatMap((member) => member.sectors))]
   const technicianCoverage = new Map<string, { setor: string; inicio: string; fim: string; ids: Set<string> }>()

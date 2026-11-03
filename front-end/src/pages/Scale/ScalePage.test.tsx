@@ -66,12 +66,17 @@ describe('scale page loading presentation', () => {
     expect(markup).toContain('Exportar PDF')
     expect(markup).toContain('Gerar Escala Automaticamente')
     expect(markup).not.toContain('Adicionar plantão')
-    expect(markup).not.toContain('Montar manualmente')
     expect(markup).not.toContain('Revisão por data e turno')
     expect(markup).not.toContain('Conflitos e alertas (')
     expect(markup).not.toContain('Cargas profissionais (')
     expect(markup).toContain('Navegação do calendário')
     expect(markup).not.toContain('Hoje')
+  })
+
+  it('offers manual draft creation when the selected period has no scale', () => {
+    const markup = renderToStaticMarkup(<ScalePage />)
+
+    expect(markup).toContain('Montar manualmente')
   })
 
   it('stretches monthly day cards across each calendar grid column', () => {
@@ -140,5 +145,24 @@ describe('scale page loading presentation', () => {
     expect(blocked).toContain('Conflitos que impedem a publicação')
     expect(blocked).toContain('disabled=""')
     expect(blocked).not.toContain('Publicar com pendências')
+
+    const informative = renderToStaticMarkup(
+      <PublishScaleDialog
+        scale={{
+          ...pendingScale,
+          pendencias: [],
+          cobertura: { posicoesExigidas: 100, posicoesPreenchidas: 100, percentual: 100 },
+          conflitos: [
+            { tipo: 'PROFISSIONAL_INDISPONIVEL', motivo: 'Status "ferias": não participa desta geração.' },
+            { tipo: 'PROFISSIONAL_INDISPONIVEL', motivo: 'Status "afastado": não participa desta geração.' },
+          ],
+        }}
+        onClose={() => undefined}
+        onPublished={() => undefined}
+      />,
+    )
+    expect(informative).not.toContain('Conflitos que impedem a publicação')
+    expect(informative).toContain('Avisos considerados na geração')
+    expect(informative).toContain('Confirmar publicação')
   })
 })

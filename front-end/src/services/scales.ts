@@ -113,14 +113,18 @@ export interface ShiftInput {
   opcao: ShiftOption
   tipo: ShiftType
   equipe: ShiftAssignmentInput[]
+  coberturaReconhecida?: boolean
 }
 
-export type ShiftBatchChange = Omit<ShiftInput, 'revisao'> & { plantaoId?: string }
+export type ShiftBatchChange = Omit<ShiftInput, 'revisao'> & { plantaoId?: string; coberturaReconhecida?: boolean }
 
 export interface ShiftBatchValidation {
   revisao: number
   valida: boolean
-  erros: Array<{ tipo?: string; motivo?: string; [key: string]: unknown }>
+  erros: Array<string | { tipo?: string; motivo?: string; [key: string]: unknown }>
+  cobertura: CoverageSummary
+  pendencias: CoverageVacancy[]
+  requerConfirmacaoCobertura: boolean
 }
 
 export interface GenerateScaleInput {
@@ -175,6 +179,7 @@ const toApiShift = (input: ShiftInput) => ({
   data: input.data,
   opcao: input.opcao,
   tipo: input.tipo,
+  ...(input.coberturaReconhecida ? { coberturaReconhecida: true } : {}),
   equipe: input.equipe.map((person) => ({
     profissionalId: person.profissionalId,
     funcao: person.funcao,
@@ -185,8 +190,9 @@ const toApiShift = (input: ShiftInput) => ({
 
 const toApiBatch = (revisaoEsperada: number, alteracoes: ShiftBatchChange[]) => ({
   revisaoEsperada,
-  alteracoes: alteracoes.map(({ plantaoId, ...input }) => ({
+  alteracoes: alteracoes.map(({ plantaoId, coberturaReconhecida, ...input }) => ({
     ...(plantaoId ? { plantaoId } : {}),
+    ...(coberturaReconhecida ? { coberturaReconhecida: true } : {}),
     setorId: input.setorId,
     data: input.data,
     opcao: input.opcao,

@@ -57,13 +57,15 @@ describe('weekly day card presentation', () => {
     expect(markup).toContain('Editar')
   })
 
-  it('keeps the regular day clean and highlights the leadership section', () => {
+  it('has a single day-level edit action and does not list shift cards', () => {
     const markup = renderToStaticMarkup(
-      <WeeklyDayCard date={new Date(2025, 5, 8)} dayScale={scale} />,
+      <WeeklyDayCard date={new Date(2025, 5, 8)} dayScale={scale} onEdit={vi.fn()} />,
     )
 
-    expect(markup).toContain('bg-soft-green p-4')
-    expect(markup).toContain('ENFERMEIRO CHEFE · LIDERANÇA GERAL')
+    expect(markup.match(/>Editar</g)).toHaveLength(1)
+    expect(markup).not.toContain('Editar plantão')
+    expect(markup).not.toContain('ENFERMEIRO CHEFE POR PLANTÃO')
+    expect(markup).not.toContain('bg-soft-green p-4')
     expect(markup).not.toContain('role="alert"')
     expect(markup).not.toContain('Revisar cobertura')
   })
@@ -100,7 +102,5 @@ describe('weekly day card presentation', () => {
     expect(markup).toContain('bg-error')
     expect(markup).toContain('Irregularidade na cobertura')
     expect(markup).toContain('Revisar cobertura')
-    expect(markup).toContain('bg-soft-green p-4')
-    expect(markup).toContain('Ana Ribeiro')
   })
 })

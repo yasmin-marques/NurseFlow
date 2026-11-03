@@ -82,56 +82,48 @@ docker compose version
 
 Fluxo para rodar o frontend e o backend na sua máquina, usando o Docker apenas para o MongoDB. Execute a partir da **raiz do repositório**.
 
-**1. Instale as dependências** (raiz, `back-end` e `front-end`; também cria `back-end/.env` a partir do modelo, se ainda não existir):
+**1. Instale as dependências** (raiz, `back-end` e `front-end`) e crie `back-end/.env` a partir do modelo, se ainda não existir:
 
 ```bash
 npm run setup
 ```
 
-**2. Configure o `.env` do backend** (se o passo anterior não o criou: `cp back-end/.env.example back-end/.env`). Edite `back-end/.env`:
+`npm run setup` não inicia Docker, migrations ou seeds. Edite `back-end/.env` e configure:
 
 - `MONGODB_URI`: o modelo aponta para `mongodb://localhost:27017/nurseflow?replicaSet=rs0` (MongoDB de `db/docker-compose.yml`, sem autenticação, publicado apenas em `127.0.0.1`). O host `mongo` só vale dentro do Docker Compose da raiz.
 - `JWT_SECRET`: chave aleatória com 16 caracteres ou mais, por exemplo `node -e "console.log(require('crypto').randomBytes(24).toString('hex'))"`.
 - `SEED_COORDENACAO_NOME`, `_EMAIL`, `_CPF` (CPF válido) e `_SENHA` (de 8 a 72 caracteres): dados da primeira conta de Coordenação.
-- (Opcional) dados de demonstração: `DEMO_SEED_ENABLED=true`, `DEMO_ADMIN_PASSWORD` e `DEMO_PRO_PASSWORD` (de 8 a 72 caracteres). Veja [Dados de demonstração](#dados-de-demonstração-docker).
+- `DEMO_SEED_ENABLED=true`, `DEMO_ADMIN_PASSWORD` e `DEMO_PRO_PASSWORD` (de 8 a 72 caracteres) para criar todos os dados fictícios, incluindo os profissionais e o cenário de trocas.
 
 As demais variáveis (`CORS_ORIGINS`, `JWT_EXPIRES_IN_SECONDS`, `LOGIN_MAX_ATTEMPTS`, ...) estão documentadas em [back-end/README.md](back-end/README.md). Os `.env` reais **não** são versionados (apenas os `.env.example`).
 
 O frontend **não precisa** de `.env` no desenvolvimento local: o Vite faz proxy de `/api` para `http://localhost:3000`.
 
-**3. Inicie o MongoDB, aplique as migrations e popule o banco:**
+**2. Inicie os serviços locais, aplique as migrations e popule o banco:**
 
 ```bash
-npm run db:up      # sobe o MongoDB 8 e o otimizador de escalas e aguarda os healthchecks (parar: npm run db:down)
-npm run db:setup   # migrations + seed da Coordenação + seed de demonstração
+npm run db:up      # sobe MongoDB e otimizador
+npm run db:setup   # migrations + Coordenação + todos os dados demo, incluindo Trocas
 ```
 
-`db:setup` equivale a `db:migrate` (validators e índices; a API **não** os cria sozinha) seguido de `db:seed` (`seed:coordenacao` e `seed:demo`). O MongoDB local sobe como replica set `rs0`, necessário às transações do ciclo de vida das escalas. Em ambientes externos, configure `MONGODB_URI` para um replica set. `npm run dev` também aplica migrations pendentes antes de iniciar front-end e API. Se a API já estiver rodando com erro de validação do Mongo, execute `npm run db:migrate` e reinicie-a. Também podem ser executados separadamente:
+`db:setup` equivale a `db:migrate` (validators e índices; a API **não** os cria sozinha) seguido de `db:seed` (Coordenação, profissionais demo e cenário Trocas). O MongoDB local sobe como replica set `rs0`, necessário às transações do ciclo de vida das escalas. Em ambientes externos, configure `MONGODB_URI` para um replica set. `npm run dev` também garante o MongoDB no ar e aplica migrations pendentes antes de iniciar front-end e API. Se a API já estiver rodando com erro de validação do Mongo, execute `npm run db:migrate` e reinicie-a. Também podem ser executados separadamente:
 
 ```bash
 npm --prefix back-end run migrate:up
 npm --prefix back-end run migrate:status   # opcional: lista o que foi aplicado
 npm --prefix back-end run seed:coordenacao # cria a Coordenação (não faz nada se já existir)
-npm --prefix back-end run seed:demo        # dados fictícios (somente com DEMO_SEED_ENABLED=true)
-npm run db:seed:trocas-demo               # cenário local da fila Trocas (NODE_ENV=development)
+npm --prefix back-end run seed:demo        # profissionais demo + cenário de trocas (DEMO_SEED_ENABLED=true)
+npm run db:seed                            # Coordenação e todas as seeds demo
 ```
 
 Os seeds são **idempotentes**: só criam o que não existe, nunca sobrescrevem nem apagam registros e não redefinem senhas. Pode executá-los de novo com segurança.
 
-O seed `db:seed:trocas-demo` é separado e restrito a MongoDB local com `NODE_ENV=development` e `DEMO_TROCAS_SEED_ENABLED=true`. No PowerShell, habilite somente para a execução:
-
-```powershell
-$env:DEMO_TROCAS_SEED_ENABLED = "true"
-npm run db:seed:trocas-demo
-Remove-Item Env:DEMO_TROCAS_SEED_ENABLED
-```
-
-Ele usa a competência livre 2027-01, IDs determinísticos identificáveis como demo, e não altera escala ou profissional preexistente. Cria uma escala publicada e 7 solicitações; as duas aprovações atualizam vínculos, snapshots versionados, auditoria e notificações. Execute depois de aplicar migrations e criar as contas `.test`. Se 2027-01 já estiver ocupada, o comando aborta sem escrever.
+O cenário de trocas é executado junto com a seed demo geral, apenas em `NODE_ENV=development` e com MongoDB local. Ele usa a competência 2027-01, IDs determinísticos identificáveis como demo, e não altera escala ou profissional preexistente. Cria uma escala publicada e 7 solicitações; as duas aprovações atualizam vínculos, snapshots versionados, auditoria e notificações. Se 2027-01 já estiver ocupada, o comando aborta sem escrever.
 
 
 ## Execução (desenvolvimento local)
 
-Com o `.env` configurado, o MongoDB no ar, as migrations aplicadas e o seed executado, na raiz:
+Com o `.env` configurado, o MongoDB no ar, as migrations aplicadas e o seed executado, inicie a aplicação na raiz:
 
 ```bash
 npm run dev
@@ -322,7 +314,7 @@ Resposta: `escala`, `resumo`, `configuracaoUtilizada`, `plantoes` (com profissio
 ```bash
 npm run db:up                              # MongoDB + otimizador (http://localhost:8000/docs)
 npm --prefix back-end run migrate:up       # inclui a migration das coleções de escala
-npm run db:seed                            # coordenação + dados de demonstração (opcional)
+npm run db:seed                            # coordenação + profissionais demo + cenário de trocas
 npm run dev:back                           # API em http://localhost:3000
 
 TOKEN=$(curl -s -X POST localhost:3000/auth/login -H 'content-type: application/json' \

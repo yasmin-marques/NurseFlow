@@ -2,7 +2,7 @@ import type { ScaleShift } from '../../services/scales'
 import { daysInMonth } from './calendar'
 
 export function isScaleReplaceable(status: string | null | undefined): boolean {
-  return status === 'rascunho' || status === 'em_revisao'
+  return status === 'rascunho' || status === 'em_revisao' || status === 'validada'
 }
 
 export interface GenerationSelection {

@@ -10,7 +10,10 @@ import { Configuracao, chaveCarga } from './configuracao.schema';
 export class ConfiguracoesService {
   constructor(@InjectModel(Configuracao.name) private readonly model: Model<Configuracao>) {}
 
-  private chave(ano: number, mes: number) {
+  // As regras valem para todos os meses; ano e mes só identificam o período consultado.
+  private readonly chaveGlobal = 'global';
+
+  private periodo(ano: number, mes: number) {
     return `${String(ano).padStart(4, '0')}-${String(mes).padStart(2, '0')}`;
   }
 
@@ -23,9 +26,8 @@ export class ConfiguracoesService {
     );
   }
 
-  private async garantirConfiguracao(ano: number, mes: number) {
-    const chave = this.chave(ano, mes);
-    const cargas = this.cargasPadrao();
+  private async garantirConfiguracao() {
+    const chave = this.chaveGlobal;
     const padroes = {
       limiteTrocas: 3,
       maxExtras: 2,
@@ -33,12 +35,28 @@ export class ConfiguracoesService {
       maxExtrasConcursado: 1,
       maxExtrasClt: 1,
     };
+    // Aproveita a configuração mensal mais recente já salva, para não perder ajustes feitos antes.
+    const legado = await this.model
+      .findOne({ chave: { $ne: chave } })
+      .sort({ updatedAt: -1 })
+      .lean()
+      .exec();
+    const cargas = { ...this.cargasPadrao(), ...(legado?.cargas ?? {}) };
+    const inicial = legado
+      ? {
+          limiteTrocas: legado.limiteTrocas,
+          maxExtras: legado.maxExtras,
+          limitePlantoes: legado.limitePlantoes,
+          maxExtrasConcursado: legado.maxExtrasConcursado,
+          maxExtrasClt: legado.maxExtrasClt,
+        }
+      : padroes;
     await this.model.updateOne(
       { chave },
       {
         $setOnInsert: {
           chave,
-          ...padroes,
+          ...inicial,
           cargas,
         },
       },
@@ -61,16 +79,16 @@ export class ConfiguracoesService {
     ]);
   }
 
-  private async documento(ano: number, mes: number) {
-    return this.model.findOne({ chave: this.chave(ano, mes) }).lean().exec();
+  private async documento() {
+    return this.model.findOne({ chave: this.chaveGlobal }).lean().exec();
   }
 
   async consultar(ano: number, mes: number) {
-    await this.garantirConfiguracao(ano, mes);
-    const doc = await this.documento(ano, mes);
-    if (!doc) throw new Error(`Configuração do período ${this.chave(ano, mes)} não foi criada.`);
+    await this.garantirConfiguracao();
+    const doc = await this.documento();
+    if (!doc) throw new Error('A configuração das regras não foi criada.');
     return {
-      periodo: this.chave(ano, mes),
+      periodo: this.periodo(ano, mes),
       limiteTrocas: doc.limiteTrocas,
       maxExtras: doc.maxExtras,
       limitePlantoes: doc.limitePlantoes,
@@ -81,7 +99,7 @@ export class ConfiguracoesService {
   }
 
   async limites(ano: number, mes: number, dto: AtualizarLimitesDto) {
-    await this.garantirConfiguracao(ano, mes);
+    await this.garantirConfiguracao();
     const { cargas = [], ...limites } = dto;
     const set: Record<string, unknown> = { ...limites };
     for (const carga of cargas) {
@@ -91,16 +109,16 @@ export class ConfiguracoesService {
       };
     }
     if (Object.keys(set).length > 0) {
-      await this.model.updateOne({ chave: this.chave(ano, mes) }, { $set: set }).exec();
+      await this.model.updateOne({ chave: this.chaveGlobal }, { $set: set }).exec();
     }
     return this.consultar(ano, mes);
   }
 
   async carga(ano: number, mes: number, dto: DefinirCargaDto) {
-    await this.garantirConfiguracao(ano, mes);
+    await this.garantirConfiguracao();
     const campo = `cargas.${chaveCarga(dto.vinculo, dto.diasMes)}`;
     await this.model.updateOne(
-      { chave: this.chave(ano, mes) },
+      { chave: this.chaveGlobal },
       { $set: { [campo]: { plantoes24h: dto.plantoes24h, plantoes12h: dto.plantoes12h } } },
     ).exec();
     return this.consultar(ano, mes);

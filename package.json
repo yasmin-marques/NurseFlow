@@ -12,7 +12,6 @@
     "db:down": "docker compose -f db/docker-compose.yml down",
     "db:migrate": "npm --prefix back-end run migrate:up",
     "db:seed": "npm --prefix back-end run seed:coordenacao && npm --prefix back-end run seed:demo",
-    "db:seed:trocas-demo": "npm --prefix back-end run seed:trocas-demo",
     "db:setup": "npm run db:migrate && npm run db:seed",
     "test:back": "npm --prefix back-end test",
     "test:e2e": "npm --prefix back-end run test:e2e",

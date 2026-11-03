@@ -2,13 +2,13 @@ import { describe, expect, it } from 'vitest'
 import { isScaleReplaceable, validateGenerationSelection } from './generation-form'
 
 describe('isScaleReplaceable', () => {
-  it('permite regenerar rascunhos e escalas em revisão', () => {
+  it('permite regenerar rascunhos, escalas em revisão e escalas validadas ainda não publicadas', () => {
     expect(isScaleReplaceable('rascunho')).toBe(true)
     expect(isScaleReplaceable('em_revisao')).toBe(true)
+    expect(isScaleReplaceable('validada')).toBe(true)
   })
 
-  it('preserva escalas validadas, publicadas e finalizadas', () => {
-    expect(isScaleReplaceable('validada')).toBe(false)
+  it('preserva escalas publicadas e finalizadas', () => {
     expect(isScaleReplaceable('publicada')).toBe(false)
     expect(isScaleReplaceable('finalizada')).toBe(false)
     expect(isScaleReplaceable(null)).toBe(false)

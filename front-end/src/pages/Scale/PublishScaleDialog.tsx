@@ -23,7 +23,7 @@ export function PublishScaleDialog({ scale, onClose, onPublished }: PublishScale
       const published = await publishScale(
         scale.escala.id,
         scale.escala.revisao,
-        summary.coverageOnly,
+        summary.requiresConfirmation,
       )
       if (!isScalePublished(published)) {
         throw new Error('A API não confirmou a publicação da escala. Tente novamente.')
@@ -36,7 +36,6 @@ export function PublishScaleDialog({ scale, onClose, onPublished }: PublishScale
     }
   }
 
-  const findings = [...scale.conflitos, ...scale.avisos]
   const ready = !summary.coverageOnly && !summary.blocked
   const percentage = summary.percentage ?? 0
 
@@ -107,9 +106,16 @@ export function PublishScaleDialog({ scale, onClose, onPublished }: PublishScale
         ) : (
           <section role="alert" className="rounded-xl bg-error p-4 text-danger">
             <h3 className="text-xs font-bold">Conflitos que impedem a publicação</h3>
-            <ul className="mt-2 space-y-1 text-[11px]">{findings.map((item, index) => <li key={`${item.tipo}-${index}`}>{item.tipo}: {item.motivo}</li>)}</ul>
+            <ul className="mt-2 space-y-1 text-[11px]">{summary.blockingFindings.map((item, index) => <li key={`${item.tipo}-${index}`}>{item.tipo}: {item.motivo}</li>)}</ul>
           </section>
         )}
+
+        {!summary.blocked && summary.notices.length > 0 ? (
+          <section className="rounded-xl bg-warning p-4 text-warning-text">
+            <h3 className="text-xs font-bold">⚠ &nbsp;Avisos considerados na geração</h3>
+            <ul className="mt-2 space-y-1 pl-5 text-[11px]">{summary.notices.map((item, index) => <li key={`${item.tipo}-${index}`}>{item.profissional ? `${item.profissional}: ` : ''}{item.motivo}</li>)}</ul>
+          </section>
+        ) : null}
 
         <p className="rounded-xl bg-highlight p-3 text-[11px] text-primary">♧ &nbsp;Todos os enfermeiros serão notificados após a publicação.</p>
         {error ? <p role="alert" className="rounded-xl border border-error bg-error p-3 text-sm text-danger">{error}</p> : null}
