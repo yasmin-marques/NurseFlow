@@ -75,6 +75,7 @@ storage/
 # ==========================================
 # IDEs E EDITORES
 # ==========================================
+.vscode
 .vscode/*
 !.vscode/extensions.json
 !.vscode/settings.json
@@ -96,3 +97,4 @@ Desktop.ini
 *.local
 *.bak
 *.backup
+.secrets/
