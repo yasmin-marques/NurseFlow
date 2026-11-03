@@ -15,11 +15,13 @@ export const UNAUTHORIZED_EVENT = 'nurseflow:unauthorized'
 
 export class ApiError extends Error {
   status: number
+  payload: unknown
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, payload?: unknown) {
     super(message)
     this.name = 'ApiError'
     this.status = status
+    this.payload = payload
   }
 }
 
@@ -43,7 +45,10 @@ async function request(
         },
       },
     )
-  } catch {
+  } catch (cause) {
+    if (cause instanceof Error && (cause.name === 'TimeoutError' || cause.name === 'AbortError')) {
+      throw new ApiError(0, 'A solicitação expirou. Tente novamente.')
+    }
     throw new ApiError(0, 'Não foi possível conectar ao servidor.')
   }
 
@@ -64,7 +69,10 @@ async function erroDaResposta(response: Response): Promise<ApiError> {
   const details = Array.isArray(body?.erros)
     ? body.erros.filter((item: unknown): item is string => typeof item === 'string').join(' ')
     : ''
-  return new ApiError(response.status, [message ?? 'Erro inesperado.', details].filter(Boolean).join(' '))
+  const impedimentos = Array.isArray(body?.impedimentos)
+    ? body.impedimentos.map((item: { mensagem?: unknown }) => typeof item?.mensagem === 'string' ? item.mensagem : '').filter(Boolean).join(' ')
+    : ''
+  return new ApiError(response.status, [message ?? 'Erro inesperado.', details, impedimentos].filter(Boolean).join(' '), body)
 }
 
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {

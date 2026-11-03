@@ -37,7 +37,7 @@ export const NAV_ITEMS: NavItem[] = [
   { id: 'profissionais', label: 'Profissionais', icon: Users, href: '/profissionais' },
   { id: 'disponibilidade', label: 'Disponibilidade', icon: Clock, href: '/disponibilidade' },
   { id: 'extras', label: 'Extras', icon: CalendarPlus, href: '/extras' },
-  { id: 'trocas', label: 'Trocas', icon: ArrowLeftRight, href: '/trocas', badge: 3 },
+  { id: 'trocas', label: 'Trocas', icon: ArrowLeftRight, href: '/trocas' },
   { id: 'setores', label: 'Setores', icon: Building2, href: '/setores' },
   { id: 'historico', label: 'Histórico', icon: History, href: '/historico' },
   { id: 'configuracoes', label: 'Configurações', icon: Settings, href: '/configuracoes' },
