@@ -1,4 +1,3 @@
-import { jest } from "@jest/globals";
 import mongoose from "mongoose";
 import { cpfValido } from "../src/common/utils/cpf";
 import { aplicarMigrations, type BancoDeTeste, iniciarBanco } from "./helpers";
