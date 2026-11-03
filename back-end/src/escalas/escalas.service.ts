@@ -9,7 +9,7 @@ import { utcDate } from '../common/utils/date';
 import type { AppConfig } from '../config/configuration';
 import { chaveCarga } from '../configuracoes/configuracao.schema';
 import { ConfiguracoesService } from '../configuracoes/configuracoes.service';
-import { StatusProfissional } from '../profissionais/profissionais.enums';
+import { Formacao, StatusProfissional } from '../profissionais/profissionais.enums';
 import { Profissional } from '../profissionais/schemas/profissional.schema';
 import { Restricao } from '../restricoes/restricao.schema';
 import { Setor } from '../setores/schemas/setor.schema';
@@ -32,6 +32,7 @@ import { isVisualizacaoEscalaPdf, type DadosEscalaPdf } from './escala-pdf.types
 import {
   calcularPendenciasCobertura,
   type AlocacaoPlantaoValidacao,
+  type PendenciaCobertura,
   type ResumoCobertura,
   resumirCobertura,
   validarAlocacoesPlantao,
@@ -89,6 +90,14 @@ interface AlteracaoPlantaoPreparada {
 function isSnapshotEscala(snapshot: Record<string, unknown>): snapshot is Record<string, unknown> & SnapshotEscala {
   return Array.isArray(snapshot.plantoes) && Array.isArray(snapshot.profissionaisRelacionados);
 }
+
+/** Restrições já respeitadas pelo otimizador: informam, mas não bloqueiam. Violações reais são revalidadas na publicação. */
+const TIPOS_CONFLITO_INFORMATIVO = new Set([
+  'CARGA_ABAIXO_DO_ESPERADO',
+  'PROFISSIONAL_INDISPONIVEL',
+  'INDISPONIBILIDADE',
+  'DESCANSO_MES_ANTERIOR',
+]);
 
 @Injectable()
 export class EscalasService {
@@ -393,7 +402,7 @@ export class EscalasService {
       const pendencias = geracao.pendencias ?? [];
       const conflitos = geracao.conflitos ?? [];
       const avisos = geracao.avisos ?? [];
-      const conflitosBloqueantes = conflitos.filter((item) => item.tipo !== 'CARGA_ABAIXO_DO_ESPERADO');
+      const conflitosBloqueantes = conflitos.filter((item) => !TIPOS_CONFLITO_INFORMATIVO.has(item.tipo));
       if (conflitosBloqueantes.length > 0) {
         throw new UnprocessableEntityException({
           message: 'A escala contém conflitos bloqueantes.',
@@ -702,19 +711,20 @@ export class EscalasService {
     await executarTransacao(this.connection, async (session) => {
       const escala = await this.escalaEditavel(escalaId, dto.revisaoEsperada, session);
       await this.validarPlantao(escala, dto, session);
+      const preparadas = await this.prepararLote(escala, [dto], session);
+      await this.exigirReconhecimentoCobertura(escala, dto, preparadas, session);
 
-      const horario = HORARIOS[dto.opcao];
-      const plantaoId = new Types.ObjectId();
+      const plantaoId = preparadas[0].plantaoId;
       await this.plantoes.create(
         [
           {
             _id: plantaoId,
             escalaId: escala._id,
-            setorId: new Types.ObjectId(dto.setorId),
-            data: new Date(`${dto.data}T00:00:00.000Z`),
-            horarioInicio: horario.inicio,
-            horarioFim: horario.fim,
-            duracaoHoras: horario.horas,
+            setorId: preparadas[0].setorId,
+            data: preparadas[0].data,
+            horarioInicio: preparadas[0].horarioInicio,
+            horarioFim: preparadas[0].horarioFim,
+            duracaoHoras: preparadas[0].duracaoHoras,
             tipo: dto.tipo,
           },
         ],
@@ -730,7 +740,7 @@ export class EscalasService {
         })),
         { session },
       );
-      await this.registrarEdicao(escala, usuario, 'plantao_adicionado', plantaoId, session);
+      await this.registrarEdicao(escala, usuario, 'plantao_adicionado', plantaoId, session, dto.coberturaReconhecida);
       await this.atualizarPendenciasCobertura(escala, session);
     });
     return this.obter(escalaId);
@@ -739,8 +749,17 @@ export class EscalasService {
   async validarLotePlantoes(escalaId: string, dto: LotePlantoesDto) {
     return executarTransacao(this.connection, async (session) => {
       const escala = await this.escalaEditavel(escalaId, dto.revisaoEsperada, session);
-      const erros = await this.errosDoLote(escala, dto.alteracoes, session);
-      return { revisao: escala.revisao, valida: erros.length === 0, erros };
+      const preparadas = await this.prepararLote(escala, dto.alteracoes, session);
+      const erros = await this.errosDoLote(escala, dto.alteracoes, session, preparadas);
+      const { cobertura, pendencias } = await this.coberturaProjetadaLote(escala, preparadas, session);
+      return {
+        revisao: escala.revisao,
+        valida: erros.length === 0,
+        erros,
+        cobertura,
+        pendencias,
+        requerConfirmacaoCobertura: pendencias.length > 0,
+      };
     });
   }
 
@@ -751,6 +770,13 @@ export class EscalasService {
       const erros = await this.errosDoLote(escala, dto.alteracoes, session, preparadas);
       if (erros.length > 0) {
         throw new UnprocessableEntityException({ message: 'O lote de plantões viola regras da escala.', erros });
+      }
+      const { pendencias } = await this.coberturaProjetadaLote(escala, preparadas, session);
+      if (pendencias.length > 0 && preparadas.some((item) => item.dto.coberturaReconhecida !== true)) {
+        throw new UnprocessableEntityException({
+          message: 'Reconheça as pendências de cobertura antes de salvar o lote.',
+          erros: ['A cobertura está abaixo dos quantitativos mínimos configurados.'],
+        });
       }
 
       for (const item of preparadas) {
@@ -818,17 +844,18 @@ export class EscalasService {
       const plantao = await this.plantoes.findOne({ _id: plantaoId, escalaId: escala._id }).session(session).lean().exec();
       if (!plantao) throw new NotFoundException('Plantão não encontrado nesta escala.');
       await this.validarPlantao(escala, dto, session, plantao._id);
-
-      const horario = HORARIOS[dto.opcao];
+      const preparadas = await this.prepararLote(escala, [{ ...dto, plantaoId }], session);
+      await this.exigirReconhecimentoCobertura(escala, dto, preparadas, session);
+      const preparada = preparadas[0];
       await this.plantoes.updateOne(
         { _id: plantao._id, escalaId: escala._id },
         {
           $set: {
-            setorId: new Types.ObjectId(dto.setorId),
-            data: new Date(`${dto.data}T00:00:00.000Z`),
-            horarioInicio: horario.inicio,
-            horarioFim: horario.fim,
-            duracaoHoras: horario.horas,
+            setorId: preparada.setorId,
+            data: preparada.data,
+            horarioInicio: preparada.horarioInicio,
+            horarioFim: preparada.horarioFim,
+            duracaoHoras: preparada.duracaoHoras,
             tipo: dto.tipo,
           },
         },
@@ -845,10 +872,25 @@ export class EscalasService {
         })),
         { session },
       );
-      await this.registrarEdicao(escala, usuario, 'plantao_editado', plantao._id, session);
+      await this.registrarEdicao(escala, usuario, 'plantao_editado', plantao._id, session, dto.coberturaReconhecida);
       await this.atualizarPendenciasCobertura(escala, session);
     });
     return this.obter(escalaId);
+  }
+
+  private async exigirReconhecimentoCobertura(
+    escala: Escala & { _id: Types.ObjectId },
+    dto: PlantaoDto,
+    preparadas: AlteracaoPlantaoPreparada[],
+    session: ClientSession,
+  ) {
+    const { pendencias } = await this.coberturaProjetadaLote(escala, preparadas, session);
+    if (pendencias.length > 0 && dto.coberturaReconhecida !== true) {
+      throw new UnprocessableEntityException({
+        message: 'Reconheça as pendências de cobertura antes de salvar o plantão.',
+        erros: ['A cobertura está abaixo dos quantitativos mínimos configurados.'],
+      });
+    }
   }
 
   private async escalaEditavel(id: string, revisaoEsperada: number, session: ClientSession) {
@@ -872,6 +914,9 @@ export class EscalasService {
       throw new UnprocessableEntityException({
         message: 'O plantão pode ter somente um enfermeiro chefe, que deve fazer parte da equipe.',
       });
+    }
+    if (lideres.length > 0 && dto.opcao !== '24h') {
+      throw new UnprocessableEntityException({ message: 'O enfermeiro chefe deve ser um enfermeiro de plantão de 24h.' });
     }
     if (!dto.data.startsWith(`${escala.ano}-${String(escala.mes).padStart(2, '0')}-`)) {
       throw new UnprocessableEntityException({ message: 'A data do plantão deve pertencer ao período da escala.' });
@@ -1086,6 +1131,7 @@ export class EscalasService {
       anteriores: await this.plantoesDoMesAnterior(escala.ano, escala.mes, inicioMes, session),
       existentes: [],
       candidatas,
+      foco: new Set(preparadas.flatMap((item) => item.dto.equipe.map((membro) => membro.profissionalId))),
     });
   }
 
@@ -1103,6 +1149,9 @@ export class EscalasService {
         throw new UnprocessableEntityException({
           message: 'O plantão pode ter somente um enfermeiro chefe, que deve fazer parte da equipe.',
         });
+      }
+      if (lideres.length > 0 && dto.opcao !== '24h') {
+        throw new UnprocessableEntityException({ message: 'O enfermeiro chefe deve ser um enfermeiro de plantão de 24h.' });
       }
       if (!dto.data.startsWith(`${escala.ano}-${String(escala.mes).padStart(2, '0')}-`)) {
         throw new UnprocessableEntityException({ message: 'A data do plantão deve pertencer ao período da escala.' });
@@ -1143,6 +1192,7 @@ export class EscalasService {
     acao: string,
     plantaoId: Types.ObjectId,
     session: ClientSession,
+    coberturaReconhecida = false,
   ) {
     const status = escala.status === StatusEscala.VALIDADA ? StatusEscala.EM_REVISAO : escala.status;
     const atualizada = await this.escalas.updateOne(
@@ -1158,7 +1208,7 @@ export class EscalasService {
           revisao: escala.revisao + 1,
           acao,
           usuarioId: new Types.ObjectId(usuario.id),
-          detalhes: { plantaoId: String(plantaoId) },
+          detalhes: { plantaoId: String(plantaoId), coberturaReconhecida },
         },
       ],
       { session },
@@ -1191,6 +1241,10 @@ export class EscalasService {
             plantaoIds: preparadas.map((item) => String(item.plantaoId)),
             novos: preparadas.filter((item) => item.novo).length,
             editados: preparadas.filter((item) => !item.novo).length,
+            coberturaReconhecida: preparadas.map((item) => ({
+              plantaoId: String(item.plantaoId),
+              confirmada: item.dto.coberturaReconhecida === true,
+            })),
           },
         },
       ],
@@ -1355,6 +1409,130 @@ export class EscalasService {
     return cobertura;
   }
 
+  private async coberturaProjetadaLote(
+    escala: Escala & { _id: Types.ObjectId },
+    preparadas: AlteracaoPlantaoPreparada[],
+    session: ClientSession,
+  ): Promise<{ cobertura: ResumoCobertura; pendencias: PendenciaCobertura[] }> {
+    const plantoes = await this.plantoes.find({ escalaId: escala._id }).session(session).lean().exec();
+    const idsPlantoes = plantoes.map((item) => item._id);
+    const vinculos = idsPlantoes.length
+      ? await this.relacionados.find({ plantaoId: { $in: idsPlantoes } }).session(session).lean().exec()
+      : [];
+    const preparadasPorId = new Map(preparadas.map((item) => [String(item.plantaoId), item]));
+    const vinculosPorPlantao = new Map<string, typeof vinculos>();
+    for (const vinculo of vinculos) {
+      const idPlantao = String(vinculo.plantaoId);
+      vinculosPorPlantao.set(idPlantao, [...(vinculosPorPlantao.get(idPlantao) ?? []), vinculo]);
+    }
+
+    const plantoesProjetados = plantoes.map((plantao) => {
+      const idPlantao = String(plantao._id);
+      const alteracao = preparadasPorId.get(idPlantao);
+      const equipe = alteracao
+        ? alteracao.dto.equipe.map((item) => ({
+            profissionalId: item.profissionalId,
+            funcao: item.funcao as AlocacaoPlantaoValidacao['funcao'],
+          }))
+        : (vinculosPorPlantao.get(idPlantao) ?? []).map((item) => ({
+            profissionalId: String(item.profissionalId),
+            funcao: item.funcao as AlocacaoPlantaoValidacao['funcao'],
+          }));
+      return {
+        setorId: String(alteracao?.setorId ?? plantao.setorId),
+        data: alteracao?.data ?? plantao.data,
+        horarioInicio: alteracao?.horarioInicio ?? plantao.horarioInicio,
+        duracaoHoras: alteracao?.duracaoHoras ?? plantao.duracaoHoras,
+        tipo: alteracao?.dto.tipo ?? plantao.tipo,
+        equipe,
+      };
+    });
+    plantoesProjetados.push(...preparadas.filter((item) => item.novo).map((item) => ({
+      setorId: String(item.setorId),
+      data: item.data,
+      horarioInicio: item.horarioInicio,
+      duracaoHoras: item.duracaoHoras,
+      tipo: item.dto.tipo,
+      equipe: item.dto.equipe.map((profissional) => ({
+        profissionalId: profissional.profissionalId,
+        funcao: profissional.funcao as AlocacaoPlantaoValidacao['funcao'],
+      })),
+    })));
+    const alocacoesProjetadas = plantoesProjetados.flatMap((plantao) =>
+      plantao.equipe.map((profissional) => ({ ...plantao, ...profissional })),
+    );
+
+    const profissionaisDocs = alocacoesProjetadas.length
+      ? await this.profissionais
+          .find({
+            _id: { $in: [...new Set(alocacoesProjetadas.map((item) => new Types.ObjectId(item.profissionalId)))] },
+            status: StatusProfissional.ATIVO,
+          })
+          .session(session)
+          .lean()
+          .exec()
+      : [];
+    const profissionalPorId = new Map(profissionaisDocs.map((item) => [String(item._id), item]));
+    const alocacoes = alocacoesProjetadas.flatMap((item) => {
+      const profissional = profissionalPorId.get(item.profissionalId);
+      if (!profissional) return [];
+      return [{
+        ...item,
+        profissional: {
+          id: String(profissional._id),
+          nome: String(profissional._id),
+          formacao: profissional.formacao,
+          tipoVinculo: profissional.tipoVinculo,
+          status: profissional.status,
+        },
+      }];
+    });
+
+    const geracao = (escala.geracao ?? {}) as {
+      escopo?: { setorIds?: string[]; turnos?: ('diurno' | 'noturno')[] };
+    };
+    const idsSetores = [...new Set([
+      ...plantoesProjetados.map((item) => item.setorId),
+      ...(geracao.escopo?.setorIds ?? []),
+    ])];
+    const setores = await this.setores
+      .find({
+        $or: [
+          { ativo: true },
+          { _id: { $in: idsSetores.map((id) => new Types.ObjectId(id)) } },
+        ],
+      })
+      .session(session)
+      .lean()
+      .exec();
+    const setorIdsDoEscopo = new Set(geracao.escopo?.setorIds ?? setores.filter((item) => item.ativo).map((item) => String(item._id)));
+    const turnosDoEscopo = new Set<'diurno' | 'noturno'>(geracao.escopo?.turnos ?? ['diurno', 'noturno']);
+    for (const plantao of plantoesProjetados) {
+      setorIdsDoEscopo.add(plantao.setorId);
+      if (plantao.duracaoHoras >= 24) {
+        turnosDoEscopo.add('diurno');
+        turnosDoEscopo.add('noturno');
+      } else {
+        turnosDoEscopo.add(plantao.horarioInicio === '07:00' ? 'diurno' : 'noturno');
+      }
+    }
+    const setoresDoEscopo = setores.filter((item) => setorIdsDoEscopo.has(String(item._id)));
+    const turnos = [...turnosDoEscopo];
+    const pendencias = calcularPendenciasCobertura({
+      ano: escala.ano,
+      mes: escala.mes,
+      setores: setoresDoEscopo.map((item) => ({
+        id: String(item._id),
+        nome: item.nome,
+        turnos: item.turnos,
+      })),
+      alocacoes,
+      turnos,
+    });
+    const cobertura = resumirCobertura({ ano: escala.ano, mes: escala.mes, setores: setoresDoEscopo, turnos, pendencias });
+    return { cobertura, pendencias };
+  }
+
   private async gerarPeriodo(
     dto: GerarEscalaDto & { operacaoId: string },
     usuario: UsuarioAutenticado,
@@ -1364,7 +1542,10 @@ export class EscalasService {
     const rotulo = rotuloPeriodo(ano, mes);
 
     const existente = await this.escalas.findOne({ ano, mes }).lean().exec();
-    const substituivel = existente?.status === StatusEscala.RASCUNHO || existente?.status === StatusEscala.EM_REVISAO;
+    const substituivel =
+      existente?.status === StatusEscala.RASCUNHO ||
+      existente?.status === StatusEscala.EM_REVISAO ||
+      existente?.status === StatusEscala.VALIDADA;
     if (existente && !substituivel) {
       throw new ConflictException(`Já existe uma escala ${existente.status} para ${rotulo} (id ${existente._id}). Ela não pode ser substituída.`);
     }
@@ -1548,7 +1729,11 @@ export class EscalasService {
         if (existenteId) {
           await this.removerConteudo(escalaId, session);
           const atualizada = await this.escalas.updateOne(
-            { _id: escalaId, status: { $in: [StatusEscala.RASCUNHO, StatusEscala.EM_REVISAO] }, revisao: revisaoExistente },
+            {
+              _id: escalaId,
+              status: { $in: [StatusEscala.RASCUNHO, StatusEscala.EM_REVISAO, StatusEscala.VALIDADA] },
+              revisao: revisaoExistente,
+            },
             {
               $set: {
                 administradorId: base.administradorId,
@@ -1562,13 +1747,13 @@ export class EscalasService {
             { session },
           );
           if (atualizada.matchedCount !== 1) {
-            throw new ConflictException('A escala deixou de ser um rascunho ou uma escala em revisão e não pode ser substituída.');
+            throw new ConflictException('A escala deixou de ser um rascunho, uma escala em revisão ou uma escala validada não publicada e não pode ser substituída.');
           }
         } else {
           await this.escalas.create([{ _id: escalaId, ...base, status: StatusEscala.RASCUNHO }], { session });
         }
 
-        const agrupados = new Map<string, { doc: Partial<Plantao> & { _id: Types.ObjectId }; profissionais: string[] }>();
+        const agrupados = new Map<string, { doc: Partial<Plantao> & { _id: Types.ObjectId }; opcao: string; profissionais: string[] }>();
         for (const a of alocacoes) {
           const chave = `${a.setor_id}|${a.dia}|${a.opcao}|${a.extra}`;
           let grupo = agrupados.get(chave);
@@ -1585,6 +1770,7 @@ export class EscalasService {
                 duracaoHoras: h.horas,
                 tipo: a.extra ? TipoPlantao.EXTRA : TipoPlantao.REGULAR,
               },
+              opcao: a.opcao,
               profissionais: [],
             };
             agrupados.set(chave, grupo);
@@ -1595,13 +1781,16 @@ export class EscalasService {
         if (docs.length > 0) {
           await this.plantoes.insertMany(docs.map((g) => g.doc), { session });
           await this.relacionados.insertMany(
-            docs.flatMap((g) =>
-              g.profissionais.map((pid) => ({
+            docs.flatMap((g) => {
+              // O enfermeiro chefe existe apenas no plantão de 24h; a geração indica o primeiro enfermeiro da equipe.
+              const chefe = g.opcao === '24h' ? g.profissionais.find((pid) => porId.get(pid)!.formacao === Formacao.ENFERMEIRO) : undefined;
+              return g.profissionais.map((pid) => ({
                 plantaoId: g.doc._id,
                 profissionalId: new Types.ObjectId(pid),
                 funcao: porId.get(pid)!.formacao,
-              })),
-            ),
+                lideranca: pid === chefe,
+              }));
+            }),
             { session },
           );
         }

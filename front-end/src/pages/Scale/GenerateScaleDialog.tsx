@@ -225,7 +225,7 @@ export function GenerateScaleDialog({ initialDate, onClose, onGenerated, onGener
             ) : null}
             {existingNonReplaceable ? (
               <p role="alert" className="rounded-xl border border-error bg-error p-3 text-sm text-danger">
-                Este período já possui uma escala {existingScale?.escala.status}. Escalas validadas, publicadas ou finalizadas não são substituídas.
+                Este período já possui uma escala {existingScale?.escala.status}. Escalas publicadas ou finalizadas não são substituídas.
               </p>
             ) : null}
 

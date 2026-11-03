@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ScheduledShift, ShiftBatchChange } from '../../services/scales'
-import { canEditScale, canRemoveScaleDraft, groupShiftsByDateAndTurn, stageShiftChange } from './review'
+import { canEditScale, canRemoveScaleDraft, formatValidationErrors, groupShiftsByDateAndTurn, stageShiftChange } from './review'
 
 const shift = (overrides: Partial<ScheduledShift>): ScheduledShift => ({
   id: 'shift-1',
@@ -76,5 +76,16 @@ describe('scale actions', () => {
 
       expect(stageShiftChange([existing], newShift)).toEqual([existing, newShift])
     })
+  })
+})
+
+describe('formatValidationErrors', () => {
+  it('reads plain-text API errors and does not repeat identical messages', () => {
+    expect(formatValidationErrors([
+      'Ana não está ativa.',
+      'Ana não está ativa.',
+      { motivo: 'Descanso insuficiente' },
+      {},
+    ])).toBe('Ana não está ativa.\nDescanso insuficiente\nConflito de validação')
   })
 })

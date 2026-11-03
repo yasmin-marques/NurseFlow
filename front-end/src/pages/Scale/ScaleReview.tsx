@@ -47,8 +47,10 @@ export function ScaleReview({ scale, onEdit }: ScaleReviewProps) {
                     <section key={turn} aria-label={`${turnLabel(turn)} em ${group.date}`} className="space-y-2">
                       <h4 className="text-xs font-bold uppercase tracking-wide text-text-muted">{turnLabel(turn)}</h4>
                       {shifts.length === 0 ? <p className="text-xs text-text-muted">Nenhum plantão neste turno.</p> : null}
-                      {shifts.map((shift) => (
-                        <article key={`${turn}-${shift.id}`} className="rounded-xl border border-border bg-white p-3">
+                      {shifts.map((shift) => {
+                        const leader = shift.profissionais.find((person) => person.lideranca)
+                        const remainingTeam = shift.profissionais
+                        return <article key={`${turn}-${shift.id}`} className="rounded-xl border border-border bg-white p-3">
                           <div className="flex flex-wrap items-start justify-between gap-2">
                             <div>
                               <h5 className="text-sm font-bold text-text">{shift.setor.nome}</h5>
@@ -66,11 +68,16 @@ export function ScaleReview({ scale, onEdit }: ScaleReviewProps) {
                               </button>
                             ) : null}
                           </div>
-                          {shift.profissionais.length === 0 ? (
-                            <p className="mt-3 text-xs text-warning-text">Equipe não informada.</p>
+                          {shift.duracaoHoras === 24 || leader ? (
+                            <div className="mt-3 rounded-lg bg-soft-green px-3 py-2 text-xs font-semibold text-primary">
+                              {leader ? `Enfermeiro chefe: ${leader.nome}` : 'Nenhum enfermeiro chefe escalado'}
+                            </div>
+                          ) : null}
+                          {remainingTeam.length === 0 ? (
+                            <p className="mt-3 text-xs text-text-muted">Nenhum outro profissional escalado.</p>
                           ) : (
                             <ul className="mt-3 space-y-1">
-                              {shift.profissionais.map((person) => (
+                              {remainingTeam.map((person) => (
                                 <li key={person.id} className="text-xs text-text">
                                   <span className="font-semibold">{person.formacao === 'enfermeiro' ? 'Enfermeiro' : 'Técnico'}:</span> {person.nome}
                                 </li>
@@ -78,7 +85,7 @@ export function ScaleReview({ scale, onEdit }: ScaleReviewProps) {
                             </ul>
                           )}
                         </article>
-                      ))}
+                      })}
                       {vacancies.length > 0 ? (
                         <ul aria-label="Pendências do turno" className="space-y-1">
                           {vacancies.map((vacancy, index) => (

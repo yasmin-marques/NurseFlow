@@ -1,4 +1,4 @@
-import type { ScaleStatus, ScheduledShift, ShiftBatchChange } from '../../services/scales'
+import type { ScaleStatus, ScheduledShift, ShiftBatchChange, ShiftBatchValidation } from '../../services/scales'
 
 export interface ShiftReviewGroup {
   date: string
@@ -8,6 +8,11 @@ export interface ShiftReviewGroup {
 }
 
 export const canEditScale = (status: ScaleStatus) => status !== 'publicada' && status !== 'finalizada'
+
+export function formatValidationErrors(errors: ShiftBatchValidation['erros']): string {
+  const messages = errors.map((item) => typeof item === 'string' ? item : item.motivo ?? item.tipo ?? 'Conflito de validação')
+  return [...new Set(messages)].join('\n')
+}
 
 export const canRemoveScaleDraft = (status: ScaleStatus) => status === 'rascunho'
 
@@ -19,6 +24,18 @@ export function stageShiftChange(
     ? stagedChanges.filter((item) => item.plantaoId !== change.plantaoId)
     : [...stagedChanges]
   return [...unchanged, change]
+}
+
+/** Substitui o que estava pendente para o setor/dia editado pelas novas alterações. */
+export function stageShiftChanges(
+  stagedChanges: readonly ShiftBatchChange[],
+  changes: readonly ShiftBatchChange[],
+  scope: { setorId: string; data: string; plantaoIds: readonly string[] },
+): ShiftBatchChange[] {
+  const kept = stagedChanges.filter((item) => item.plantaoId
+    ? !scope.plantaoIds.includes(item.plantaoId)
+    : !(item.setorId === scope.setorId && item.data === scope.data))
+  return [...kept, ...changes]
 }
 
 export function groupShiftsByDateAndTurn(shifts: readonly ScheduledShift[]): ShiftReviewGroup[] {

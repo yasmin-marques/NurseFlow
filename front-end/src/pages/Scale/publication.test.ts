@@ -34,6 +34,9 @@ describe('getPublicationSummary', () => {
       belowMinimumCount: 0,
       coverageOnly: false,
       blocked: false,
+      blockingFindings: [],
+      notices: [],
+      requiresConfirmation: false,
     })
 
     describe('isScalePublished', () => {
@@ -115,7 +118,19 @@ describe('getPublicationSummary', () => {
       belowMinimumCount: 2,
       coverageOnly: true,
       blocked: false,
+      blockingFindings: [],
+      notices: [],
+      requiresConfirmation: true,
     })
+  })
+
+  it('does not block on informative generation conflicts but still requires confirmation', () => {
+    const summary = getPublicationSummary(scaleWith({
+      conflitos: [{ tipo: 'PROFISSIONAL_INDISPONIVEL', motivo: 'Status "ferias": não participa desta geração.' }],
+    }))
+    expect(summary.blocked).toBe(false)
+    expect(summary.blockingFindings).toEqual([])
+    expect(summary.requiresConfirmation).toBe(true)
   })
 
   it('blocks publication when any conflict or warning accompanies coverage gaps', () => {

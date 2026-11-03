@@ -40,11 +40,14 @@ export function validarAlocacoesPlantao(input: {
   anteriores: PlantaoAnterior[];
   existentes: AlocacaoPlantaoValidacao[];
   candidatas: AlocacaoPlantaoValidacao[];
+  /** Quando informado, apenas estes profissionais geram erros (os demais só compõem a agenda). */
+  foco?: ReadonlySet<string>;
 }): string[] {
   const erros: string[] = [];
   const candidatasPorProfissional = new Map<string, AlocacaoPlantaoValidacao[]>();
   for (const alocacao of input.candidatas) {
     const profissional = alocacao.profissional;
+    if (input.foco && !input.foco.has(profissional.id)) continue;
     if (profissional.status !== StatusProfissional.ATIVO) {
       erros.push(`${profissional.nome} não está ativo.`);
     }

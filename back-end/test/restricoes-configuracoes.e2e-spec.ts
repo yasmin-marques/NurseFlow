@@ -82,7 +82,7 @@ describe('Restrições e Configurações (e2e)', () => {
   describe('Configurações', () => {
     const periodo = '?ano=2026&mes=10';
 
-    it('devolve os valores padrão quando o período ainda não foi configurado', async () => {
+    it('devolve os valores padrão quando as regras ainda não foram configuradas', async () => {
       const res = await http.get(`/configuracoes${periodo}`).set(auth(tokenCoord)).expect(200);
       expect(res.body).toMatchObject({
         periodo: '2026-10',
@@ -97,7 +97,7 @@ describe('Restrições e Configurações (e2e)', () => {
         },
       });
       expect(Object.keys(res.body.cargas)).toHaveLength(8);
-      expect(await colecao('configuracoes').countDocuments({ chave: '2026-10' })).toBe(1);
+      expect(await colecao('configuracoes').countDocuments({ chave: 'global' })).toBe(1);
     });
 
     it('salva o limite de trocas e os máximos de extras no MongoDB e os devolve na leitura', async () => {
@@ -105,7 +105,7 @@ describe('Restrições e Configurações (e2e)', () => {
       const res = await http.patch(`/configuracoes/limites${periodo}`).set(auth(tokenCoord)).send(dto).expect(200);
       expect(res.body).toMatchObject(dto);
 
-      const doc = await colecao('configuracoes').findOne({ chave: '2026-10' });
+      const doc = await colecao('configuracoes').findOne({ chave: 'global' });
       expect(doc).toMatchObject(dto);
 
       const relido = await http.get(`/configuracoes${periodo}`).set(auth(tokenCoord)).expect(200);
@@ -116,12 +116,12 @@ describe('Restrições e Configurações (e2e)', () => {
       await http.patch(`/configuracoes/limites${periodo}`).set(auth(tokenCoord)).send({ limiteTrocas: 0 }).expect(200);
       const res = await http.get(`/configuracoes${periodo}`).set(auth(tokenCoord)).expect(200);
       expect(res.body).toMatchObject({ limiteTrocas: 0, maxExtrasConcursado: 4, maxExtrasClt: 1 });
-      expect(await colecao('configuracoes').countDocuments({ chave: '2026-10' })).toBe(1);
+      expect(await colecao('configuracoes').countDocuments({ chave: 'global' })).toBe(1);
     });
 
-    it('mantém cada período isolado', async () => {
+    it('aplica as mesmas regras a todos os meses', async () => {
       const res = await http.get('/configuracoes?ano=2026&mes=11').set(auth(tokenCoord)).expect(200);
-      expect(res.body).toMatchObject({ periodo: '2026-11', limiteTrocas: 3, maxExtras: 2 });
+      expect(res.body).toMatchObject({ periodo: '2026-11', limiteTrocas: 0, maxExtrasConcursado: 4, maxExtras: 2 });
     });
 
     it('consulta e salva configurações em qualquer mês dos anos permitidos', async () => {
@@ -144,8 +144,12 @@ describe('Restrições e Configurações (e2e)', () => {
       });
 
       const outroPeriodo = await http.get('/configuracoes?ano=1&mes=1').set(auth(tokenCoord)).expect(200);
-      expect(outroPeriodo.body).toMatchObject({ periodo: '0001-01', limiteTrocas: 3 });
-      expect(await colecao('configuracoes').countDocuments({ chave: '9999-12' })).toBe(1);
+      expect(outroPeriodo.body).toMatchObject({
+        periodo: '0001-01',
+        ...limite,
+        cargas: { clt_31: { plantoes24h: 7, plantoes12h: 1 } },
+      });
+      expect(await colecao('configuracoes').countDocuments()).toBe(1);
     });
 
     it('calcula cargas para ano de um dígito sem converter a data para 1900+', async () => {
@@ -164,7 +168,7 @@ describe('Restrições e Configurações (e2e)', () => {
       await enviar({ limiteTrocas: 'abc' }).expect(400);
       await enviar({ maxExtrasClt: -3 }).expect(400);
       await enviar({ naoExiste: 1 }).expect(400);
-      expect((await http.get(`/configuracoes${periodo}`).set(auth(tokenCoord))).body.limiteTrocas).toBe(0);
+      expect((await http.get(`/configuracoes${periodo}`).set(auth(tokenCoord))).body.limiteTrocas).toBe(8);
     });
 
     it('valida o período informado', async () => {
@@ -199,7 +203,7 @@ describe('Restrições e Configurações (e2e)', () => {
         await http.put(`/configuracoes/cargas${periodo}`).set(auth(token)).send({}).expect(403);
         await http.get(`/configuracoes/cargas/clt${periodo}`).set(auth(token)).expect(403);
       }
-      expect((await http.get(`/configuracoes${periodo}`).set(auth(tokenCoord))).body.limiteTrocas).toBe(0);
+      expect((await http.get(`/configuracoes${periodo}`).set(auth(tokenCoord))).body.limiteTrocas).toBe(8);
     });
   });
 
