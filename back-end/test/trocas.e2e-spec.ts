@@ -181,8 +181,8 @@ describe('Trocas administrativas (e2e)', () => {
     await db.collection('profissionaisRelacionados').deleteOne({ _id: descansoVinculo });
     await db.collection('plantoes').deleteOne({ _id: descansoPlantao });
 
-    const config = await db.collection('configuracoes').findOne({ chave: '2026-11' });
-    await db.collection('configuracoes').updateOne({ chave: '2026-11' }, { $set: { 'cargas.clt_30.plantoes12h': 1 } });
+    const config = await db.collection('configuracoes').findOne({ chave: 'global' });
+    await db.collection('configuracoes').updateOne({ chave: 'global' }, { $set: { 'cargas.clt_30.plantoes12h': 1 } });
     const cargaPlantao = new mongoose.Types.ObjectId(); const cargaVinculo = new mongoose.Types.ObjectId();
     await db.collection('plantoes').insertOne({ _id: cargaPlantao, escalaId, setorId: (await db.collection('plantoes').findOne({ escalaId }))!.setorId,
       data: new Date('2026-11-02T00:00:00Z'), horarioInicio: '07:00', horarioFim: '19:00', duracaoHoras: 12, tipo: 'regular' });

@@ -288,8 +288,7 @@ export class TrocasService {
     const setores = await qSetores.lean().exec();
     const qRestricoes = this.restricoes.find({ profissionalId: { $in: profissionaisIds }, inicio: { $lte: utcDate(escala.ano, escala.mes - 1, diasDoMes(escala.ano, escala.mes), 23, 59, 59, 999) }, fim: { $gte: utcDate(escala.ano, escala.mes - 1, 1) } }); if (session) qRestricoes.session(session);
     const restricoes = await qRestricoes.lean().exec();
-    const chaveConfiguracao = `${String(escala.ano).padStart(4, '0')}-${String(escala.mes).padStart(2, '0')}`;
-    const qConfiguracao = this.configuracoes.findOne({ chave: chaveConfiguracao }); if (session) qConfiguracao.session(session);
+    const qConfiguracao = this.configuracoes.findOne({ chave: 'global' }); if (session) qConfiguracao.session(session);
     const docConfiguracao = await qConfiguracao.lean().exec();
     const configuracao = docConfiguracao ? {
       periodo: docConfiguracao.chave,
