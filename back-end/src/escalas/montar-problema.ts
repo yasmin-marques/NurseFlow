@@ -3,7 +3,7 @@ import { Formacao, StatusProfissional, TipoVinculo } from '../profissionais/prof
 import { TipoRestricao } from '../restricoes/restricao.schema';
 import { utcDate } from '../common/utils/date';
 import type { TurnoEscala } from './dto/gerar-escala.dto';
-import type { ProblemaOtimizacao, ProfissionalOtimizacao } from './otimizador/otimizador';
+import { CAPACIDADE_ALOCACOES_FIXAS, VERSAO_CONTRATO_OTIMIZADOR, type ProblemaOtimizacao, type ProfissionalOtimizacao } from './otimizador/otimizador';
 
 /** Horários fixos do regime (iguais aos do modelo em optimizer/app/solver.py). */
 export const INICIO_DIURNO = 7;
@@ -430,6 +430,8 @@ export function montarProblema(e: EntradaGeracao): ProblemaMontado {
 
   return {
     problema: {
+      versao_contrato: VERSAO_CONTRATO_OTIMIZADOR,
+      capacidades: [CAPACIDADE_ALOCACOES_FIXAS],
       ano: e.ano,
       mes: e.mes,
       dias_mes: dias,
@@ -437,6 +439,7 @@ export function montarProblema(e: EntradaGeracao): ProblemaMontado {
       setores: e.setores.map((s) => ({ id: s.id, nome: s.nome, turnos: s.turnos })),
       turnos_selecionados: e.turnosSelecionados ?? ['diurno', 'noturno'],
       parametros: { tempo_limite_segundos: e.tempoLimiteSegundos },
+      alocacoes_fixas: [],
     },
     conflitos,
     avisos,

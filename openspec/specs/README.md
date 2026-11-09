@@ -18,3 +18,5 @@ Esta linha de base descreve o código observado, não todas as capacidades prete
 - [Requisitos — entrega 2](../../docs/Documento%20de%20Especifica%C3%A7%C3%A3o%20de%20Requisitos%20-%20NurseFlow%20-%20entrega%202.pdf)
 - [Diagramas de atividades](../../docs/diagramas/diagramas_atividade/DIAGRAMAS_ATIVIDADES.md)
 - [Designs de Tela](../../design/nurseflow/)
+
+- O perfil pessoal permite a usuários autenticados consultar e atualizar seus dados próprios; veja [perfil do usuário](./perfil-usuario/spec.md).

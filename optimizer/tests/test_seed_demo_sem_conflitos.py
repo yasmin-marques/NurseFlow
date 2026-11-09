@@ -31,6 +31,9 @@ def problema_demo(ano: int, mes: int, dias_mes: int) -> Problema:
             "ano": ano,
             "mes": mes,
             "dias_mes": dias_mes,
+            "versao_contrato": 2,
+            "capacidades": ["alocacoes_fixas"],
+            "alocacoes_fixas": [],
             "profissionais": profissionais(dias_mes),
             "setores": [
                 {

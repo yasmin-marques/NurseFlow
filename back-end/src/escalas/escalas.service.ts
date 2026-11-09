@@ -1,6 +1,6 @@
 import { ConflictException, Injectable, Logger, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import { type ClientSession, type Connection, Model, Types } from 'mongoose';
 import type { UsuarioAutenticado } from '../common/auth/usuario-autenticado';
@@ -9,9 +9,10 @@ import { utcDate } from '../common/utils/date';
 import type { AppConfig } from '../config/configuration';
 import { chaveCarga } from '../configuracoes/configuracao.schema';
 import { ConfiguracoesService } from '../configuracoes/configuracoes.service';
-import { StatusProfissional } from '../profissionais/profissionais.enums';
+import { Formacao, StatusProfissional } from '../profissionais/profissionais.enums';
 import { Profissional } from '../profissionais/schemas/profissional.schema';
 import { Restricao } from '../restricoes/restricao.schema';
+import { ExtraProgramado, ExtraProgramadoSituacao, ExtraOpcao } from '../extras/extras.schema';
 import { Setor } from '../setores/schemas/setor.schema';
 import { Administrador } from '../usuarios/schemas/administrador.schema';
 import { Usuario } from '../usuarios/schemas/usuario.schema';
@@ -27,11 +28,12 @@ import {
   type ProfissionalEntrada,
   validarEntrada,
 } from './montar-problema';
-import { OtimizadorEscala, type OpcaoPlantao } from './otimizador/otimizador';
+import { OtimizadorEscala, type AlocacaoFixaOtimizacao, type OpcaoPlantao, type SolucaoOtimizacao } from './otimizador/otimizador';
 import { isVisualizacaoEscalaPdf, type DadosEscalaPdf } from './escala-pdf.types';
 import {
   calcularPendenciasCobertura,
   type AlocacaoPlantaoValidacao,
+  type PendenciaCobertura,
   type ResumoCobertura,
   resumirCobertura,
   validarAlocacoesPlantao,
@@ -59,6 +61,53 @@ const HORARIOS: Record<OpcaoPlantao, { inicio: string; fim: string; horas: numbe
 const rotuloPeriodo = (ano: number, mes: number) => `${String(mes).padStart(2, '0')}/${String(ano).padStart(4, '0')}`;
 const isoDia = (d: Date) => d.toISOString().slice(0, 10);
 
+type ExtraGeracaoFingerprint = {
+  _id: Types.ObjectId;
+  revisao: number;
+  data: string;
+  opcao: ExtraOpcao;
+  setorId: Types.ObjectId;
+  substitutoId: Types.ObjectId;
+  funcao: string;
+  situacao: ExtraProgramadoSituacao;
+};
+
+function fingerprintExtras(extras: ExtraGeracaoFingerprint[]): string {
+  const material = extras
+    .map((extra) => ({
+      id: String(extra._id),
+      revisao: extra.revisao,
+      data: extra.data,
+      opcao: extra.opcao,
+      setorId: String(extra.setorId),
+      substitutoId: String(extra.substitutoId),
+      funcao: extra.funcao,
+      situacao: extra.situacao,
+    }))
+    .sort((a, b) => a.id.localeCompare(b.id));
+  return createHash('sha256').update(JSON.stringify(material)).digest('hex');
+}
+
+function validarSolucaoGeracao(solucao: unknown): asserts solucao is SolucaoOtimizacao {
+  if (!solucao || typeof solucao !== 'object') {
+    throw new ConflictException('O otimizador devolveu uma resposta inválida; a escala anterior foi preservada.');
+  }
+  const resposta = solucao as Partial<SolucaoOtimizacao>;
+  if (resposta.versao_contrato !== 2 || !Array.isArray(resposta.capacidades) || !resposta.capacidades.includes('alocacoes_fixas')) {
+    throw new ConflictException('O otimizador devolveu um contrato incompatível; a escala anterior foi preservada.');
+  }
+  if (!Array.isArray(resposta.alocacoes) || !Array.isArray(resposta.descobertos) || !resposta.estatisticas) {
+    throw new ConflictException('O otimizador devolveu uma solução incompleta; a escala anterior foi preservada.');
+  }
+  for (const alocacao of resposta.alocacoes) {
+    if (!alocacao || typeof alocacao !== 'object' || typeof alocacao.profissional_id !== 'string' || typeof alocacao.setor_id !== 'string' ||
+      !Number.isInteger(alocacao.dia) || !['24h', '12d', '12n'].includes(alocacao.opcao) || typeof alocacao.extra !== 'boolean' ||
+      (alocacao.extra_id !== undefined && alocacao.extra_id !== null && typeof alocacao.extra_id !== 'string')) {
+      throw new ConflictException('O otimizador devolveu uma alocação inválida; a escala anterior foi preservada.');
+    }
+  }
+}
+
 interface SnapshotEscala {
   escala?: { geracao?: Record<string, unknown> };
   geracao?: Record<string, unknown>;
@@ -75,6 +124,15 @@ interface GeracaoEmAndamento {
   estado: 'otimizando' | 'cancelando' | 'salvando';
 }
 
+interface AlocacaoGerada {
+  profissional_id: string;
+  setor_id: string;
+  dia: number;
+  opcao: OpcaoPlantao;
+  extra: boolean;
+  extra_id?: string | null;
+}
+
 interface AlteracaoPlantaoPreparada {
   dto: PlantaoAlteracaoDto;
   plantaoId: Types.ObjectId;
@@ -89,6 +147,14 @@ interface AlteracaoPlantaoPreparada {
 function isSnapshotEscala(snapshot: Record<string, unknown>): snapshot is Record<string, unknown> & SnapshotEscala {
   return Array.isArray(snapshot.plantoes) && Array.isArray(snapshot.profissionaisRelacionados);
 }
+
+/** Restrições já respeitadas pelo otimizador: informam, mas não bloqueiam. Violações reais são revalidadas na publicação. */
+const TIPOS_CONFLITO_INFORMATIVO = new Set([
+  'CARGA_ABAIXO_DO_ESPERADO',
+  'PROFISSIONAL_INDISPONIVEL',
+  'INDISPONIBILIDADE',
+  'DESCANSO_MES_ANTERIOR',
+]);
 
 @Injectable()
 export class EscalasService {
@@ -110,6 +176,7 @@ export class EscalasService {
     @InjectModel(Administrador.name) private readonly administradores: Model<Administrador>,
     @InjectModel(Setor.name) private readonly setores: Model<Setor>,
     @InjectModel(Restricao.name) private readonly restricoes: Model<Restricao>,
+    @InjectModel(ExtraProgramado.name) private readonly extras: Model<ExtraProgramado>,
     private readonly configuracoes: ConfiguracoesService,
     private readonly otimizador: OtimizadorEscala,
     private readonly config: ConfigService<AppConfig, true>,
@@ -393,7 +460,7 @@ export class EscalasService {
       const pendencias = geracao.pendencias ?? [];
       const conflitos = geracao.conflitos ?? [];
       const avisos = geracao.avisos ?? [];
-      const conflitosBloqueantes = conflitos.filter((item) => item.tipo !== 'CARGA_ABAIXO_DO_ESPERADO');
+      const conflitosBloqueantes = conflitos.filter((item) => !TIPOS_CONFLITO_INFORMATIVO.has(item.tipo));
       if (conflitosBloqueantes.length > 0) {
         throw new UnprocessableEntityException({
           message: 'A escala contém conflitos bloqueantes.',
@@ -722,19 +789,20 @@ export class EscalasService {
     await executarTransacao(this.connection, async (session) => {
       const escala = await this.escalaEditavel(escalaId, dto.revisaoEsperada, session);
       await this.validarPlantao(escala, dto, session);
+      const preparadas = await this.prepararLote(escala, [dto], session);
+      await this.exigirReconhecimentoCobertura(escala, dto, preparadas, session);
 
-      const horario = HORARIOS[dto.opcao];
-      const plantaoId = new Types.ObjectId();
+      const plantaoId = preparadas[0].plantaoId;
       await this.plantoes.create(
         [
           {
             _id: plantaoId,
             escalaId: escala._id,
-            setorId: new Types.ObjectId(dto.setorId),
-            data: new Date(`${dto.data}T00:00:00.000Z`),
-            horarioInicio: horario.inicio,
-            horarioFim: horario.fim,
-            duracaoHoras: horario.horas,
+            setorId: preparadas[0].setorId,
+            data: preparadas[0].data,
+            horarioInicio: preparadas[0].horarioInicio,
+            horarioFim: preparadas[0].horarioFim,
+            duracaoHoras: preparadas[0].duracaoHoras,
             tipo: dto.tipo,
           },
         ],
@@ -750,7 +818,7 @@ export class EscalasService {
         })),
         { session },
       );
-      await this.registrarEdicao(escala, usuario, 'plantao_adicionado', plantaoId, session);
+      await this.registrarEdicao(escala, usuario, 'plantao_adicionado', plantaoId, session, dto.coberturaReconhecida);
       await this.atualizarPendenciasCobertura(escala, session);
     });
     return this.obter(escalaId);
@@ -759,8 +827,17 @@ export class EscalasService {
   async validarLotePlantoes(escalaId: string, dto: LotePlantoesDto) {
     return executarTransacao(this.connection, async (session) => {
       const escala = await this.escalaEditavel(escalaId, dto.revisaoEsperada, session);
-      const erros = await this.errosDoLote(escala, dto.alteracoes, session);
-      return { revisao: escala.revisao, valida: erros.length === 0, erros };
+      const preparadas = await this.prepararLote(escala, dto.alteracoes, session);
+      const erros = await this.errosDoLote(escala, dto.alteracoes, session, preparadas);
+      const { cobertura, pendencias } = await this.coberturaProjetadaLote(escala, preparadas, session);
+      return {
+        revisao: escala.revisao,
+        valida: erros.length === 0,
+        erros,
+        cobertura,
+        pendencias,
+        requerConfirmacaoCobertura: pendencias.length > 0,
+      };
     });
   }
 
@@ -771,6 +848,13 @@ export class EscalasService {
       const erros = await this.errosDoLote(escala, dto.alteracoes, session, preparadas);
       if (erros.length > 0) {
         throw new UnprocessableEntityException({ message: 'O lote de plantões viola regras da escala.', erros });
+      }
+      const { pendencias } = await this.coberturaProjetadaLote(escala, preparadas, session);
+      if (pendencias.length > 0 && preparadas.some((item) => item.dto.coberturaReconhecida !== true)) {
+        throw new UnprocessableEntityException({
+          message: 'Reconheça as pendências de cobertura antes de salvar o lote.',
+          erros: ['A cobertura está abaixo dos quantitativos mínimos configurados.'],
+        });
       }
 
       for (const item of preparadas) {
@@ -838,17 +922,18 @@ export class EscalasService {
       const plantao = await this.plantoes.findOne({ _id: plantaoId, escalaId: escala._id }).session(session).lean().exec();
       if (!plantao) throw new NotFoundException('Plantão não encontrado nesta escala.');
       await this.validarPlantao(escala, dto, session, plantao._id);
-
-      const horario = HORARIOS[dto.opcao];
+      const preparadas = await this.prepararLote(escala, [{ ...dto, plantaoId }], session);
+      await this.exigirReconhecimentoCobertura(escala, dto, preparadas, session);
+      const preparada = preparadas[0];
       await this.plantoes.updateOne(
         { _id: plantao._id, escalaId: escala._id },
         {
           $set: {
-            setorId: new Types.ObjectId(dto.setorId),
-            data: new Date(`${dto.data}T00:00:00.000Z`),
-            horarioInicio: horario.inicio,
-            horarioFim: horario.fim,
-            duracaoHoras: horario.horas,
+            setorId: preparada.setorId,
+            data: preparada.data,
+            horarioInicio: preparada.horarioInicio,
+            horarioFim: preparada.horarioFim,
+            duracaoHoras: preparada.duracaoHoras,
             tipo: dto.tipo,
           },
         },
@@ -865,10 +950,25 @@ export class EscalasService {
         })),
         { session },
       );
-      await this.registrarEdicao(escala, usuario, 'plantao_editado', plantao._id, session);
+      await this.registrarEdicao(escala, usuario, 'plantao_editado', plantao._id, session, dto.coberturaReconhecida);
       await this.atualizarPendenciasCobertura(escala, session);
     });
     return this.obter(escalaId);
+  }
+
+  private async exigirReconhecimentoCobertura(
+    escala: Escala & { _id: Types.ObjectId },
+    dto: PlantaoDto,
+    preparadas: AlteracaoPlantaoPreparada[],
+    session: ClientSession,
+  ) {
+    const { pendencias } = await this.coberturaProjetadaLote(escala, preparadas, session);
+    if (pendencias.length > 0 && dto.coberturaReconhecida !== true) {
+      throw new UnprocessableEntityException({
+        message: 'Reconheça as pendências de cobertura antes de salvar o plantão.',
+        erros: ['A cobertura está abaixo dos quantitativos mínimos configurados.'],
+      });
+    }
   }
 
   private async escalaEditavel(id: string, revisaoEsperada: number, session: ClientSession) {
@@ -892,6 +992,9 @@ export class EscalasService {
       throw new UnprocessableEntityException({
         message: 'O plantão pode ter somente um enfermeiro chefe, que deve fazer parte da equipe.',
       });
+    }
+    if (lideres.length > 0 && dto.opcao !== '24h') {
+      throw new UnprocessableEntityException({ message: 'O enfermeiro chefe deve ser um enfermeiro de plantão de 24h.' });
     }
     if (!dto.data.startsWith(`${escala.ano}-${String(escala.mes).padStart(2, '0')}-`)) {
       throw new UnprocessableEntityException({ message: 'A data do plantão deve pertencer ao período da escala.' });
@@ -1118,6 +1221,7 @@ export class EscalasService {
       anteriores: await this.plantoesDoMesAnterior(escala.ano, escala.mes, inicioMes, session),
       existentes: [],
       candidatas,
+      foco: new Set(preparadas.flatMap((item) => item.dto.equipe.map((membro) => membro.profissionalId))),
     });
   }
 
@@ -1135,6 +1239,9 @@ export class EscalasService {
         throw new UnprocessableEntityException({
           message: 'O plantão pode ter somente um enfermeiro chefe, que deve fazer parte da equipe.',
         });
+      }
+      if (lideres.length > 0 && dto.opcao !== '24h') {
+        throw new UnprocessableEntityException({ message: 'O enfermeiro chefe deve ser um enfermeiro de plantão de 24h.' });
       }
       if (!dto.data.startsWith(`${escala.ano}-${String(escala.mes).padStart(2, '0')}-`)) {
         throw new UnprocessableEntityException({ message: 'A data do plantão deve pertencer ao período da escala.' });
@@ -1175,6 +1282,7 @@ export class EscalasService {
     acao: string,
     plantaoId: Types.ObjectId,
     session: ClientSession,
+    coberturaReconhecida = false,
   ) {
     const status = escala.status === StatusEscala.VALIDADA ? StatusEscala.EM_REVISAO : escala.status;
     const atualizada = await this.escalas.updateOne(
@@ -1190,7 +1298,7 @@ export class EscalasService {
           revisao: escala.revisao + 1,
           acao,
           usuarioId: new Types.ObjectId(usuario.id),
-          detalhes: { plantaoId: String(plantaoId) },
+          detalhes: { plantaoId: String(plantaoId), coberturaReconhecida },
         },
       ],
       { session },
@@ -1223,6 +1331,10 @@ export class EscalasService {
             plantaoIds: preparadas.map((item) => String(item.plantaoId)),
             novos: preparadas.filter((item) => item.novo).length,
             editados: preparadas.filter((item) => !item.novo).length,
+            coberturaReconhecida: preparadas.map((item) => ({
+              plantaoId: String(item.plantaoId),
+              confirmada: item.dto.coberturaReconhecida === true,
+            })),
           },
         },
       ],
@@ -1387,6 +1499,130 @@ export class EscalasService {
     return cobertura;
   }
 
+  private async coberturaProjetadaLote(
+    escala: Escala & { _id: Types.ObjectId },
+    preparadas: AlteracaoPlantaoPreparada[],
+    session: ClientSession,
+  ): Promise<{ cobertura: ResumoCobertura; pendencias: PendenciaCobertura[] }> {
+    const plantoes = await this.plantoes.find({ escalaId: escala._id }).session(session).lean().exec();
+    const idsPlantoes = plantoes.map((item) => item._id);
+    const vinculos = idsPlantoes.length
+      ? await this.relacionados.find({ plantaoId: { $in: idsPlantoes } }).session(session).lean().exec()
+      : [];
+    const preparadasPorId = new Map(preparadas.map((item) => [String(item.plantaoId), item]));
+    const vinculosPorPlantao = new Map<string, typeof vinculos>();
+    for (const vinculo of vinculos) {
+      const idPlantao = String(vinculo.plantaoId);
+      vinculosPorPlantao.set(idPlantao, [...(vinculosPorPlantao.get(idPlantao) ?? []), vinculo]);
+    }
+
+    const plantoesProjetados = plantoes.map((plantao) => {
+      const idPlantao = String(plantao._id);
+      const alteracao = preparadasPorId.get(idPlantao);
+      const equipe = alteracao
+        ? alteracao.dto.equipe.map((item) => ({
+            profissionalId: item.profissionalId,
+            funcao: item.funcao as AlocacaoPlantaoValidacao['funcao'],
+          }))
+        : (vinculosPorPlantao.get(idPlantao) ?? []).map((item) => ({
+            profissionalId: String(item.profissionalId),
+            funcao: item.funcao as AlocacaoPlantaoValidacao['funcao'],
+          }));
+      return {
+        setorId: String(alteracao?.setorId ?? plantao.setorId),
+        data: alteracao?.data ?? plantao.data,
+        horarioInicio: alteracao?.horarioInicio ?? plantao.horarioInicio,
+        duracaoHoras: alteracao?.duracaoHoras ?? plantao.duracaoHoras,
+        tipo: alteracao?.dto.tipo ?? plantao.tipo,
+        equipe,
+      };
+    });
+    plantoesProjetados.push(...preparadas.filter((item) => item.novo).map((item) => ({
+      setorId: String(item.setorId),
+      data: item.data,
+      horarioInicio: item.horarioInicio,
+      duracaoHoras: item.duracaoHoras,
+      tipo: item.dto.tipo,
+      equipe: item.dto.equipe.map((profissional) => ({
+        profissionalId: profissional.profissionalId,
+        funcao: profissional.funcao as AlocacaoPlantaoValidacao['funcao'],
+      })),
+    })));
+    const alocacoesProjetadas = plantoesProjetados.flatMap((plantao) =>
+      plantao.equipe.map((profissional) => ({ ...plantao, ...profissional })),
+    );
+
+    const profissionaisDocs = alocacoesProjetadas.length
+      ? await this.profissionais
+          .find({
+            _id: { $in: [...new Set(alocacoesProjetadas.map((item) => new Types.ObjectId(item.profissionalId)))] },
+            status: StatusProfissional.ATIVO,
+          })
+          .session(session)
+          .lean()
+          .exec()
+      : [];
+    const profissionalPorId = new Map(profissionaisDocs.map((item) => [String(item._id), item]));
+    const alocacoes = alocacoesProjetadas.flatMap((item) => {
+      const profissional = profissionalPorId.get(item.profissionalId);
+      if (!profissional) return [];
+      return [{
+        ...item,
+        profissional: {
+          id: String(profissional._id),
+          nome: String(profissional._id),
+          formacao: profissional.formacao,
+          tipoVinculo: profissional.tipoVinculo,
+          status: profissional.status,
+        },
+      }];
+    });
+
+    const geracao = (escala.geracao ?? {}) as {
+      escopo?: { setorIds?: string[]; turnos?: ('diurno' | 'noturno')[] };
+    };
+    const idsSetores = [...new Set([
+      ...plantoesProjetados.map((item) => item.setorId),
+      ...(geracao.escopo?.setorIds ?? []),
+    ])];
+    const setores = await this.setores
+      .find({
+        $or: [
+          { ativo: true },
+          { _id: { $in: idsSetores.map((id) => new Types.ObjectId(id)) } },
+        ],
+      })
+      .session(session)
+      .lean()
+      .exec();
+    const setorIdsDoEscopo = new Set(geracao.escopo?.setorIds ?? setores.filter((item) => item.ativo).map((item) => String(item._id)));
+    const turnosDoEscopo = new Set<'diurno' | 'noturno'>(geracao.escopo?.turnos ?? ['diurno', 'noturno']);
+    for (const plantao of plantoesProjetados) {
+      setorIdsDoEscopo.add(plantao.setorId);
+      if (plantao.duracaoHoras >= 24) {
+        turnosDoEscopo.add('diurno');
+        turnosDoEscopo.add('noturno');
+      } else {
+        turnosDoEscopo.add(plantao.horarioInicio === '07:00' ? 'diurno' : 'noturno');
+      }
+    }
+    const setoresDoEscopo = setores.filter((item) => setorIdsDoEscopo.has(String(item._id)));
+    const turnos = [...turnosDoEscopo];
+    const pendencias = calcularPendenciasCobertura({
+      ano: escala.ano,
+      mes: escala.mes,
+      setores: setoresDoEscopo.map((item) => ({
+        id: String(item._id),
+        nome: item.nome,
+        turnos: item.turnos,
+      })),
+      alocacoes,
+      turnos,
+    });
+    const cobertura = resumirCobertura({ ano: escala.ano, mes: escala.mes, setores: setoresDoEscopo, turnos, pendencias });
+    return { cobertura, pendencias };
+  }
+
   private async gerarPeriodo(
     dto: GerarEscalaDto & { operacaoId: string },
     usuario: UsuarioAutenticado,
@@ -1396,7 +1632,10 @@ export class EscalasService {
     const rotulo = rotuloPeriodo(ano, mes);
 
     const existente = await this.escalas.findOne({ ano, mes }).lean().exec();
-    const substituivel = existente?.status === StatusEscala.RASCUNHO || existente?.status === StatusEscala.EM_REVISAO;
+    const substituivel =
+      existente?.status === StatusEscala.RASCUNHO ||
+      existente?.status === StatusEscala.EM_REVISAO ||
+      existente?.status === StatusEscala.VALIDADA;
     if (existente && !substituivel) {
       throw new ConflictException(`Já existe uma escala ${existente.status} para ${rotulo} (id ${existente._id}). Ela não pode ser substituída.`);
     }
@@ -1478,9 +1717,64 @@ export class EscalasService {
       turnosSelecionados,
     });
 
+    const inicioData = `${String(ano).padStart(4, '0')}-${String(mes).padStart(2, '0')}-01`;
+    const fimData = `${String(ano).padStart(4, '0')}-${String(mes).padStart(2, '0')}-${String(diasDoMes(ano, mes)).padStart(2, '0')}`;
+    const extrasFixos = await this.extras
+      .find({
+        situacao: ExtraProgramadoSituacao.PROGRAMADO,
+        data: { $gte: inicioData, $lte: fimData },
+      })
+      .lean()
+      .exec();
+    const fingerprintProgramacoes = fingerprintExtras(extrasFixos);
+    const idsProfissionaisAtivos = new Set(profissionais.filter((p) => p.status === StatusProfissional.ATIVO).map((p) => p.id));
+    const idsSetoresDoProblema = new Set(setores.map((setor) => setor.id));
+    const turnosDoProblema = new Set(turnosSelecionados);
+    const cobreTurno = (opcao: ExtraOpcao, turno: 'diurno' | 'noturno') =>
+      opcao === ExtraOpcao.VINTE_QUATRO_HORAS ||
+      (opcao === ExtraOpcao.DOZE_DIA && turno === 'diurno') ||
+      (opcao === ExtraOpcao.DOZE_NOITE && turno === 'noturno');
+    const alocacoesFixas: AlocacaoFixaOtimizacao[] = extrasFixos
+      .filter((extra) => idsProfissionaisAtivos.has(String(extra.substitutoId)) && idsSetoresDoProblema.has(String(extra.setorId)))
+      .filter((extra) => (['diurno', 'noturno'] as const).filter((turno) => cobreTurno(extra.opcao as ExtraOpcao, turno)).every((turno) => turnosDoProblema.has(turno)))
+      .map((extra) => ({
+        extra_id: String(extra._id),
+        profissional_id: String(extra.substitutoId),
+        setor_id: String(extra.setorId),
+        dia: Number(extra.data.slice(-2)),
+        opcao: extra.opcao as ExtraOpcao,
+        tipo: 'extra',
+      }));
+    const idsFixos = new Set(alocacoesFixas.map((item) => item.extra_id));
+    const reservasForaDoEscopo = extrasFixos.filter(
+      (extra) => idsProfissionaisAtivos.has(String(extra.substitutoId)) && !idsFixos.has(String(extra._id)),
+    );
+    const profissionalPorId = new Map(problema.profissionais.map((item) => [item.id, item]));
+    for (const extra of reservasForaDoEscopo) {
+      const profissional = profissionalPorId.get(String(extra.substitutoId));
+      const dia = Number(extra.data.slice(-2));
+      if (!profissional || dia < 1 || dia > problema.dias_mes) continue;
+      const turnos = (['diurno', 'noturno'] as const).filter((turno) => cobreTurno(extra.opcao as ExtraOpcao, turno));
+      profissional.turnos_bloqueados = [
+        ...(profissional.turnos_bloqueados ?? []),
+        ...turnos.filter((turno) => !profissional.turnos_bloqueados?.some((item) => item.dia === dia && item.turno === turno)).map((turno) => ({ dia, turno })),
+      ];
+      conflitos.push({
+        tipo: 'EXTRA_FORA_DO_ESCOPO',
+        profissionalId: String(extra.substitutoId),
+        setorId: String(extra.setorId),
+        motivo: `Extra programado ${String(extra._id)} reservado fora do escopo selecionado.`,
+        dias: [dia],
+      });
+    }
+    problema.versao_contrato = 2;
+    problema.capacidades = ['alocacoes_fixas'];
+    problema.alocacoes_fixas = alocacoesFixas;
+
     problema.operacao_id = dto.operacaoId;
     this.exigirGeracaoAtiva(operacao);
     const solucao = await this.otimizador.resolver(problema, operacao.controller.signal);
+    validarSolucaoGeracao(solucao);
     this.exigirGeracaoAtiva(operacao);
 
     const porId = new Map(profissionais.map((p) => [p.id, p]));
@@ -1562,6 +1856,9 @@ export class EscalasService {
       { ano, mes, administradorId, geracao },
       solucao.alocacoes,
       porId,
+      usuario.id,
+      new Set(alocacoesFixas.map((item) => item.extra_id)),
+      fingerprintProgramacoes,
     );
     return this.obter(String(escalaId));
   }
@@ -1577,16 +1874,41 @@ export class EscalasService {
     existenteId: Types.ObjectId | undefined,
     revisaoExistente: number | undefined,
     base: { ano: number; mes: number; administradorId: Types.ObjectId; geracao: Record<string, unknown> },
-    alocacoes: { profissional_id: string; setor_id: string; dia: number; opcao: OpcaoPlantao; extra: boolean }[],
+    alocacoes: AlocacaoGerada[],
     porId: Map<string, ProfissionalEntrada>,
+    usuarioId: string,
+    extrasEsperados: Set<string>,
+    fingerprintProgramacoes: string,
   ): Promise<Types.ObjectId> {
     try {
+      const idsExtrasResposta = alocacoes.filter((item) => item.extra_id != null).map((item) => item.extra_id!);
+      if (idsExtrasResposta.some((id) => !extrasEsperados.has(id)) || new Set(idsExtrasResposta).size !== idsExtrasResposta.length ||
+        alocacoes.some((item) => item.extra_id != null && !item.extra)) {
+        throw new ConflictException('O otimizador devolveu vínculos de extras inconsistentes; nenhuma alteração foi persistida.');
+      }
       return await executarTransacao(this.connection, async (session) => {
         const escalaId = existenteId ?? new Types.ObjectId();
+        const inicioCompetencia = `${String(base.ano).padStart(4, '0')}-${String(base.mes).padStart(2, '0')}-01`;
+        const fimCompetencia = `${String(base.ano).padStart(4, '0')}-${String(base.mes).padStart(2, '0')}-${String(diasDoMes(base.ano, base.mes)).padStart(2, '0')}`;
+        const programacoesAtuais = await this.extras
+          .find({ situacao: ExtraProgramadoSituacao.PROGRAMADO, data: { $gte: inicioCompetencia, $lte: fimCompetencia } })
+          .session(session)
+          .lean()
+          .exec();
+        if (fingerprintExtras(programacoesAtuais) !== fingerprintProgramacoes) {
+          throw new ConflictException('As programações de extras foram alteradas durante a geração; a escala anterior foi preservada.');
+        }
+        const extrasAnteriores = existenteId
+          ? await this.extras.find({ escalaId: existenteId }, { _id: 1, revisao: 1 }).session(session).lean().exec()
+          : [];
         if (existenteId) {
           await this.removerConteudo(escalaId, session);
           const atualizada = await this.escalas.updateOne(
-            { _id: escalaId, status: { $in: [StatusEscala.RASCUNHO, StatusEscala.EM_REVISAO] }, revisao: revisaoExistente },
+            {
+              _id: escalaId,
+              status: { $in: [StatusEscala.RASCUNHO, StatusEscala.EM_REVISAO, StatusEscala.VALIDADA] },
+              revisao: revisaoExistente,
+            },
             {
               $set: {
                 administradorId: base.administradorId,
@@ -1600,13 +1922,13 @@ export class EscalasService {
             { session },
           );
           if (atualizada.matchedCount !== 1) {
-            throw new ConflictException('A escala deixou de ser um rascunho ou uma escala em revisão e não pode ser substituída.');
+            throw new ConflictException('A escala deixou de ser um rascunho, uma escala em revisão ou uma escala validada não publicada e não pode ser substituída.');
           }
         } else {
           await this.escalas.create([{ _id: escalaId, ...base, status: StatusEscala.RASCUNHO }], { session });
         }
 
-        const agrupados = new Map<string, { doc: Partial<Plantao> & { _id: Types.ObjectId }; profissionais: string[] }>();
+        const agrupados = new Map<string, { doc: Partial<Plantao> & { _id: Types.ObjectId }; opcao: string; profissionais: { id: string; extraId?: Types.ObjectId }[] }>();
         for (const a of alocacoes) {
           const chave = `${a.setor_id}|${a.dia}|${a.opcao}|${a.extra}`;
           let grupo = agrupados.get(chave);
@@ -1623,23 +1945,75 @@ export class EscalasService {
                 duracaoHoras: h.horas,
                 tipo: a.extra ? TipoPlantao.EXTRA : TipoPlantao.REGULAR,
               },
+              opcao: a.opcao,
               profissionais: [],
             };
             agrupados.set(chave, grupo);
           }
-          grupo.profissionais.push(a.profissional_id);
+          grupo.profissionais.push({
+            id: a.profissional_id,
+            extraId: a.extra_id ? new Types.ObjectId(a.extra_id) : undefined,
+          });
         }
         const docs = [...agrupados.values()];
         if (docs.length > 0) {
           await this.plantoes.insertMany(docs.map((g) => g.doc), { session });
           await this.relacionados.insertMany(
-            docs.flatMap((g) =>
-              g.profissionais.map((pid) => ({
+            docs.flatMap((g) => {
+              // O enfermeiro chefe existe apenas no plantão de 24h; a geração indica o primeiro enfermeiro da equipe.
+              const chefe = g.opcao === '24h' ? g.profissionais.find((item) => porId.get(item.id)!.formacao === Formacao.ENFERMEIRO) : undefined;
+              return g.profissionais.map((item) => ({
                 plantaoId: g.doc._id,
-                profissionalId: new Types.ObjectId(pid),
-                funcao: porId.get(pid)!.formacao,
-              })),
-            ),
+                profissionalId: new Types.ObjectId(item.id),
+                funcao: porId.get(item.id)!.formacao,
+                lideranca: item.id === chefe?.id,
+                origemCobertura: item.extraId ? OrigemCobertura.COMPLEMENTAR : OrigemCobertura.REGULAR,
+                extraProgramadoId: item.extraId ?? null,
+              }));
+            }),
+            { session },
+          );
+        }
+        const vinculacoes = new Map<string, { plantaoId: Types.ObjectId; plantaoProfissionalId: Types.ObjectId }>();
+        for (const g of docs) {
+          const vinculos = await this.relacionados.find({ plantaoId: g.doc._id }).session(session).lean().exec();
+          for (const vinculo of vinculos) {
+            if (vinculo.extraProgramadoId) {
+              vinculacoes.set(String(vinculo.extraProgramadoId), { plantaoId: g.doc._id, plantaoProfissionalId: vinculo._id });
+            }
+          }
+        }
+        const idsGerados = new Set(vinculacoes.keys());
+        for (const extraId of extrasEsperados) {
+          if (!idsGerados.has(extraId)) {
+            throw new ConflictException(`O otimizador não devolveu a alocação fixa do extra ${extraId}.`);
+          }
+        }
+        for (const extra of extrasAnteriores) {
+          if (!idsGerados.has(String(extra._id))) {
+            await this.extras.updateOne(
+              { _id: extra._id },
+              { $set: { escalaId: null, plantaoId: null, plantaoProfissionalId: null, atualizadoPor: new Types.ObjectId(usuarioId) }, $inc: { revisao: 1 } },
+              { session },
+            );
+          }
+        }
+        for (const [extraId, vinculo] of vinculacoes) {
+          const extra = await this.extras.findById(extraId).session(session).lean().exec();
+          if (!extra || extra.situacao !== ExtraProgramadoSituacao.PROGRAMADO) {
+            throw new ConflictException(`O extra programado ${extraId} não está disponível para reconciliação.`);
+          }
+          await this.extras.updateOne(
+            { _id: extra._id },
+            {
+              $set: {
+                escalaId,
+                plantaoId: vinculo.plantaoId,
+                plantaoProfissionalId: vinculo.plantaoProfissionalId,
+                atualizadoPor: new Types.ObjectId(usuarioId),
+              },
+              ...(String(extra.escalaId) === String(escalaId) && String(extra.plantaoProfissionalId) === String(vinculo.plantaoProfissionalId) ? {} : { $inc: { revisao: 1 } }),
+            },
             { session },
           );
         }

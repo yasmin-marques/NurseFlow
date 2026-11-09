@@ -1,3 +1,10 @@
+import { webcrypto } from "node:crypto";
+
+if (!globalThis.crypto) {
+  // @ts-expect-error Node 18 global crypto polyfill for VM modules
+  globalThis.crypto = webcrypto;
+}
+
 import { BadRequestException, ConflictException } from "@nestjs/common";
 import { MongoMemoryReplSet } from "mongodb-memory-server";
 import mongoose, { Types } from "mongoose";
@@ -23,7 +30,7 @@ describe("ExtrasService", () => {
     await mongoose.connect(replSet.getUri("nurseflow_test"));
     service = new ExtrasService(mongoose.connection);
     await service.inicializarIndices();
-  });
+  }, 60000);
 
   afterAll(async () => {
     await mongoose.disconnect();

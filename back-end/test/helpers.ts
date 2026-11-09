@@ -80,3 +80,35 @@ export async function iniciarBanco(
     parar: async () => void (await servidor.stop()),
   };
 }
+
+/** Fixture exclusivamente para testes: cria uma solicitação cujo aceite já foi feito pelo destinatário. */
+export async function criarSolicitacaoAceitaFixture(
+  db: mongoose.mongo.Db,
+  input: {
+    status?: 'aguardando_coordenacao' | 'aprovada' | 'recusada_pela_coordenacao';
+    ano: number;
+    mes: number;
+    solicitanteProfissionalId: mongoose.Types.ObjectId;
+    profissionalSolicitadoId: mongoose.Types.ObjectId;
+    vinculoSolicitanteId: mongoose.Types.ObjectId;
+    vinculoSolicitadoId: mongoose.Types.ObjectId;
+  },
+) {
+  const agora = new Date();
+  const registro = {
+    status: input.status ?? 'aguardando_coordenacao',
+    ano: input.ano,
+    mes: input.mes,
+    solicitanteProfissionalId: input.solicitanteProfissionalId,
+    profissionalSolicitadoId: input.profissionalSolicitadoId,
+    vinculoSolicitanteId: input.vinculoSolicitanteId,
+    vinculoSolicitadoId: input.vinculoSolicitadoId,
+    criadaEm: agora,
+    aceite: { profissionalId: input.profissionalSolicitadoId, aceitoEm: agora },
+    decisaoCoordenacao: null,
+    createdAt: agora,
+    updatedAt: agora,
+  };
+  const { insertedId } = await db.collection('solicitacoesTroca').insertOne(registro);
+  return { id: insertedId, ...registro };
+}

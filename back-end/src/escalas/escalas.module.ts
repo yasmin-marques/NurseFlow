@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { ConfiguracoesModule } from '../configuracoes/configuracoes.module';
 import { Restricao, RestricaoSchema } from '../restricoes/restricao.schema';
+import { ExtraProgramado, ExtraProgramadoSchema } from '../extras/extras.schema';
 import { Setor, SetorSchema } from '../setores/schemas/setor.schema';
 import { UsuariosModule } from '../usuarios/usuarios.module';
 import { EscalasController } from './escalas.controller';
@@ -37,6 +38,7 @@ import {
       { name: VersaoEscala.name, schema: VersaoEscalaSchema },
       { name: Setor.name, schema: SetorSchema },
       { name: Restricao.name, schema: RestricaoSchema },
+      { name: ExtraProgramado.name, schema: ExtraProgramadoSchema },
     ]),
   ],
   controllers: [EscalasController, NotificacoesEscalaController],

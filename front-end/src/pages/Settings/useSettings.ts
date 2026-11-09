@@ -4,7 +4,7 @@ import {
   SETTINGS_STORAGE_KEY,
   type AppSettings,
 } from './types'
-import { currentPeriod, fetchSettings, saveSettings, type SettingsPeriod } from '../../services/settings'
+import { currentPeriod, fetchSettings, saveSettings } from '../../services/settings'
 
 function clampNonNegativeInteger(value: number): number {
   if (!Number.isFinite(value)) return 0
@@ -57,17 +57,16 @@ function readStoredSettings(): AppSettings {
 export function useSettings() {
   const [saved, setSaved] = useState<AppSettings>(readStoredSettings)
   const [draft, setDraft] = useState<AppSettings>(saved)
-  const [period, setPeriod] = useState<SettingsPeriod>(currentPeriod)
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
 
-  // Limites e cargas mensais vêm do MongoDB; os demais ajustes ficam neste navegador.
+  // Limites e cargas vêm (valem para todos os meses) do MongoDB; os demais ajustes ficam neste navegador.
   useEffect(() => {
     let active = true
-    fetchSettings(period)
+    fetchSettings(currentPeriod())
       .then((remote) => {
         if (!active) return
         const next = normalizeSettings({ ...readStoredSettings(), ...remote })
@@ -86,18 +85,12 @@ export function useSettings() {
     return () => {
       active = false
     }
-  }, [period, reloadKey])
+  }, [reloadKey])
 
   const reload = useCallback(() => {
     setIsLoading(true)
     setLoadError(null)
     setReloadKey((key) => key + 1)
-  }, [])
-
-  const changePeriod = useCallback((next: SettingsPeriod) => {
-    setIsLoading(true)
-    setLoadError(null)
-    setPeriod(next)
   }, [])
 
   useEffect(() => {
@@ -123,7 +116,7 @@ export function useSettings() {
     const next = normalizeSettings(draft)
     setIsSaving(true)
     try {
-      const remote = await saveSettings(next, period)
+      const remote = await saveSettings(next, currentPeriod())
       const confirmed = normalizeSettings({ ...next, ...remote })
       try {
         localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(confirmed))
@@ -138,7 +131,7 @@ export function useSettings() {
     } finally {
       setIsSaving(false)
     }
-  }, [draft, period])
+  }, [draft])
 
   return {
     draft,
@@ -147,8 +140,6 @@ export function useSettings() {
     loadError,
     isSaving,
     toast,
-    period,
-    setPeriod: changePeriod,
     update,
     discard,
     save,

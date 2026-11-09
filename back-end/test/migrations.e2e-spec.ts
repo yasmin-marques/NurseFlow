@@ -66,7 +66,9 @@ describe("Migrations", () => {
   });
 
   it("há migrations nomeadas com timestamp", () => {
-    expect(listarMigrations()).toHaveLength(9);
+    expect(listarMigrations()).toHaveLength(10);
+    expect(listarMigrations()).toContain("20261101000009-restricoes-campos-estruturados.js");
+    expect(listarMigrations()).toContain("20261101000010-trocas.js");
   });
 
   it('up: converte setores para quantitativo por turno e "desligado" para "desativado"', async () => {
@@ -113,6 +115,39 @@ describe("Migrations", () => {
         },
       }),
     ).rejects.toThrow(/duplicate key/i);
+  });
+
+  it('up: cria as coleções, o contrato persistente e os índices de consulta/auditoria de trocas', async () => {
+    await aplicarMigrations(banco.uri);
+    const solicitacaoId = new mongoose.Types.ObjectId();
+    const profissionalA = new mongoose.Types.ObjectId();
+    const profissionalB = new mongoose.Types.ObjectId();
+    const vinculoA = new mongoose.Types.ObjectId();
+    const vinculoB = new mongoose.Types.ObjectId();
+    await db.collection('solicitacoesTroca').insertOne({
+      status: 'aguardando_coordenacao', ano: 2026, mes: 11, solicitanteProfissionalId: profissionalA,
+      profissionalSolicitadoId: profissionalB, vinculoSolicitanteId: vinculoA, vinculoSolicitadoId: vinculoB,
+      criadaEm: new Date(), aceite: { profissionalId: profissionalB, aceitoEm: new Date() }, decisaoCoordenacao: null,
+      chaveIdempotencia: null, createdAt: new Date(), updatedAt: new Date(),
+    });
+    await expect(db.collection('solicitacoesTroca').insertOne({ status: 'aprovada', ano: 2026, mes: 13,
+      solicitanteProfissionalId: profissionalA, profissionalSolicitadoId: profissionalB, vinculoSolicitanteId: vinculoA,
+      vinculoSolicitadoId: vinculoB, criadaEm: new Date() })).rejects.toThrow(/validation/i);
+    const indexes = await db.collection('solicitacoesTroca').indexes();
+    expect(indexes.map((item) => item.name)).toContain('status_1_ano_1_mes_1_criadaEm_-1');
+    expect((await db.listCollections({ name: 'auditoriaTrocas' }).toArray())).toHaveLength(1);
+    expect((await db.listCollections({ name: 'notificacoesTroca' }).toArray())).toHaveLength(1);
+    expect(solicitacaoId).toBeInstanceOf(mongoose.Types.ObjectId);
+  });
+
+  it('down da migration de trocas preserva solicitações e auditorias já registradas', async () => {
+    const solicId = new mongoose.Types.ObjectId();
+    await db.collection('solicitacoesTroca').insertOne({ _id: solicId, status: 'aguardando_coordenacao', ano: 2026, mes: 11,
+      solicitanteProfissionalId: new mongoose.Types.ObjectId(), profissionalSolicitadoId: new mongoose.Types.ObjectId(),
+      vinculoSolicitanteId: new mongoose.Types.ObjectId(), vinculoSolicitadoId: new mongoose.Types.ObjectId(), criadaEm: new Date() });
+    await aplicarMigrations(banco.uri, 'down');
+    expect(await db.collection('solicitacoesTroca').countDocuments({ _id: solicId })).toBe(1);
+    expect((await db.listCollections({ name: 'auditoriaTrocas' }).toArray())).toHaveLength(1);
   });
 
   async function criarBancoParaMigracao00009() {

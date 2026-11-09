@@ -9,6 +9,8 @@ client = TestClient(app)
 def corpo(**extra):
     base = {
         "ano": 2026,
+        "versao_contrato": 2,
+        "capacidades": ["alocacoes_fixas"],
         "mes": 9,
         "dias_mes": 30,
         "profissionais": [{"id": "e1", "formacao": "enfermeiro", "carga_24h": 2, "carga_12h": 0}],
@@ -39,6 +41,8 @@ def test_otimizar_retorna_alocacoes_e_descobertos():
     assert len(dados["alocacoes"]) == 2
     assert dados["descobertos"], "um enfermeiro com carga 2 não cobre o mês"
     assert dados["estatisticas"]["status"] in ("OPTIMAL", "FEASIBLE")
+    assert dados["versao_contrato"] == 2
+    assert "alocacoes_fixas" in dados["capacidades"]
 
 
 def test_rejeita_dia_bloqueado_fora_do_mes():
@@ -51,6 +55,29 @@ def test_rejeita_ids_duplicados():
     p = corpo()
     p["profissionais"].append(dict(p["profissionais"][0]))
     assert client.post("/otimizar", json=p).status_code == 422
+
+
+def test_rejeita_contrato_incompatível():
+    p = corpo(versao_contrato=1)
+    assert client.post("/otimizar", json=p).status_code == 422
+
+
+def test_rejeita_capacidade_ausente():
+    p = corpo(capacidades=[])
+    assert client.post("/otimizar", json=p).status_code == 422
+
+
+def test_preserva_identidade_do_extra_no_contrato_de_entrada():
+    p = corpo(alocacoes_fixas=[{
+        "extra_id": "extra-123",
+        "profissional_id": "e1",
+        "setor_id": "s1",
+        "dia": 3,
+        "opcao": "12d",
+        "tipo": "extra",
+    }])
+    problema = __import__("app.schemas", fromlist=["Problema"]).Problema.model_validate(p)
+    assert problema.alocacoes_fixas[0].extra_id == "extra-123"
 
 
 def test_cancelamento_antes_do_solver_impede_a_otimizacao():

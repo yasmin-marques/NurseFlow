@@ -13,8 +13,7 @@ type SettingsPageProps = {
 }
 
 export function SettingsPage({ searchQuery = '' }: SettingsPageProps) {
-  const { draft, isDirty, isLoading, loadError, isSaving, toast, period, setPeriod, update, discard, save, reload } = useSettings()
-  const periodValue = `${String(period.year).padStart(4, '0')}-${String(period.month).padStart(2, '0')}`
+  const { draft, isDirty, isLoading, loadError, isSaving, toast, update, discard, save, reload } = useSettings()
   const query = searchQuery.trim().toLocaleLowerCase('pt-BR')
   const matches = (...values: string[]) =>
     !query || values.some((value) => value.toLocaleLowerCase('pt-BR').includes(query))
@@ -26,7 +25,7 @@ export function SettingsPage({ searchQuery = '' }: SettingsPageProps) {
   const showSwapSettings = showSwapLimit || showCoordinatorApproval
 
   const showWorkloadSection = matches(
-    'Carga e limites de plantões Parâmetros mensais por tipo de vínculo',
+    'Carga e limites de plantões Parâmetros por tipo de vínculo',
   )
   const showConcursado = showWorkloadSection ||
     matches('Concursado Carga fixa 6 plantões de 24h + 1 de 12h 7 alocações 156 horas regulares')
@@ -56,26 +55,9 @@ export function SettingsPage({ searchQuery = '' }: SettingsPageProps) {
         </p>
       </header>
 
-      <section className="mb-5 flex flex-wrap items-end justify-between gap-4 rounded-2xl border border-border bg-white p-5 shadow-(--shadow-soft)">
-        <div>
-          <label htmlFor="settings-period" className="text-sm font-bold text-text">Período das regras mensais</label>
-          <p className="mt-1 text-xs text-text-muted">Selecione qualquer mês entre 0001 e 9999 para consultar e configurar seus limites.</p>
-        </div>
-        <input
-          id="settings-period"
-          type="month"
-          min="0001-01"
-          max="9999-12"
-          value={periodValue}
-          disabled={isDirty || isSaving || isLoading}
-          onChange={(event) => {
-            const match = /^(\d{4})-(\d{2})$/.exec(event.target.value)
-            if (match) setPeriod({ year: Number(match[1]), month: Number(match[2]) })
-          }}
-          className="rounded-xl border border-border bg-white px-3 py-2.5 text-sm font-semibold text-text disabled:cursor-not-allowed disabled:opacity-60"
-        />
-        {isDirty ? <p className="w-full text-xs text-text-muted">Salve ou descarte as alterações antes de trocar o período.</p> : null}
-      </section>
+      <p className="mb-5 rounded-2xl border border-border bg-white p-4 text-xs text-text-muted shadow-(--shadow-soft)">
+        As regras abaixo valem para todos os meses; não é necessário alterá-las a cada mês.
+      </p>
 
       {isLoading ? <p role="status" className="mb-4 text-sm text-text-muted">Carregando configurações...</p> : null}
       {loadError ? (
@@ -120,7 +102,7 @@ export function SettingsPage({ searchQuery = '' }: SettingsPageProps) {
         {showWorkloadSettings ? <SettingsCard
           icon={Clock}
           title="Carga e limites de plantões"
-          subtitle="Parâmetros mensais por tipo de vínculo"
+          subtitle="Parâmetros por tipo de vínculo"
         >
           <div className="grid grid-cols-1 gap-5 bg-[#f7f8f6] p-6 md:grid-cols-2 xl:grid-cols-3">
             {showConcursado ? <EmploymentTypeCard
@@ -147,7 +129,7 @@ export function SettingsPage({ searchQuery = '' }: SettingsPageProps) {
                 <div className="flex items-end justify-between gap-4 border-t border-border pt-4">
                   <div>
                     <p className="text-[13px] font-semibold text-text">Máximo de extras</p>
-                    <p className="text-[12px] text-text-muted">Por profissional no mês</p>
+                    <p className="text-[12px] text-text-muted">Por profissional a cada mês</p>
                   </div>
                   <NumberStepper
                     label="Máximo de extras para concursado"
@@ -182,7 +164,7 @@ export function SettingsPage({ searchQuery = '' }: SettingsPageProps) {
                 <div className="flex items-end justify-between gap-4 border-t border-border pt-4">
                   <div>
                     <p className="text-[13px] font-semibold text-text">Máximo de extras</p>
-                    <p className="text-[12px] text-text-muted">Por profissional no mês</p>
+                    <p className="text-[12px] text-text-muted">Por profissional a cada mês</p>
                   </div>
                   <NumberStepper
                     label="Máximo de extras para CLT"

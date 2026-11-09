@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { jest } from "@jest/globals";
 import { cpfValido } from "../src/common/utils/cpf";
 import { aplicarMigrations, type BancoDeTeste, iniciarBanco } from "./helpers";
 import { createRequire } from "node:module";
@@ -120,6 +121,27 @@ describe("seed de demonstração (e2e)", () => {
             ?.status !== "desativado",
       ),
     ).toBe(true);
+  });
+
+  it("cria configurações mensais padrão para outubro e novembro de 2026", async () => {
+    const configs = await db
+      .collection("configuracoes")
+      .find({ chave: { $in: ["2026-10", "2026-11"] } })
+      .toArray();
+    expect(configs).toHaveLength(2);
+    for (const config of configs) {
+      expect(config).toMatchObject({
+        limiteTrocas: 3,
+        maxExtras: 2,
+        limitePlantoes: 12,
+        maxExtrasConcursado: 1,
+        maxExtrasClt: 1,
+        cargas: {
+          concursado_31: { plantoes24h: 6, plantoes12h: 1 },
+          clt_31: { plantoes24h: 5, plantoes12h: 2 },
+        },
+      });
+    }
   });
 
   it("é idempotente: executar de novo não duplica nem altera registros", async () => {

@@ -5,6 +5,10 @@ import type { AppConfig } from '../../config/configuration';
 /** Contrato com o serviço Python (optimizer/app/schemas.py). */
 export type OpcaoPlantao = '24h' | '12d' | '12n';
 
+/** Versão do contrato que precisa ser implantada junto com o optimizer. */
+export const VERSAO_CONTRATO_OTIMIZADOR = 2;
+export const CAPACIDADE_ALOCACOES_FIXAS = 'alocacoes_fixas' as const;
+
 export interface TurnoBloqueadoOtimizacao {
   dia: number;
   turno: 'diurno' | 'noturno';
@@ -33,6 +37,8 @@ export interface SetorOtimizacao {
 }
 
 export interface ProblemaOtimizacao {
+  versao_contrato: typeof VERSAO_CONTRATO_OTIMIZADOR;
+  capacidades: readonly [typeof CAPACIDADE_ALOCACOES_FIXAS];
   operacao_id?: string;
   ano: number;
   mes: number;
@@ -41,6 +47,16 @@ export interface ProblemaOtimizacao {
   setores: SetorOtimizacao[];
   turnos_selecionados?: ('diurno' | 'noturno')[];
   parametros: { tempo_limite_segundos: number };
+  alocacoes_fixas: AlocacaoFixaOtimizacao[];
+}
+
+export interface AlocacaoFixaOtimizacao {
+  extra_id: string;
+  profissional_id: string;
+  setor_id: string;
+  dia: number;
+  opcao: OpcaoPlantao;
+  tipo: 'extra';
 }
 
 export interface AlocacaoOtimizada {
@@ -49,6 +65,7 @@ export interface AlocacaoOtimizada {
   dia: number;
   opcao: OpcaoPlantao;
   extra: boolean;
+  extra_id?: string | null;
 }
 
 export interface DescobertoOtimizado {
@@ -62,6 +79,8 @@ export interface DescobertoOtimizado {
 }
 
 export interface SolucaoOtimizacao {
+  versao_contrato: typeof VERSAO_CONTRATO_OTIMIZADOR;
+  capacidades: readonly [typeof CAPACIDADE_ALOCACOES_FIXAS];
   alocacoes: AlocacaoOtimizada[];
   descobertos: DescobertoOtimizado[];
   estatisticas: {
@@ -87,6 +106,22 @@ export interface SolucaoOtimizacao {
 export abstract class OtimizadorEscala {
   abstract resolver(problema: ProblemaOtimizacao, signal?: AbortSignal): Promise<SolucaoOtimizacao>;
   abstract cancelar(operacaoId: string): Promise<void>;
+}
+
+function validarContratoDaSolucao(solucao: unknown): asserts solucao is SolucaoOtimizacao {
+  if (!solucao || typeof solucao !== 'object') {
+    throw new BadGatewayException('O otimizador devolveu uma resposta inválida.');
+  }
+  const resposta = solucao as Partial<SolucaoOtimizacao>;
+  if (resposta.versao_contrato !== VERSAO_CONTRATO_OTIMIZADOR) {
+    throw new BadGatewayException('O otimizador usa uma versão de contrato incompatível.');
+  }
+  if (!Array.isArray(resposta.capacidades) || !resposta.capacidades.includes(CAPACIDADE_ALOCACOES_FIXAS)) {
+    throw new BadGatewayException('O otimizador não suporta alocações fixas de extras programados.');
+  }
+  if (!Array.isArray(resposta.alocacoes) || !Array.isArray(resposta.descobertos) || !resposta.estatisticas) {
+    throw new BadGatewayException('O otimizador devolveu uma solução incompleta.');
+  }
 }
 
 @Injectable()
@@ -119,7 +154,9 @@ export class OtimizadorHttp extends OtimizadorEscala {
       this.logger.error(`Otimizador respondeu ${resposta.status}: ${detalhe.slice(0, 500)}`);
       throw new BadGatewayException(`O serviço de otimização falhou (HTTP ${resposta.status}).`);
     }
-    return (await resposta.json()) as SolucaoOtimizacao;
+    const solucao: unknown = await resposta.json();
+    validarContratoDaSolucao(solucao);
+    return solucao;
   }
 
   async cancelar(operacaoId: string): Promise<void> {

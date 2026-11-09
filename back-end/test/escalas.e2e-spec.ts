@@ -16,13 +16,20 @@ class OtimizadorFalso extends OtimizadorEscala {
   problemas: ProblemaOtimizacao[] = [];
   falhar = false;
   duplicarVinculo = false;
+  respeitarFixas = false;
+  respostaIncompativel = false;
   bloquear = false;
+  private liberar?: () => void;
   cancelamentos: string[] = [];
   private sinalInicio?: () => void;
 
-  aguardarInicio() {
-    return new Promise<void>((resolve) => {
-      this.sinalInicio = resolve;
+  aguardarInicio(timeoutMs = 10000) {
+    return new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('O otimizador simulado não iniciou dentro do limite esperado.')), timeoutMs);
+      this.sinalInicio = () => {
+        clearTimeout(timer);
+        resolve();
+      };
     });
   }
 
@@ -31,11 +38,16 @@ class OtimizadorFalso extends OtimizadorEscala {
     this.sinalInicio?.();
     this.sinalInicio = undefined;
     if (this.bloquear) {
-      await new Promise<never>((_resolve, reject) => {
+      await new Promise<void>((resolve, reject) => {
+        this.liberar = resolve;
         const cancelar = () => reject(new Error('Geração interrompida pelo teste.'));
         if (signal?.aborted) cancelar();
         else signal?.addEventListener('abort', cancelar, { once: true });
       });
+      this.liberar = undefined;
+    }
+    if (this.respostaIncompativel) {
+      return { versao_contrato: 1, capacidades: [], alocacoes: [], descobertos: [], estatisticas: {} } as unknown as SolucaoOtimizacao;
     }
     const enf = problema.profissionais.find((p) => p.formacao === 'enfermeiro')!;
     const alocacoes = problema.setores.map((s) => ({
@@ -47,7 +59,21 @@ class OtimizadorFalso extends OtimizadorEscala {
     }));
     if (this.duplicarVinculo) alocacoes.push({ ...alocacoes[0] });
     alocacoes.push({ ...alocacoes[0], dia: 21, extra: true });
+    if (this.respeitarFixas) {
+      for (const fixa of problema.alocacoes_fixas) {
+        alocacoes.push({
+          profissional_id: fixa.profissional_id,
+          setor_id: fixa.setor_id,
+          dia: fixa.dia,
+          opcao: fixa.opcao,
+          extra: true,
+          extra_id: fixa.extra_id,
+        });
+      }
+    }
     return Promise.resolve({
+      versao_contrato: 2,
+      capacidades: ['alocacoes_fixas'],
       alocacoes,
       descobertos: [{ setor_id: problema.setores[0].id, dia: 2, turno: 'noturno', funcao: 'tecnicos', necessario: 1, alocado: 0, faltam: 1 }],
       estatisticas: {
@@ -68,6 +94,10 @@ class OtimizadorFalso extends OtimizadorEscala {
         })),
       },
     });
+  }
+
+  liberarSolver() {
+    this.liberar?.();
   }
 
   async cancelar(operacaoId: string) {
@@ -233,13 +263,14 @@ describe('Geração automática de escalas (e2e)', () => {
 
   describe('geração como rascunho', () => {
     let setorA: string;
+    let setorB: string;
     let escalaId: string;
     let plantaoManualId: string;
 
     beforeAll(async () => {
       const turnos = { diurno: { enfermeiros: 1, tecnicos: 1 }, noturno: { enfermeiros: 1, tecnicos: 1 } };
       setorA = (await http.post('/setores').set(auth(tokenCoord)).send({ nome: 'UTI', turnos }).expect(201)).body.id;
-      await http.post('/setores').set(auth(tokenCoord)).send({ nome: 'Emergência', turnos }).expect(201);
+      setorB = (await http.post('/setores').set(auth(tokenCoord)).send({ nome: 'Emergência', turnos }).expect(201)).body.id;
       await http.patch('/configuracoes/limites?ano=2026&mes=10').set(auth(tokenCoord)).send({
         maxExtras: 2,
         maxExtrasConcursado: 2,
@@ -275,7 +306,7 @@ describe('Geração automática de escalas (e2e)', () => {
         id: idEnf,
         nome: 'Ana Souza',
         formacao: 'enfermeiro',
-        lideranca: false,
+        lideranca: true,
         origemCobertura: 'regular',
       });
       expect(res.body.pendencias).toEqual([
@@ -307,6 +338,43 @@ describe('Geração automática de escalas (e2e)', () => {
       expect(await colecao('escalas').countDocuments({ ano: 2026, mes: 8 })).toBe(0);
     });
 
+    it('reserva extra ativo fora do escopo sem materializá-lo como alocação fixa', async () => {
+      await configurarCargas(2028, 2, 4, 29).expect(200);
+      const extra = await http.post('/extras').set(auth(tokenCoord)).send({
+        data: '2028-02-01', opcao: '12d', setorId: setorB, funcao: 'enfermeiro', substitutoId: idEnf, motivo: 'reforco',
+      }).expect(201);
+
+      await gerar({ ano: 2028, mes: 2, setorIds: [setorA], turnos: ['diurno'] }).expect(201);
+      const problema = otimizador.problemas.at(-1)!;
+      expect(problema.alocacoes_fixas).toEqual([]);
+      expect(problema.profissionais.find((p) => p.id === idEnf)?.turnos_bloqueados).toContainEqual({ dia: 1, turno: 'diurno' });
+      expect(extra.body._id).toBeDefined();
+    });
+
+    it('reconcilia o mesmo extra em duas gerações sem duplicar vínculo nem trocar seu ID', async () => {
+      otimizador.respeitarFixas = true;
+      try {
+        await configurarCargas(2028, 3, 4, 31).expect(200);
+        const extra = await http.post('/extras').set(auth(tokenCoord)).send({
+          data: '2028-03-30', opcao: '12d', setorId: setorA, funcao: 'enfermeiro', substitutoId: idEnf, motivo: 'reforco',
+        }).expect(201);
+        const extraId = extra.body._id as string;
+
+        const primeira = await gerar({ ano: 2028, mes: 3 }).expect(201);
+        const primeiraExtra = await colecao('extrasProgramados').findOne({ _id: new mongoose.Types.ObjectId(extraId) });
+        expect(primeiraExtra?.escalaId?.toString()).toBe(primeira.body.escala.id);
+        expect(await colecao('profissionaisRelacionados').countDocuments({ extraProgramadoId: new mongoose.Types.ObjectId(extraId) })).toBe(1);
+
+        await gerar({ ano: 2028, mes: 3, substituirRascunho: true }).expect(201);
+        const segundaExtra = await colecao('extrasProgramados').findOne({ _id: new mongoose.Types.ObjectId(extraId) });
+        expect(segundaExtra?._id.toString()).toBe(extraId);
+        expect(await colecao('profissionaisRelacionados').countDocuments({ extraProgramadoId: new mongoose.Types.ObjectId(extraId) })).toBe(1);
+        expect(await colecao('extrasProgramados').countDocuments({ _id: new mongoose.Types.ObjectId(extraId) })).toBe(1);
+      } finally {
+        otimizador.respeitarFixas = false;
+      }
+    });
+
     it('gera escalas em anos além de 2100 e aplica datas do calendário corretamente', async () => {
       await configurarCargas(9999, 12, 8).expect(200);
       const gerada = await gerar({ ano: 9999, mes: 12, setorIds: [setorA], turnos: ['diurno'] }).expect(201);
@@ -318,20 +386,29 @@ describe('Geração automática de escalas (e2e)', () => {
 
     it('inclui e edita plantões manuais, revalidando cobertura e registrando revisão', async () => {
       const antes = await http.get(`/escalas/${escalaId}`).set(auth(tokenCoord)).expect(200);
+      const inclusao = {
+        revisaoEsperada: antes.body.escala.revisao,
+        setorId: setorA,
+        data: '2026-10-14',
+        opcao: '24h',
+        tipo: 'extra',
+        equipe: [
+          { profissionalId: idEnf, funcao: 'enfermeiro', lideranca: true, origemCobertura: 'restricao' },
+          { profissionalId: idTec, funcao: 'tecnico' },
+        ],
+      };
+      const bloqueada = await http
+        .post(`/escalas/${escalaId}/plantoes`)
+        .set(auth(tokenCoord))
+        .send(inclusao)
+        .expect(422);
+      expect(bloqueada.body.message).toMatch(/reconheça as pendências de cobertura/i);
+      expect(await colecao('plantoes').countDocuments({ escalaId: new mongoose.Types.ObjectId(escalaId) })).toBe(3);
+
       const criado = await http
         .post(`/escalas/${escalaId}/plantoes`)
         .set(auth(tokenCoord))
-        .send({
-          revisaoEsperada: antes.body.escala.revisao,
-          setorId: setorA,
-          data: '2026-10-14',
-          opcao: '12d',
-          tipo: 'extra',
-          equipe: [
-            { profissionalId: idEnf, funcao: 'enfermeiro', lideranca: true, origemCobertura: 'restricao' },
-            { profissionalId: idTec, funcao: 'tecnico' },
-          ],
-        })
+        .send({ ...inclusao, coberturaReconhecida: true })
         .expect(201);
       plantaoManualId = criado.body.plantoes.find((p: { data: string; setor: { id: string } }) => p.data === '2026-10-14' && p.setor.id === setorA).id;
       expect(criado.body.plantoes.find((p: { id: string }) => p.id === plantaoManualId).profissionais).toEqual(
@@ -350,10 +427,11 @@ describe('Geração automática de escalas (e2e)', () => {
         .set(auth(tokenCoord))
         .send({
           revisaoEsperada: criado.body.escala.revisao,
-          setorId: setorA,
+          setorId: setorB,
           data: '2026-10-15',
-          opcao: '12d',
+          opcao: '24h',
           tipo: 'extra',
+          coberturaReconhecida: true,
           equipe: [
             { profissionalId: idEnf, funcao: 'enfermeiro', lideranca: true, origemCobertura: 'restricao' },
             { profissionalId: idTec, funcao: 'tecnico' },
@@ -362,7 +440,26 @@ describe('Geração automática de escalas (e2e)', () => {
         .expect(200);
       expect(editado.body.escala.revisao).toBe(criado.body.escala.revisao + 1);
       expect(editado.body.plantoes.find((p: { id: string }) => p.id === plantaoManualId).data).toBe('2026-10-15');
+      expect(editado.body.plantoes.find((p: { id: string }) => p.id === plantaoManualId)).toMatchObject({
+        setor: { id: setorB },
+        horarioInicio: '07:00',
+        duracaoHoras: 24,
+      });
+      expect(editado.body.pendencias).toContainEqual(
+        expect.objectContaining({ setorId: setorA, data: '2026-10-14', turno: 'diurno', funcao: 'enfermeiros' }),
+      );
+      expect(editado.body.pendencias).not.toContainEqual(
+        expect.objectContaining({ setorId: setorB, data: '2026-10-15', turno: 'noturno', funcao: 'enfermeiros' }),
+      );
+      expect(editado.body.pendencias).not.toContainEqual(
+        expect.objectContaining({ setorId: setorB, data: '2026-10-15', turno: 'noturno', funcao: 'tecnicos' }),
+      );
       expect(await colecao('auditoriaEscalas').countDocuments({ escalaId: new mongoose.Types.ObjectId(escalaId) })).toBe(2);
+      const auditoria = await colecao('auditoriaEscalas').findOne({
+        escalaId: new mongoose.Types.ObjectId(escalaId),
+        acao: 'plantao_adicionado',
+      });
+      expect(auditoria?.detalhes).toMatchObject({ plantaoId: plantaoManualId, coberturaReconhecida: true });
     });
 
     it('rejeita função, indisponibilidade e descanso inválidos sem alterações parciais', async () => {
@@ -386,6 +483,13 @@ describe('Geração automática de escalas (e2e)', () => {
         .send({ ...corpo, equipe: [{ profissionalId: idTec, funcao: 'tecnico', lideranca: true }] })
         .expect(422);
       expect(liderTecnico.body.message).toMatch(/enfermeiro chefe/i);
+
+      const lider12h = await http
+        .post(`/escalas/${escalaId}/plantoes`)
+        .set(auth(tokenCoord))
+        .send({ ...corpo, equipe: [{ profissionalId: idEnf, funcao: 'enfermeiro', lideranca: true }] })
+        .expect(422);
+      expect(lider12h.body.message).toMatch(/plantão de 24h/i);
 
       const indisponibilidade = await http
         .post(`/escalas/${escalaId}/plantoes`)
@@ -434,6 +538,7 @@ describe('Geração automática de escalas (e2e)', () => {
         { profissionalId: idEnf, funcao: 'enfermeiro', lideranca: true },
         { profissionalId: idTec, funcao: 'tecnico' },
       ];
+      const equipeSemChefe = equipe.map(({ lideranca: _lideranca, ...membro }) => membro);
       const plantaoExistente = await http
         .post(`/escalas/${escalaIdLote}/plantoes`)
         .set(auth(tokenCoord))
@@ -443,7 +548,8 @@ describe('Geração automática de escalas (e2e)', () => {
           data: '2030-01-02',
           opcao: '12d',
           tipo: 'extra',
-          equipe,
+          coberturaReconhecida: true,
+          equipe: equipeSemChefe,
         })
         .expect(201);
       const plantaoExistenteId = plantaoExistente.body.plantoes[0].id as string;
@@ -451,20 +557,44 @@ describe('Geração automática de escalas (e2e)', () => {
       const lote = {
         revisaoEsperada: plantaoExistente.body.escala.revisao,
         alteracoes: [
-          { plantaoId: plantaoExistenteId, setorId: setorA, data: '2030-01-04', opcao: '12d', tipo: 'extra', equipe },
-          { setorId: setorA, data: '2030-01-08', opcao: '12n', tipo: 'extra', equipe },
+          { plantaoId: plantaoExistenteId, setorId: setorA, data: '2030-01-04', opcao: '24h', tipo: 'extra', equipe },
+          { setorId: setorA, data: '2030-01-08', opcao: '12n', tipo: 'extra', equipe: equipeSemChefe },
         ],
       };
       const validarUrl = `/escalas/${escalaIdLote}/plantoes/validar-lote`;
       const salvarUrl = `/escalas/${escalaIdLote}/plantoes/lote`;
 
       const validacao = await http.post(validarUrl).set(auth(tokenCoord)).send(lote).expect(200);
-      expect(validacao.body).toEqual({ revisao: plantaoExistente.body.escala.revisao, valida: true, erros: [] });
+      expect(validacao.body).toMatchObject({ revisao: plantaoExistente.body.escala.revisao, valida: true, erros: [] });
+      expect(validacao.body.requerConfirmacaoCobertura).toBe(true);
+      expect(validacao.body.cobertura).toEqual({ posicoesExigidas: 248, posicoesPreenchidas: 6, percentual: 2 });
+      expect(validacao.body.pendencias).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          setorId: setorA,
+          data: '2030-01-02',
+          turno: 'noturno',
+          funcao: 'enfermeiros',
+          necessario: 1,
+          alocado: 0,
+          faltam: 1,
+        }),
+      ]));
+      expect(validacao.body.pendencias).not.toEqual(expect.arrayContaining([
+        expect.objectContaining({ setorId: setorA, data: '2030-01-04' }),
+      ]));
+      const loteReconhecido = {
+        ...lote,
+        alteracoes: lote.alteracoes.map((alteracao) => ({ ...alteracao, coberturaReconhecida: true })),
+      };
+      await http.post(salvarUrl).set(auth(tokenCoord)).send(lote).expect(422);
       expect(await colecao('plantoes').countDocuments({ escalaId: new mongoose.Types.ObjectId(escalaIdLote) })).toBe(1);
+      expect((await http.get(`/escalas/${escalaIdLote}`).set(auth(tokenCoord)).expect(200)).body.escala.revisao).toBe(
+        plantaoExistente.body.escala.revisao,
+      );
 
       const loteInvalido = {
-        ...lote,
-        alteracoes: [lote.alteracoes[0], { ...lote.alteracoes[1], equipe: [{ profissionalId: idEnf, funcao: 'tecnico' }] }],
+        ...loteReconhecido,
+        alteracoes: [loteReconhecido.alteracoes[0], { ...loteReconhecido.alteracoes[1], equipe: [{ profissionalId: idEnf, funcao: 'tecnico' }] }],
       };
       const validacaoInvalida = await http.post(validarUrl).set(auth(tokenCoord)).send(loteInvalido).expect(200);
       expect(validacaoInvalida.body.valida).toBe(false);
@@ -478,17 +608,32 @@ describe('Geração automática de escalas (e2e)', () => {
         plantaoExistente.body.escala.revisao,
       );
 
-      const salva = await http.post(salvarUrl).set(auth(tokenCoord)).send(lote).expect(200);
+      const salva = await http.post(salvarUrl).set(auth(tokenCoord)).send(loteReconhecido).expect(200);
       expect(salva.body.escala.revisao).toBe(plantaoExistente.body.escala.revisao + 1);
       expect(salva.body.plantoes).toHaveLength(2);
+      const chefeSalvo = salva.body.plantoes.find((plantao: { id: string }) => plantao.id === plantaoExistenteId).profissionais;
+      expect(chefeSalvo).toEqual(expect.arrayContaining([expect.objectContaining({ id: idEnf, lideranca: true })]));
+      const relido = await http.get(`/escalas/${escalaIdLote}`).set(auth(tokenCoord)).expect(200);
+      expect(relido.body.plantoes.find((plantao: { id: string }) => plantao.id === plantaoExistenteId).profissionais)
+        .toEqual(expect.arrayContaining([expect.objectContaining({ id: idEnf, lideranca: true })]));
       expect(salva.body.plantoes.find((plantao: { id: string }) => plantao.id === plantaoExistenteId).data).toBe('2030-01-04');
       expect(await colecao('plantoes').countDocuments({ escalaId: new mongoose.Types.ObjectId(escalaIdLote) })).toBe(2);
       expect(await colecao('profissionaisRelacionados').countDocuments({
         plantaoId: { $in: salva.body.plantoes.map((plantao: { id: string }) => new mongoose.Types.ObjectId(plantao.id)) },
       })).toBe(4);
       expect(await colecao('auditoriaEscalas').countDocuments({ escalaId: new mongoose.Types.ObjectId(escalaIdLote) })).toBe(2);
+      const auditoriaLote = await colecao('auditoriaEscalas').findOne({
+        escalaId: new mongoose.Types.ObjectId(escalaIdLote),
+        acao: 'plantoes_lote_atualizados',
+      });
+      expect(auditoriaLote?.detalhes).toMatchObject({
+        coberturaReconhecida: loteReconhecido.alteracoes.map((alteracao, index) => ({
+          plantaoId: index === 0 ? plantaoExistenteId : expect.any(String),
+          confirmada: true,
+        })),
+      });
 
-      await http.post(salvarUrl).set(auth(tokenCoord)).send(lote).expect(409);
+      await http.post(salvarUrl).set(auth(tokenCoord)).send(loteReconhecido).expect(409);
       expect(await colecao('plantoes').countDocuments({ escalaId: new mongoose.Types.ObjectId(escalaIdLote) })).toBe(2);
       expect((await http.get(`/escalas/${escalaIdLote}`).set(auth(tokenCoord)).expect(200)).body.escala.revisao).toBe(
         plantaoExistente.body.escala.revisao + 1,
@@ -512,6 +657,7 @@ describe('Geração automática de escalas (e2e)', () => {
           data: '2028-01-01',
           opcao: '24h',
           tipo: 'regular',
+          coberturaReconhecida: true,
           equipe: [{ profissionalId: idEnf, funcao: 'enfermeiro' }],
         })
         .expect(201);
@@ -527,6 +673,7 @@ describe('Geração automática de escalas (e2e)', () => {
           data: '2028-01-05',
           opcao: '24h',
           tipo: 'regular',
+          coberturaReconhecida: true,
           equipe: [{ profissionalId: idEnf, funcao: 'enfermeiro' }],
         })
         .expect(409);
@@ -560,6 +707,7 @@ describe('Geração automática de escalas (e2e)', () => {
           data: '2028-01-05',
           opcao: '24h',
           tipo: 'regular',
+          coberturaReconhecida: true,
           equipe: [{ profissionalId: idEnf, funcao: 'enfermeiro' }],
         })
         .expect(200);
@@ -587,6 +735,7 @@ describe('Geração automática de escalas (e2e)', () => {
           data: '2029-01-01',
           opcao: '24h',
           tipo: 'regular',
+          coberturaReconhecida: true,
           equipe: [{ profissionalId: idEnf, funcao: 'enfermeiro' }],
         })
         .expect(201);
@@ -637,6 +786,7 @@ describe('Geração automática de escalas (e2e)', () => {
           data: '2029-01-05',
           opcao: '24h',
           tipo: 'regular',
+          coberturaReconhecida: true,
           equipe: [{ profissionalId: idEnf, funcao: 'enfermeiro' }],
         })
         .expect(200);
@@ -706,6 +856,29 @@ describe('Geração automática de escalas (e2e)', () => {
       expect(regenerada.body.escala).toMatchObject({
         status: 'rascunho',
         revisao: antes.body.escala.revisao + 1,
+        validacao: null,
+      });
+      expect(await colecao('escalas').countDocuments({ ano: 2026, mes: 10 })).toBe(1);
+    });
+
+    it('permite regenerar escala validada ainda não publicada após confirmação explícita', async () => {
+      const antes = await http.get(`/escalas/${escalaId}`).set(auth(tokenCoord)).expect(200);
+      await colecao('escalas').updateOne(
+        { _id: new mongoose.Types.ObjectId(escalaId) },
+        { $set: { status: 'validada', validacao: { valido: true } } },
+      );
+      const tentativasAntes = otimizador.problemas.length;
+      const semConfirmacao = await gerar({ mes: 10, ano: 2026 }).expect(409);
+      expect(semConfirmacao.body.message).toMatch(/substituirRascunho/);
+      expect(otimizador.problemas).toHaveLength(tentativasAntes);
+
+      const regenerada = await gerar({ mes: 10, ano: 2026, substituirRascunho: true }).expect(201);
+
+      expect(regenerada.body.escala.id).toBe(escalaId);
+      expect(regenerada.body.escala).toMatchObject({
+        status: 'rascunho',
+        revisao: antes.body.escala.revisao + 1,
+        versaoPublicada: antes.body.escala.versaoPublicada,
         validacao: null,
       });
       expect(await colecao('escalas').countDocuments({ ano: 2026, mes: 10 })).toBe(1);
@@ -893,6 +1066,7 @@ describe('Geração automática de escalas (e2e)', () => {
           data: '2032-01-05',
           opcao: '24h',
           tipo: 'regular',
+          coberturaReconhecida: true,
           equipe: [{ profissionalId: idEnf, funcao: 'enfermeiro' }],
         })
         .expect(200);
@@ -1049,6 +1223,7 @@ describe('Geração automática de escalas (e2e)', () => {
           data: '2027-01-01',
           opcao: '24h',
           tipo: 'regular',
+          coberturaReconhecida: true,
           equipe: [{ profissionalId: idEnf, funcao: 'enfermeiro' }],
         })
         .expect(201);
@@ -1079,6 +1254,60 @@ describe('Geração automática de escalas (e2e)', () => {
   });
 
   describe('falhas do otimizador', () => {
+    it('recusa resultado de contrato incompatível sem criar escala parcial', async () => {
+      await configurarCargas(2031, 1, 7).expect(200);
+      const setor = await http
+        .post('/setores')
+        .set(auth(tokenCoord))
+        .send({ nome: 'Setor de contrato incompatível', turnos: { diurno: { enfermeiros: 1, tecnicos: 0 }, noturno: { enfermeiros: 1, tecnicos: 0 } } })
+        .expect(201);
+      otimizador.respostaIncompativel = true;
+      try {
+        await gerar({ mes: 1, ano: 2031, setorIds: [setor.body.id] }).expect(409);
+      } finally {
+        otimizador.respostaIncompativel = false;
+        await http.patch(`/setores/${setor.body.id}/inativar`).set(auth(tokenCoord)).expect(200);
+      }
+      expect(await colecao('escalas').countDocuments({ ano: 2031, mes: 1 })).toBe(0);
+    });
+
+    it('rejeita resultado obsoleto quando uma programação muda durante o solver', async () => {
+      await configurarCargas(2031, 2, 7).expect(200);
+      const setor = await http
+        .post('/setores')
+        .set(auth(tokenCoord))
+        .send({ nome: 'Setor de fingerprint', turnos: { diurno: { enfermeiros: 1, tecnicos: 0 }, noturno: { enfermeiros: 1, tecnicos: 0 } } })
+        .expect(201);
+      const extra = await http
+        .post('/extras')
+        .set(auth(tokenCoord))
+        .send({ data: '2031-02-15', opcao: '12d', setorId: setor.body.id, funcao: 'enfermeiro', substitutoId: idEnf, motivo: 'reforco' })
+        .expect(201);
+
+      otimizador.bloquear = true;
+      const iniciou = otimizador.aguardarInicio();
+      const geracao = gerar({ mes: 2, ano: 2031, setorIds: [setor.body.id] });
+      const geracaoPendente = geracao.then((resposta) => resposta);
+      try {
+        await iniciou;
+        await colecao('extrasProgramados').updateOne(
+          { _id: new mongoose.Types.ObjectId(extra.body._id) },
+          { $inc: { revisao: 1 } },
+        );
+        otimizador.liberarSolver();
+        const resposta = await geracaoPendente;
+        expect(resposta.status).toBe(409);
+      } finally {
+        otimizador.bloquear = false;
+        otimizador.liberarSolver();
+        await http.patch(`/setores/${setor.body.id}/inativar`).set(auth(tokenCoord)).expect(200);
+      }
+      expect(await colecao('escalas').countDocuments({ ano: 2031, mes: 2 })).toBe(0);
+      const extraDepois = await colecao('extrasProgramados').findOne({ _id: new mongoose.Types.ObjectId(extra.body._id) });
+      expect(extraDepois?.escalaId ?? null).toBeNull();
+      expect(extraDepois?.plantaoProfissionalId ?? null).toBeNull();
+    });
+
     it('interrompe a geração solicitada e não persiste escala parcial', async () => {
       await configurarCargas(2026, 12, 7).expect(200);
       const setor = await http

@@ -1,8 +1,8 @@
-# Perfil do usuário
+﻿# Perfil do usuário
 
-## Requisitos
+## ADDED Requirements
 
-### Requisito: Acessar o perfil pessoal
+### Requirement: Acessar o perfil pessoal
 
 O sistema DEVE disponibilizar a tela de perfil para os perfis autenticados de Coordenação, Enfermeiro e Técnico. O cartão do usuário no rodapé do menu lateral e o avatar no cabeçalho DEVEM oferecer acesso à tela.
 
@@ -14,7 +14,7 @@ O sistema DEVE disponibilizar a tela de perfil para os perfis autenticados de Co
 - **E** navegar para o perfil não encerra a sessão
 - **E** o botão “Sair” encerra a sessão
 
-### Requisito: Exibir os dados do usuário autenticado
+### Requirement: Exibir os dados do usuário autenticado
 
 A tela DEVE reproduzir a composição da referência visual em `design/nurseflow/NurseFlow Web - Perfil.jpeg`, apresentando os dados da sessão autenticada e os dados profissionais disponíveis para esse usuário. Ela NÃO DEVE usar dados de demonstração nem permitir que um usuário consulte o perfil de outra pessoa por meio de identificadores fornecidos pelo cliente.
 
@@ -39,7 +39,7 @@ A tela DEVE reproduzir a composição da referência visual em `design/nurseflow
 - **Então** o campo permanece na posição prevista pelo design
 - **E** seu valor é apresentado como não informado, sem usar dados demonstrativos
 
-### Requisito: Reproduzir a referência visual e suas interações
+### Requirement: Reproduzir a referência visual e suas interações
 
 A tela DEVE reproduzir a hierarquia, os conteúdos, os estados e as ações visíveis na imagem `design/nurseflow/NurseFlow Web - Perfil.jpeg`, mantendo a identidade visual do NurseFlow e adaptando-se a telas estreitas.
 
@@ -50,7 +50,7 @@ A tela DEVE reproduzir a hierarquia, os conteúdos, os estados e as ações vis�
 - **Então** cada campo, ação e estado visível na imagem possui comportamento correspondente
 - **E** não são adicionados campos ou ações que exponham informações pessoais além das permitidas ao usuário autenticado
 
-### Requisito: Editar e-mail e preferências de notificação
+### Requirement: Editar e-mail e preferências de notificação
 
 O sistema DEVE permitir ao usuário atualizar seu próprio e-mail e a preferência de receber notificações sobre publicação de escalas. A identidade do usuário DEVE ser derivada da sessão autenticada. O sistema DEVE validar o e-mail, rejeitar endereços já usados por outra conta e informar o resultado sem atualizar usuários diferentes.
 
@@ -78,3 +78,5 @@ O sistema DEVE permitir ao usuário atualizar seu próprio e-mail e a preferênc
 ## Pendência de especificação
 
 O design não define o conteúdo da tela de preferências após acionar o botão correspondente; a mudança implementa a preferência de notificação de publicação de escalas, única categoria de notificação já existente no produto.
+
+

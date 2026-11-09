@@ -13,6 +13,7 @@ type AppLayoutProps = {
   onProfileClick?: () => void
   user?: SideMenuUser
   onLogout?: () => void
+  exchangeCount?: number | null
 }
 
 export function AppLayout({
@@ -24,6 +25,7 @@ export function AppLayout({
   onProfileClick,
   user,
   onLogout,
+  exchangeCount,
 }: AppLayoutProps) {
   const [menuOpen, setMenuOpen] = useState(false)
 
@@ -36,6 +38,7 @@ export function AppLayout({
         onNavigate={onNavigate}
         onProfileClick={onProfileClick}
         user={user}
+        exchangeCount={exchangeCount}
         onLogout={onLogout}
       />
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">

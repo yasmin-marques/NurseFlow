@@ -67,13 +67,13 @@ npm run seed:coordenacao
 
 ### Dados de demonstração
 
-Para criar dados fictícios em desenvolvimento, configure `DEMO_SEED_ENABLED=true`, `DEMO_ADMIN_PASSWORD` e `DEMO_PRO_PASSWORD` no `.env` e execute:
+Para criar dados fictícios em desenvolvimento, incluindo o cenário de trocas, configure `DEMO_SEED_ENABLED=true`, `DEMO_ADMIN_PASSWORD` e `DEMO_PRO_PASSWORD` no `.env` e execute:
 
 ```bash
 npm run seed:demo
 ```
 
-O seed cria, quando ausentes, uma conta de Coordenação, nove profissionais, três setores e restrições de exemplo. As configurações mensais são provisionadas automaticamente na primeira consulta do período, com padrões editáveis pela Coordenação. O seed é idempotente e não sobrescreve registros existentes. Use somente em ambiente local isolado; o script recusa execução em produção sem autorização explícita. Os logins são `admin@nurseflow.test` e `<nome>@nurseflow.test`.
+O seed cria, quando ausentes, 27 profissionais, três setores, configurações e restrições de exemplo, além da escala e das solicitações de troca demo. As configurações mensais são provisionadas automaticamente na primeira consulta do período, com padrões editáveis pela Coordenação. O seed é idempotente e não sobrescreve registros existentes. Use somente em ambiente local isolado; o script recusa execução em produção sem autorização explícita. Os logins são `admin@nurseflow.test` e `<nome>@nurseflow.test`.
 
 ## Execução
 
@@ -84,6 +84,33 @@ npm run start:prod       # executa dist/main
 ```
 
 Swagger/OpenAPI: **http://localhost:3000/docs** (use *Authorize* com o `accessToken` retornado por `POST /auth/login`).
+
+## Contrato e implantação do otimizador
+
+O backend e o serviço Python usam o contrato versionado **v2**. Toda requisição de geração
+envia `versao_contrato: 2`, `capacidades: ["alocacoes_fixas"]` e `alocacoes_fixas`.
+Cada alocação fixa contém `extra_id`, `profissional_id`, `setor_id`, `dia`, `opcao` (`12d`,
+`12n` ou `24h`) e `tipo: "extra"`. A resposta mantém a versão/capacidade e identifica a
+alocação efetiva por `extra_id` quando ela é um extra programado.
+
+O rollout compatível é:
+
+1. Aplicar migrations e índices do backend.
+2. Publicar o optimizer v2 em uma instância não roteada e verificar `GET /saude`.
+3. Verificar o contrato v2 em uma chamada de integração, incluindo `alocacoes_fixas`.
+4. Publicar o backend que envia e valida o contrato v2 e só então direcionar tráfego para
+   as instâncias novas.
+5. Publicar a interface depois de backend e optimizer estarem compatíveis.
+
+Não se deve fazer rollout misto entre backend antigo e optimizer v2: o optimizer v2 rejeita
+payloads sem a versão/capacidade exigidas. Da mesma forma, o backend recusa respostas de
+solver antigo ou sem suporte a `alocacoes_fixas` com erro de gateway, antes de iniciar a
+gravação da escala. A geração fica sem efeitos persistidos; escalas existentes, extras e
+vínculos permanecem intactos. O serviço também revalida a solução antes do commit, portanto
+um dublê que contorne o adaptador não pode introduzir um contrato obsoleto.
+
+Para rollback, retire o tráfego do backend v2 e restaure backend e optimizer como um par
+compatível. Não reverta apenas o optimizer enquanto houver backend v2 ativo.
 
 ## Testes e lint
 

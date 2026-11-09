@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from './api'
-import { addShift, cancelScaleGeneration, createDraft, exportScalePdf, generateScale, getScale, listScales, publishScale, removeDraft, startReview, updateShift, validateScale } from './scales'
+import { addShift, cancelScaleGeneration, createDraft, exportScalePdf, generateScale, getScale, listScales, publishScale, removeDraft, saveShiftBatch, startReview, updateShift, validateScale, validateShiftBatch } from './scales'
 import { mockBackend } from '../test/fetchMock'
 
 afterEach(() => vi.unstubAllGlobals())
@@ -74,7 +74,9 @@ describe('services/scales', () => {
       opcao: '12d',
       tipo: 'regular',
       equipe: [{ profissionalId: 'professional-1', funcao: 'enfermeiro' }],
+      coberturaReconhecida: true,
     })
+
     await updateShift('scale-1', 'shift-1', {
       revisao: 3,
       setorId: 'sector-1',
@@ -95,6 +97,7 @@ describe('services/scales', () => {
           data: '2026-10-01',
           opcao: '12d',
           tipo: 'regular',
+          coberturaReconhecida: true,
           equipe: [{
             profissionalId: 'professional-1',
             funcao: 'enfermeiro',
@@ -117,6 +120,85 @@ describe('services/scales', () => {
             funcao: 'enfermeiro',
             lideranca: false,
             origemCobertura: 'regular',
+          }],
+        },
+      },
+    ])
+  })
+
+  it('pré-valida e salva alterações em lote, preservando a cobertura e os avisos por função', async () => {
+    const validation = {
+      revisao: 3,
+      valida: true,
+      erros: [],
+      cobertura: { posicoesExigidas: 120, posicoesPreenchidas: 118, percentual: 98 },
+      requerConfirmacaoCobertura: true,
+      pendencias: [{
+        setorId: 'sector-1',
+        setor: 'UTI',
+        data: '2026-10-04',
+        turno: 'noturno' as const,
+        funcao: 'tecnicos' as const,
+        necessario: 2,
+        alocado: 1,
+        faltam: 1,
+        motivo: 'Quantitativo mínimo não atingido.',
+      }],
+    }
+    const { calls } = mockBackend((call) => ({ body: call.url.endsWith('validar-lote') ? validation : apiScale }))
+    const alteracoes = [{
+      plantaoId: 'shift-1',
+      setorId: 'sector-1',
+      data: '2026-10-04',
+      opcao: '24h' as const,
+      tipo: 'regular' as const,
+      coberturaReconhecida: true,
+      equipe: [{ profissionalId: 'professional-1', funcao: 'enfermeiro' as const, lideranca: true }],
+    }]
+
+    await expect(validateShiftBatch('scale-1', 3, alteracoes)).resolves.toEqual(validation)
+    await saveShiftBatch('scale-1', 3, alteracoes)
+
+    expect(calls.map(({ url, method, body }) => ({ url, method, body }))).toEqual([
+      {
+        url: '/api/escalas/scale-1/plantoes/validar-lote',
+        method: 'POST',
+        body: {
+          revisaoEsperada: 3,
+          alteracoes: [{
+            plantaoId: 'shift-1',
+            setorId: 'sector-1',
+            data: '2026-10-04',
+            opcao: '24h',
+            tipo: 'regular',
+            coberturaReconhecida: true,
+            equipe: [{
+              profissionalId: 'professional-1',
+              funcao: 'enfermeiro',
+              lideranca: true,
+              origemCobertura: 'regular',
+            }],
+          }],
+        },
+      },
+      {
+        url: '/api/escalas/scale-1/plantoes/lote',
+        method: 'POST',
+        body: {
+          revisaoEsperada: 3,
+          alteracoes: [{
+            plantaoId: 'shift-1',
+            setorId: 'sector-1',
+            data: '2026-10-04',
+            opcao: '24h',
+            tipo: 'regular',
+            coberturaReconhecida: true,
+            equipe: [{
+              profissionalId: 'professional-1',
+              funcao: 'enfermeiro',
+              lideranca: true,
+              origemCobertura: 'regular',
+            }],
           }],
         },
       },

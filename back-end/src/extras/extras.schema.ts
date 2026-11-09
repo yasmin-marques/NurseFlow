@@ -33,6 +33,22 @@ export enum ExtraEventoTipo {
   DESVINCULADO = "DESVINCULADO",
 }
 
+/**
+ * Entidade independente que representa a programação prévia de um plantão extra.
+ *
+ * Relação entre modelos de dados e conciliação:
+ * - `ExtraProgramado` (coleção `extrasProgramados`): Programação independente, consultável mesmo sem escala.
+ *   Guarda a data civil (`YYYY-MM-DD`), opção (`12d`, `12n`, `24h`), função (`enfermeiro`, `tecnico`),
+ *   substituto (`substitutoId`), eventual profissional coberto (`cobertoId`) e o `motivo` de negócio
+ *   (`ferias`, `ausencia`, `atestado`, `reforco`, `outro`).
+ * - `Plantao` (coleção `plantoes`): Representa o slot/vaga em determinado setor, data e horário dentro
+ *   de uma escala. Para extras conciliados, possui `tipo = TipoPlantao.EXTRA`.
+ * - `PlantaoProfissional` (coleção `profissionaisRelacionados`): Representa a alocação do profissional
+ *   ao plantão, com `origemCobertura = OrigemCobertura.COMPLEMENTAR` e referência exclusiva `extraProgramadoId`.
+ * - Preservação de vínculos: Profissionais com vínculo CLT, concursado ou RPA mantêm seu `tipoVinculo`
+ *   inalterado no cadastro (`Profissional`), sendo contabilizados uma única vez na cobertura da escala
+ *   sem converter extra em carga regular ou RPA em mero sinônimo de extra.
+ */
 @Schema({
   collection: "extrasProgramados",
   timestamps: true,

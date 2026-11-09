@@ -63,7 +63,7 @@ describe('weekly team presentation', () => {
     const team = groupDailyTeam(shifts)
 
     expect(team.leaders.map(({ professional }) => professional.nome)).toEqual(['Ana Ribeiro'])
-    expect(team.nurses.map(({ professional }) => professional.nome)).toEqual(['Bruna Costa'])
+    expect(team.nurses.map(({ professional }) => professional.nome)).toEqual(['Ana Ribeiro', 'Bruna Costa'])
     expect(team.technicians.map(({ professional }) => professional.nome)).toEqual(['Caio Mendes', 'Dora Lima'])
     expect(team.responsibleSectors).toEqual(['Setor A', 'Emergência'])
     expect(team.leaders[0].sectors).toEqual(['Setor A', 'Emergência'])
