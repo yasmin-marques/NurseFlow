@@ -13,29 +13,29 @@ export function NumberStepper({ value, onChange, min = 0, label }: NumberStepper
 
   return (
     <div
-      className="inline-flex h-[38px] items-center overflow-hidden rounded-xl border border-border bg-[#f7f8f6] shadow-[inset_0_0_0_1px_rgba(16,24,16,0.02)]"
+      className="inline-flex h-8 items-center overflow-hidden rounded-lg border border-border bg-[#f7f8f6] shadow-[inset_0_0_0_1px_rgba(16,24,16,0.02)]"
       role="group"
       aria-label={label}
     >
       <button
         type="button"
-        className="flex h-full w-[34px] items-center justify-center text-text-muted transition-colors hover:bg-white disabled:opacity-40"
+        className="flex h-full w-8 items-center justify-center text-text-muted transition-colors hover:bg-white disabled:opacity-40"
         onClick={decrease}
         disabled={value <= min}
         aria-label={`Diminuir ${label}`}
       >
-        <Minus className="size-4" strokeWidth={2} />
+        <Minus className="size-3.5" strokeWidth={2} />
       </button>
-      <span className="min-w-[38px] px-2 text-center text-[14px] font-semibold text-text" aria-live="polite">
+      <span className="min-w-[32px] px-1.5 text-center text-[13px] font-semibold text-text" aria-live="polite">
         {value}
       </span>
       <button
         type="button"
-        className="flex h-full w-[34px] items-center justify-center text-text-muted transition-colors hover:bg-white"
+        className="flex h-full w-8 items-center justify-center text-text-muted transition-colors hover:bg-white"
         onClick={increase}
         aria-label={`Aumentar ${label}`}
       >
-        <Plus className="size-4" strokeWidth={2} />
+        <Plus className="size-3.5" strokeWidth={2} />
       </button>
     </div>
   )

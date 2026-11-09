@@ -6,7 +6,7 @@ import { utcDate } from '../common/utils/date';
 import { executarTransacao } from '../common/utils/mongo-transaction';
 import { validarAlocacoesPlantao, calcularPendenciasCobertura, type AlocacaoPlantaoValidacao } from '../escalas/regras-plantao';
 import { diasDoMes } from '../escalas/montar-problema';
-import { AuditoriaTroca, AuditoriaEscala, Escala, NotificacaoTroca, Plantao, PlantaoProfissional, SolicitacaoTroca, StatusEscala, StatusTroca, TipoPlantao, VersaoEscala } from '../escalas/schemas';
+import { AuditoriaTroca, AuditoriaEscala, Escala, NotificacaoTroca, Plantao, PlantaoProfissional, SolicitacaoTroca, StatusEscala, StatusTroca, VersaoEscala } from '../escalas/schemas';
 import { Formacao, StatusProfissional } from '../profissionais/profissionais.enums';
 import { Profissional } from '../profissionais/schemas/profissional.schema';
 import { Restricao } from '../restricoes/restricao.schema';
@@ -315,7 +315,6 @@ export class TrocasService {
       return [{ profissional: profEntrada(profissionalId), funcao: v.funcao as Formacao, data: new Date(p.data), horarioInicio: p.horarioInicio, duracaoHoras: p.duracaoHoras, tipo: p.tipo, setorId: String(p.setorId) }];
     });
     const idsAfetados = [String(troca.solicitanteProfissionalId), String(troca.profissionalSolicitadoId)];
-    const inicioMes = utcDate(escala.ano, escala.mes - 1, 1);
     const periodosAdjacentes = [
       { ano: escala.mes === 1 ? escala.ano - 1 : escala.ano, mes: escala.mes === 1 ? 12 : escala.mes - 1 },
       { ano: escala.mes === 12 ? escala.ano + 1 : escala.ano, mes: escala.mes === 12 ? 1 : escala.mes + 1 },

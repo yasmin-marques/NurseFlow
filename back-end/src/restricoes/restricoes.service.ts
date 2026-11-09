@@ -29,7 +29,7 @@ export class RestricoesService {
       throw new NotFoundException("Profissional não encontrado");
   }
 
-  private persistivel<T extends Record<string, any>>(obj: T): Partial<T> {
+  private persistivel<T extends Record<string, unknown>>(obj: T): Partial<T> {
     const copia = { ...obj } as Partial<T>;
     for (const chave of Object.keys(copia)) {
       const valor = copia[chave as keyof T];
@@ -194,7 +194,7 @@ export class RestricoesService {
     diasSemana: number[];
     ignorarId?: string;
   }) {
-    const filtro: Record<string, any> = {
+    const filtro: Record<string, unknown> = {
       profissionalId: new Types.ObjectId(profissionalId),
       tipo,
       inicio: { $lte: fim },
@@ -312,8 +312,8 @@ export class RestricoesService {
     return { inicio, fim };
   }
 
-  private serializar(registro: Record<string, any>) {
-    const diasSemana = this.diasSemanaLegado(registro as Partial<Restricao>);
+  private serializar(registro: Partial<Restricao>) {
+    const diasSemana = this.diasSemanaLegado(registro);
     return {
       ...registro,
       diasSemana: diasSemana.length ? diasSemana : undefined,
@@ -559,7 +559,7 @@ export class RestricoesService {
 
     return registros
       .map((registro) => this.serializar(registro))
-      .filter((registro: any) => {
+      .filter((registro) => {
         const dias = Array.isArray(registro.diasSemana)
           ? registro.diasSemana
           : registro.diaSemana === null || registro.diaSemana === undefined
@@ -567,10 +567,10 @@ export class RestricoesService {
             : [registro.diaSemana];
 
         const de = new Date(
-          Math.max(inicio.valueOf(), new Date(registro.inicio).valueOf()),
+          Math.max(inicio.valueOf(), new Date(registro.inicio ?? inicio).valueOf()),
         );
         const ate = new Date(
-          Math.min(fim.valueOf(), new Date(registro.fim).valueOf()),
+          Math.min(fim.valueOf(), new Date(registro.fim ?? fim).valueOf()),
         );
         if (de > ate) return false;
         if (!dias.length) return true;

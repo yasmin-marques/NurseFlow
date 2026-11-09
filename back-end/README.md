@@ -116,7 +116,7 @@ compatível. Não reverta apenas o optimizer enquanto houver backend v2 ativo.
 
 ```bash
 npm run lint:check
-npm test                 # unitários (CPF, guard de perfis e regras de escala)
+npm test                 # unitários (CPF, guards JWT/perfis, configuração e regras de escala)
 npm run test:e2e         # e2e com MongoDB em memória: migrations, módulos da API e ciclo de vida de escalas
 ```
 

@@ -1,24 +1,32 @@
-import { Injectable } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
-import { TipoVinculo } from '../profissionais/profissionais.enums';
-import { utcDate } from '../common/utils/date';
-import { AtualizarLimitesDto, DefinirCargaDto } from './configuracoes.dto';
-import { Configuracao, chaveCarga } from './configuracao.schema';
+import { Injectable } from "@nestjs/common";
+import { InjectModel } from "@nestjs/mongoose";
+import { Model } from "mongoose";
+import { TipoVinculo } from "../profissionais/profissionais.enums";
+import { utcDate } from "../common/utils/date";
+import { AtualizarLimitesDto, DefinirCargaDto } from "./configuracoes.dto";
+import { Configuracao, chaveCarga } from "./configuracao.schema";
 
 @Injectable()
 export class ConfiguracoesService {
-  constructor(@InjectModel(Configuracao.name) private readonly model: Model<Configuracao>) {}
+  constructor(
+    @InjectModel(Configuracao.name) private readonly model: Model<Configuracao>,
+  ) {}
 
   private chave(ano: number, mes: number) {
-    return `${String(ano).padStart(4, '0')}-${String(mes).padStart(2, '0')}`;
+    return `${String(ano).padStart(4, "0")}-${String(mes).padStart(2, "0")}`;
   }
 
   private cargasPadrao() {
     return Object.fromEntries(
       [28, 29, 30, 31].flatMap((diasMes) => [
-        [chaveCarga(TipoVinculo.CONCURSADO, diasMes), { plantoes24h: 6, plantoes12h: 1 }],
-        [chaveCarga(TipoVinculo.CLT, diasMes), { plantoes24h: 5, plantoes12h: 2 }],
+        [
+          chaveCarga(TipoVinculo.CONCURSADO, diasMes),
+          { plantoes24h: 6, plantoes12h: 1 },
+        ],
+        [
+          chaveCarga(TipoVinculo.CLT, diasMes),
+          { plantoes24h: 5, plantoes12h: 2 },
+        ],
       ]),
     );
   }
@@ -33,42 +41,54 @@ export class ConfiguracoesService {
       maxExtrasConcursado: 1,
       maxExtrasClt: 1,
     };
-    await this.model.updateOne(
-      { chave },
-      {
-        $setOnInsert: {
-          chave,
-          ...padroes,
-          cargas,
+    await this.model
+      .updateOne(
+        { chave },
+        {
+          $setOnInsert: {
+            chave,
+            ...padroes,
+            cargas,
+          },
         },
-      },
-      { upsert: true },
-    ).exec();
+        { upsert: true },
+      )
+      .exec();
 
     await Promise.all([
       ...Object.entries(padroes).map(([nome, valor]) =>
-        this.model.updateOne(
-          { chave, [nome]: { $exists: false } },
-          { $set: { [nome]: valor } },
-        ).exec(),
+        this.model
+          .updateOne(
+            { chave, [nome]: { $exists: false } },
+            { $set: { [nome]: valor } },
+          )
+          .exec(),
       ),
       ...Object.entries(cargas).map(([nome, carga]) =>
-        this.model.updateOne(
-          { chave, [`cargas.${nome}`]: { $exists: false } },
-          { $set: { [`cargas.${nome}`]: carga } },
-        ).exec(),
+        this.model
+          .updateOne(
+            { chave, [`cargas.${nome}`]: { $exists: false } },
+            { $set: { [`cargas.${nome}`]: carga } },
+          )
+          .exec(),
       ),
     ]);
   }
 
   private async documento(ano: number, mes: number) {
-    return this.model.findOne({ chave: this.chave(ano, mes) }).lean().exec();
+    return this.model
+      .findOne({ chave: this.chave(ano, mes) })
+      .lean()
+      .exec();
   }
 
   async consultar(ano: number, mes: number) {
     await this.garantirConfiguracao(ano, mes);
     const doc = await this.documento(ano, mes);
-    if (!doc) throw new Error(`Configuração do período ${this.chave(ano, mes)} não foi criada.`);
+    if (!doc)
+      throw new Error(
+        `Configuração do período ${this.chave(ano, mes)} não foi criada.`,
+      );
     return {
       periodo: this.chave(ano, mes),
       limiteTrocas: doc.limiteTrocas,
@@ -91,7 +111,9 @@ export class ConfiguracoesService {
       };
     }
     if (Object.keys(set).length > 0) {
-      await this.model.updateOne({ chave: this.chave(ano, mes) }, { $set: set }).exec();
+      await this.model
+        .updateOne({ chave: this.chave(ano, mes) }, { $set: set })
+        .exec();
     }
     return this.consultar(ano, mes);
   }
@@ -99,10 +121,19 @@ export class ConfiguracoesService {
   async carga(ano: number, mes: number, dto: DefinirCargaDto) {
     await this.garantirConfiguracao(ano, mes);
     const campo = `cargas.${chaveCarga(dto.vinculo, dto.diasMes)}`;
-    await this.model.updateOne(
-      { chave: this.chave(ano, mes) },
-      { $set: { [campo]: { plantoes24h: dto.plantoes24h, plantoes12h: dto.plantoes12h } } },
-    ).exec();
+    await this.model
+      .updateOne(
+        { chave: this.chave(ano, mes) },
+        {
+          $set: {
+            [campo]: {
+              plantoes24h: dto.plantoes24h,
+              plantoes12h: dto.plantoes12h,
+            },
+          },
+        },
+      )
+      .exec();
     return this.consultar(ano, mes);
   }
 

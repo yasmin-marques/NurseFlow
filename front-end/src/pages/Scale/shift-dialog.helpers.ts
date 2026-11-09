@@ -14,14 +14,14 @@ export function formationFor(person: Professional): 'enfermeiro' | 'tecnico' {
   return person.formation === 'Técnico' ? 'tecnico' : 'enfermeiro'
 }
 
-export function techniciansAvailableToAdd(professionals: Professional[], selectedIds: string[]): ProfessionalWithId[] {
+export function professionalsAvailableToAdd(professionals: Professional[], selectedIds: string[]): ProfessionalWithId[] {
   return professionals.filter(
     (person): person is ProfessionalWithId =>
-      person.status && person.formation === 'Técnico' && isProfessionalWithId(person) && !selectedIds.includes(person.id),
+      person.status && isProfessionalWithId(person) && !selectedIds.includes(person.id),
   )
 }
 
-export function searchTechnicians(professionals: ProfessionalWithId[], query: string): ProfessionalWithId[] {
+export function searchProfessionals(professionals: ProfessionalWithId[], query: string): ProfessionalWithId[] {
   const normalizedQuery = query.trim().toLocaleLowerCase('pt-BR')
   if (!normalizedQuery) return professionals
   return professionals.filter((person) => person.name.toLocaleLowerCase('pt-BR').includes(normalizedQuery))

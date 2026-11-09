@@ -6,7 +6,7 @@ describe('settings scope', () => {
   it('applies the rules to every month', () => {
     const markup = renderToStaticMarkup(<SettingsPage />)
 
-    expect(markup).toContain('valem para todos os meses')
+    expect(markup).not.toContain('valem para todos os meses')
     expect(markup).not.toContain('type="month"')
     expect(markup).toContain('Plantões regulares de 24h para concursado')
     expect(markup).toContain('Plantões regulares de 12h para CLT')

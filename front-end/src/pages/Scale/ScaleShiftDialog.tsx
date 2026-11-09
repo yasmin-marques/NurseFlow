@@ -12,10 +12,10 @@ import {
   buildShiftChanges,
   emptiedShifts,
   formationFor,
-  searchTechnicians,
+  searchProfessionals,
   seedDayMembers,
   shiftChoice,
-  techniciansAvailableToAdd,
+  professionalsAvailableToAdd,
 } from './shift-dialog.helpers'
 import type { DayMember, ProfessionalWithId } from './shift-dialog.helpers'
 import { daysInMonth } from './calendar'
@@ -114,11 +114,11 @@ export function ScaleShiftDialog({ scale, dayShifts, focusSectorId, initialDate,
     .filter((member) => member.option === choice.value)
     .sort((a, b) => Number(b.leader) - Number(a.leader) || Number(infoOf(a.id).formation === 'tecnico') - Number(infoOf(b.id).formation === 'tecnico')))
   const professionalsToAdd = useMemo(
-    () => techniciansAvailableToAdd(availableProfessionals, members.map((member) => member.id)),
+    () => professionalsAvailableToAdd(availableProfessionals, members.map((member) => member.id)),
     [availableProfessionals, members],
   )
   const matchingTechnicians = useMemo(
-    () => searchTechnicians(professionalsToAdd, professionalSearch),
+    () => searchProfessionals(professionalsToAdd, professionalSearch),
     [professionalsToAdd, professionalSearch],
   )
   const hasInactiveSelection = members.some((member) => !infoOf(member.id).active)
@@ -163,12 +163,12 @@ export function ScaleShiftDialog({ scale, dayShifts, focusSectorId, initialDate,
 
   const addProfessional = () => {
     if (!professionalToAddId) {
-      setAddProfessionalError('Selecione um técnico cadastrado.')
+      setAddProfessionalError('Selecione um profissional cadastrado.')
       return
     }
     const professional = professionalsToAdd.find((person) => person.id === professionalToAddId)
     if (!professional) {
-      setAddProfessionalError('Selecione um técnico ativo da lista.')
+      setAddProfessionalError('Selecione um profissional ativo da lista.')
       return
     }
     invalidate()
@@ -307,16 +307,16 @@ export function ScaleShiftDialog({ scale, dayShifts, focusSectorId, initialDate,
             setProfessionalSearch('')
             setAddProfessionalError('')
           }} className="w-full rounded-xl border border-dashed border-primary bg-soft-green px-4 py-3 text-left text-xs font-semibold text-primary">
-            ＋ &nbsp;Adicionar técnico ao setor
+            ＋ &nbsp;Adicionar profissional ao setor
           </button>
           {showAddProfessional ? (
             <section className="space-y-4 rounded-xl border border-border bg-neutral p-4">
               <div>
-                <h4 className="text-xs font-bold text-text">Novo técnico no setor</h4>
-                <p className="mt-1 text-[10px] text-text-muted">Digite o nome e escolha o plantão do técnico neste dia.</p>
+                <h4 className="text-xs font-bold text-text">Novo profissional no setor</h4>
+                <p className="mt-1 text-[10px] text-text-muted">Digite o nome e escolha o plantão do profissional neste dia.</p>
               </div>
               <label htmlFor="new-technician-search" className="block space-y-2 text-[10px] font-semibold text-text">
-                Nome do técnico
+                Nome do profissional
                 <input
                   id="new-technician-search"
                   type="search"
@@ -333,9 +333,9 @@ export function ScaleShiftDialog({ scale, dayShifts, focusSectorId, initialDate,
                 />
               </label>
               {professionalsToAdd.length === 0 ? (
-                <p className="text-xs text-text-muted">Nenhum técnico ativo disponível para adicionar.</p>
+                <p className="text-xs text-text-muted">Nenhum profissional ativo disponível para adicionar.</p>
               ) : matchingTechnicians.length > 0 ? (
-                <fieldset className="max-h-40 space-y-1 overflow-y-auto" aria-label="Técnicos elegíveis">
+                <fieldset className="max-h-40 space-y-1 overflow-y-auto" aria-label="Profissionais elegíveis">
                   {matchingTechnicians.map((person) => (
                     <label key={person.id} className="flex cursor-pointer items-center gap-1.5 rounded-lg bg-white px-2 py-1.5 text-[11px] text-text">
                       <input
@@ -346,13 +346,14 @@ export function ScaleShiftDialog({ scale, dayShifts, focusSectorId, initialDate,
                         onChange={() => { setProfessionalToAddId(person.id); setAddProfessionalError('') }}
                       />
                       <span>{person.name}</span>
+                      <span className="ml-auto rounded-full bg-highlight px-2 py-0.5 text-[10px] font-semibold text-primary">{formationLabel(formationFor(person))}</span>
                     </label>
                   ))}
                 </fieldset>
-              ) : <p className="text-xs text-text-muted">Nenhum técnico corresponde à busca.</p>}
+              ) : <p className="text-xs text-text-muted">Nenhum profissional corresponde à busca.</p>}
               <fieldset className="space-y-1">
                 <legend className="text-[14px] font-semibold text-text">Plantão neste dia</legend>
-                <div className="grid grid-cols-3 gap-1" role="group" aria-label="Plantão do técnico">
+                <div className="grid grid-cols-3 gap-1" role="group" aria-label="Plantão do profissional">
                   {SHIFT_CHOICES.map((choice) => (
                     <button
                       key={choice.value}
