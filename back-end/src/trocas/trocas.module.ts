@@ -8,6 +8,7 @@ import { Setor, SetorSchema } from '../setores/schemas/setor.schema';
 import { Usuario, UsuarioSchema } from '../usuarios/schemas/usuario.schema';
 import { Administrador, AdministradorSchema } from '../usuarios/schemas/administrador.schema';
 import { TrocasController } from './trocas.controller';
+import { MinhasTrocasController } from './minhas-trocas.controller';
 import { TrocasService } from './trocas.service';
 
 @Module({
@@ -27,7 +28,7 @@ import { TrocasService } from './trocas.service';
     { name: Setor.name, schema: SetorSchema },
     { name: Restricao.name, schema: RestricaoSchema },
   ])],
-  controllers: [TrocasController],
+  controllers: [TrocasController, MinhasTrocasController],
   providers: [TrocasService],
 })
 export class TrocasModule {}

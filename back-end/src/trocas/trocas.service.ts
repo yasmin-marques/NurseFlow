@@ -44,6 +44,15 @@ export class TrocasService {
     @InjectModel(Configuracao.name) private readonly configuracoes: Model<Configuracao>,
   ) {}
 
+  async contarTrocasRecebidas(profissionalId: string) {
+    if (!profissionalId) throw new NotFoundException('Profissional autenticado não encontrado.');
+    const recebidas = await this.trocas.countDocuments({
+      profissionalSolicitadoId: new Types.ObjectId(profissionalId),
+      status: StatusTroca.AGUARDANDO_RESPOSTA,
+    }).exec();
+    return { recebidas };
+  }
+
   async listar(dto: ListarTrocasDto) {
     const filtro: Record<string, unknown> = { status: { $in: STATUS_POR_FILTRO[dto.status] } };
     if (dto.mes !== undefined || dto.ano !== undefined) {

@@ -8,6 +8,7 @@ import { EscalasController } from './escalas.controller';
 import { EscalasService } from './escalas.service';
 import { EscalaPdfService } from './escala-pdf.service';
 import { NotificacoesEscalaController } from './notificacoes-escalas.controller';
+import { MinhaEscalaController } from './minha-escala.controller';
 import { OtimizadorEscala, OtimizadorHttp } from './otimizador/otimizador';
 import {
   AuditoriaEscala,
@@ -39,7 +40,7 @@ import {
       { name: Restricao.name, schema: RestricaoSchema },
     ]),
   ],
-  controllers: [EscalasController, NotificacoesEscalaController],
+  controllers: [EscalasController, NotificacoesEscalaController, MinhaEscalaController],
   providers: [EscalasService, EscalaPdfService, { provide: OtimizadorEscala, useClass: OtimizadorHttp }],
 })
 export class EscalasModule {}

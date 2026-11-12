@@ -23,9 +23,30 @@ describe('profile page', () => {
     expect(markup).toContain('Enfermeiro')
     expect(markup).toContain('Vínculo')
     expect(markup).toContain('Próximo setor')
-    expect(markup).toContain('Jornada')
+    expect(markup).toContain('COREN')
+    expect(markup).not.toContain('Jornada')
     expect(markup).not.toContain('user-1')
     expect(markup).toContain('Editar')
+  })
+
+  it('shows account-specific information for coordination profiles', () => {
+    const markup = renderToStaticMarkup(
+      <ProfilePage
+        user={{
+          id: 'user-3',
+          nome: 'Coordenação',
+          email: 'coord@example.test',
+          perfil: 'coordenacao',
+        }}
+        onClose={() => undefined}
+        onUserUpdated={() => undefined}
+        onLogout={() => undefined}
+      />,
+    )
+
+    expect(markup).toContain('Notificações')
+    expect(markup).toContain('Perfil')
+    expect(markup).not.toContain('COREN')
   })
 
   it('does not render a fabricated profile when the session data is empty', () => {
