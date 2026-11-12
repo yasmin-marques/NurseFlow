@@ -497,6 +497,80 @@ export class EscalasService {
     return this.obter(id);
   }
 
+  async listarMeusPlantoes(profissionalId: string) {
+    if (!profissionalId) throw new NotFoundException('Profissional autenticado não encontrado.');
+
+    const profissional = await this.profissionais.findById(profissionalId, { _id: 1 }).lean().exec();
+    if (!profissional) throw new NotFoundException('Profissional autenticado não encontrado.');
+
+    const vinculos = await this.relacionados
+      .find({ profissionalId: profissional._id }, { plantaoId: 1, funcao: 1, lideranca: 1 })
+      .lean()
+      .exec();
+    if (vinculos.length === 0) return { plantoes: [] };
+
+    const agora = new Date();
+    const inicio = utcDate(agora.getUTCFullYear(), agora.getUTCMonth(), agora.getUTCDate());
+    const fim = utcDate(agora.getUTCFullYear(), agora.getUTCMonth(), agora.getUTCDate() + 120);
+    const periodos = Array.from({ length: 5 }, (_, indice) => {
+      const data = utcDate(agora.getUTCFullYear(), agora.getUTCMonth() + indice, 1);
+      return { ano: data.getUTCFullYear(), mes: data.getUTCMonth() + 1 };
+    }).filter(({ ano, mes }) => utcDate(ano, mes - 1, 1) < fim);
+    const escalas = await this.escalas
+      .find(
+        { status: { $in: [StatusEscala.PUBLICADA, StatusEscala.FINALIZADA] },
+          $or: periodos.map(({ ano, mes }) => ({ ano, mes })) },
+        { ano: 1, mes: 1 },
+      )
+      .lean()
+      .exec();
+    if (escalas.length === 0) return { plantoes: [] };
+
+    const plantoes = await this.plantoes
+      .find(
+        {
+          _id: { $in: vinculos.map((vinculo) => vinculo.plantaoId) },
+          escalaId: { $in: escalas.map((escala) => escala._id) },
+          data: { $gte: inicio, $lt: fim },
+        },
+        { escalaId: 1, setorId: 1, data: 1, horarioInicio: 1, horarioFim: 1, duracaoHoras: 1, tipo: 1 },
+      )
+      .sort({ data: 1, horarioInicio: 1 })
+      .limit(50)
+      .lean()
+      .exec();
+    if (plantoes.length === 0) return { plantoes: [] };
+
+    const escalasPorId = new Map(escalas.map((escala) => [String(escala._id), escala]));
+    const setores = await this.setores
+      .find({ _id: { $in: [...new Map(plantoes.map((plantao) => [String(plantao.setorId), plantao.setorId])).values()] } }, { nome: 1 })
+      .lean()
+      .exec();
+    const setorPorId = new Map(setores.map((setor) => [String(setor._id), setor.nome]));
+    const vinculoPorPlantao = new Map(vinculos.map((vinculo) => [String(vinculo.plantaoId), vinculo]));
+
+    return {
+      plantoes: plantoes.map((plantao) => {
+        const escala = escalasPorId.get(String(plantao.escalaId))!;
+        const vinculo = vinculoPorPlantao.get(String(plantao._id))!;
+        const setor = setorPorId.get(String(plantao.setorId));
+        if (!setor) throw new NotFoundException('Setor do plantão não encontrado.');
+        return {
+          id: String(plantao._id),
+          data: plantao.data,
+          setor,
+          horarioInicio: plantao.horarioInicio,
+          horarioFim: plantao.horarioFim,
+          duracaoHoras: plantao.duracaoHoras,
+          tipo: plantao.tipo,
+          funcao: vinculo.funcao,
+          lideranca: vinculo.lideranca,
+          escala: { ano: escala.ano, mes: escala.mes },
+        };
+      }),
+    };
+  }
+
   async listarNotificacoes(usuarioId: string) {
     const destinatarioId = new Types.ObjectId(usuarioId);
     const [notificacoes, naoLidas] = await Promise.all([
