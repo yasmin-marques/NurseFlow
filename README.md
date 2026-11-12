@@ -364,12 +364,21 @@ Pré-requisito: dependências instaladas em `back-end/` e `front-end/` (`npm ins
 
 | Script | O que roda | Cobertura |
 |---|---|---|
-| `npm run test:back` | Jest, testes unitários do backend | Guard de perfis, validação de CPF e regras de montagem/validação de plantões |
+| `npm run test:back` | Jest, testes unitários do backend | Guards JWT/perfis, validação de configuração e CPF, regras de montagem/validação de plantões |
 | `npm run test:e2e` | Jest + Supertest + MongoDB em memória (`back-end/test`) | Login/autenticação, Profissionais, Setores, autorização por perfil, Configurações, Restrições/Disponibilidade, ciclo de vida de escalas e migrations |
 | `npm run test:front` | Vitest (testes em `front-end/src/`) | Serviços e telas do frontend: auth, profissionais, setores, configurações, restrições, calendário, revisão/publicação de escalas, equipe semanal e notificações |
 | `pytest` em `optimizer/` | Restrições do modelo CP-SAT (24x72, bloqueios, quantitativo, vagas descobertas, carga/extras) | Não faz parte do `npm test`; veja [optimizer/README.md](optimizer/README.md) |
 
 Cada grupo também pode ser executado isoladamente com os scripts acima.
+
+### Entrega de testes sistêmicos
+
+Os testes e2e da API usam Jest + Supertest e um MongoDB em memória configurado como replica set. A execução de 06/11/2026 aprovou **105/105 testes** e os casos da planilha cobrem **12 dos 24 requisitos funcionais (50%)**. A suíte cobre fluxos HTTP, persistência, autorização, escalas, configurações, restrições, trocas e migrations; não automatiza navegação visual no navegador.
+
+- [Planilha de casos, matriz de requisitos e correções](docs/Entrega-Testes-Sistemicos.xlsx)
+- [Relatório de execução Jest](docs/relatorio-testes-sistemicos.txt)
+- Comando: `npm run test:e2e` (script em `back-end/package.json`)
+- Fontes: `back-end/test/*.e2e-spec.ts`
 
 ## Solução de problemas
 

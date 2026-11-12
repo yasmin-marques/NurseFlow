@@ -1,0 +1,28 @@
+(node:27960) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+[31m[Nest] 27960  - [39m06/11/2026, 15:05:33 [31m  ERROR[39m [38;5;3m[EscalasService] [39m[31mFalha ao gravar a escala 10/2026: E11000 duplicate key error collection: nurseflow_escalas.profissionaisRelacionados index: plantaoId_1_profissionalId_1 dup key: { plantaoId: ObjectId('6aee16ed52f3b12ed9cef50b'), profissionalId: ObjectId('6aee16eb52f3b12ed9cef49c') }[39m
+[31m[Nest] 27960  - [39m06/11/2026, 15:05:34 [31m  ERROR[39m [38;5;3m[EscalasService] [39m[31mFalha ao gravar a escala 12/2026: E11000 duplicate key error collection: nurseflow_escalas.profissionaisRelacionados index: plantaoId_1_profissionalId_1 dup key: { plantaoId: ObjectId('6aee16ee52f3b12ed9cef577'), profissionalId: ObjectId('6aee16eb52f3b12ed9cef49c') }[39m
+[31m[Nest] 27960  - [39m06/11/2026, 15:05:34 [31m  ERROR[39m [38;5;3m[AllExceptionsFilter] [39m[31mError: indisponível
+    at OtimizadorFalso.otimizador.resolver (/home/ikaro-almeida/Área de trabalho/Facul/Projeto integrado/NurseFlow/NurseFlow/back-end/test/escalas.e2e-spec.ts:1240:50)
+    at EscalasService.gerarPeriodo (/home/ikaro-almeida/Área de trabalho/Facul/Projeto integrado/NurseFlow/NurseFlow/back-end/src/escalas/escalas.service.ts:1642:43)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at EscalasService.gerar (/home/ikaro-almeida/Área de trabalho/Facul/Projeto integrado/NurseFlow/NurseFlow/back-end/src/escalas/escalas.service.ts:142:14)
+    at /home/ikaro-almeida/Área de trabalho/Facul/Projeto integrado/NurseFlow/NurseFlow/back-end/node_modules/@nestjs/core/router/router-execution-context.js:68:62
+    at EscalasController.gerar (/home/ikaro-almeida/Área de trabalho/Facul/Projeto integrado/NurseFlow/NurseFlow/back-end/node_modules/@nestjs/core/router/router-proxy.js:6:17)[39m
+[31m[Nest] 27960  - [39m06/11/2026, 15:05:41 [31m  ERROR[39m [38;5;3m[AllExceptionsFilter] [39m[31mError: falha injetada ao persistir eventos
+    at Object.<anonymous> (/home/ikaro-almeida/Área de trabalho/Facul/Projeto integrado/NurseFlow/NurseFlow/back-end/test/trocas.e2e-spec.ts:219:78)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)[39m
+[31m[Nest] 27960  - [39m06/11/2026, 15:05:41 [31m  ERROR[39m [38;5;3m[AllExceptionsFilter] [39m[31mServiceUnavailableException: Decisões de troca estão desabilitadas até a confirmação de replica set/transações no MongoDB de produção.
+    at TrocasService.exigirTransacoesConfirmadas (/home/ikaro-almeida/Área de trabalho/Facul/Projeto integrado/NurseFlow/NurseFlow/back-end/src/trocas/trocas.service.ts:210:13)
+    at TrocasService.recusar (/home/ikaro-almeida/Área de trabalho/Facul/Projeto integrado/NurseFlow/NurseFlow/back-end/src/trocas/trocas.service.ts:163:10)
+    at TrocasController.recusar (/home/ikaro-almeida/Área de trabalho/Facul/Projeto integrado/NurseFlow/NurseFlow/back-end/src/trocas/trocas.controller.ts:45:25)
+    at /home/ikaro-almeida/Área de trabalho/Facul/Projeto integrado/NurseFlow/NurseFlow/back-end/node_modules/@nestjs/core/router/router-execution-context.js:44:37
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at /home/ikaro-almeida/Área de trabalho/Facul/Projeto integrado/NurseFlow/NurseFlow/back-end/node_modules/@nestjs/core/router/router-execution-context.js:68:62
+    at TrocasController.recusar (/home/ikaro-almeida/Área de trabalho/Facul/Projeto integrado/NurseFlow/NurseFlow/back-end/node_modules/@nestjs/core/router/router-proxy.js:6:17)[39m
+
+Test Suites: 6 passed, 6 total
+Tests:       105 passed, 105 total
+Snapshots:   0 total
+Time:        26.137 s
+Ran all test suites.
