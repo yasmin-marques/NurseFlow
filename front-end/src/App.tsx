@@ -12,6 +12,10 @@ import { SectorsPage } from './pages/Sectors/SectorsPage';
 import { ScalePage } from './pages/Scale/ScalePage'
 import { ProfilePage } from './pages/Profile/ProfilePage'
 import { ExchangesPage } from './pages/Exchanges/ExchangesPage'
+import { ProfessionalLayout } from './components/layout/ProfessionalLayout'
+import type { ProfessionalTabId } from './components/layout/professionalTabs'
+import { MyShiftsPage } from './pages/MyShifts/MyShiftsPage'
+import { GeneralSchedulePage } from './pages/GeneralSchedule/GeneralSchedulePage'
 import { api } from './services/api'
 
 function App() {
@@ -20,6 +24,7 @@ function App() {
   const [activeItem, setActiveItem] = useState<NavItemId>('visao-geral')
   const [searchQuery, setSearchQuery] = useState('')
   const [exchangeCount, setExchangeCount] = useState<number | null>(null)
+  const [professionalTab, setProfessionalTab] = useState<ProfessionalTabId>('inicio')
   const lastNonProfileItem = useRef<NavItemId>('visao-geral')
   const activePage = NAV_ITEMS.find((item) => item.id === activeItem)
 
@@ -53,6 +58,7 @@ function App() {
     logout()
     setUser(null)
     setActiveItem('visao-geral')
+    setProfessionalTab('inicio')
   }
 
   if (checkingSession) return null
@@ -76,6 +82,32 @@ function App() {
         onUserUpdated={setUser}
         onLogout={handleLogout}
       />
+    )
+  }
+
+  if (!isCoordination) {
+    return (
+      <ProfessionalLayout
+        activeTab={professionalTab}
+        onNavigate={setProfessionalTab}
+        onProfileClick={() => navigate('perfil')}
+        user={{ name: user.nome, role, initials }}
+      >
+        {professionalTab === 'meus-plantoes' ? (
+          <MyShiftsPage />
+        ) : professionalTab === 'escala-geral' ? (
+          <GeneralSchedulePage />
+        ) : professionalTab === 'trocas' ? (
+          <section className="mx-auto w-full max-w-5xl px-5 py-10 sm:px-8">
+            <h1 className="text-3xl font-bold tracking-tight text-text">Trocas</h1>
+            <p className="mt-3 max-w-xl text-base leading-relaxed text-text-muted">
+              Esta área ainda está sendo preparada. Em breve você poderá solicitar e acompanhar trocas de plantão por aqui.
+            </p>
+          </section>
+        ) : (
+          <OverviewPage />
+        )}
+      </ProfessionalLayout>
     )
   }
 
