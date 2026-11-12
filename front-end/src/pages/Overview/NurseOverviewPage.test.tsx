@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { getIncomingExchangeCount, getMyShifts } from '../../services/my-shifts'
 import { NurseOverviewPage } from './NurseOverviewPage'
@@ -10,6 +10,7 @@ vi.mock('../../services/my-shifts', () => ({
 
 afterEach(() => {
   cleanup()
+  vi.useRealTimers()
   vi.clearAllMocks()
 })
 
@@ -46,5 +47,48 @@ describe('nurse overview page', () => {
     expect(await screen.findByText('2 solicitação(ões) recebida(s)')).not.toBeNull()
     expect(getMyShifts).toHaveBeenCalledOnce()
     expect(getIncomingExchangeCount).toHaveBeenCalledOnce()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Ver detalhes' }))
+    expect(screen.getByRole('heading', { name: 'Informações do plantão' })).not.toBeNull()
+    expect(screen.getByText('Observações')).not.toBeNull()
+    expect(screen.getByRole('button', { name: 'Solicitar troca' })).not.toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: /Voltar para meus plantões/ }))
+    expect(screen.getByRole('heading', { name: 'Olá, Ana.' })).not.toBeNull()
+  })
+
+  it('switches the main card to its neutral style after the next shift passes', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(2026, 0, 1, 6, 58))
+    vi.mocked(getMyShifts).mockResolvedValue({
+      plantoes: [{
+        id: 'shift-1',
+        data: '2026-01-01',
+        setor: 'Bloco A',
+        horarioInicio: '07:00',
+        horarioFim: '19:00',
+        duracaoHoras: 12,
+        tipo: 'regular',
+        funcao: 'enfermeiro',
+        lideranca: false,
+        escala: { ano: 2026, mes: 1 },
+      }],
+    })
+    vi.mocked(getIncomingExchangeCount).mockResolvedValue({ recebidas: 0 })
+
+    render(<NurseOverviewPage userName="Ana" onNavigate={vi.fn()} />)
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    const mainCard = screen.getByRole('region', { name: 'Próximo plantão' })
+    expect(mainCard.className).toContain('bg-[#07833b]')
+
+    await act(async () => {
+      vi.advanceTimersByTime(3 * 60_000)
+    })
+
+    expect(mainCard.className).toContain('bg-[#f1f3f0]')
+    expect(screen.getByText('Nenhum plantão futuro encontrado')).not.toBeNull()
   })
 })
