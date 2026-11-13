@@ -17,7 +17,6 @@ import type { ProfessionalTabId } from './components/layout/professionalTabs'
 import { MyShiftsPage } from './pages/MyShifts/MyShiftsPage'
 import { GeneralSchedulePage } from './pages/GeneralSchedule/GeneralSchedulePage'
 import { api } from './services/api'
-import { HistoryPage } from './pages/History/HistoryPage'
 
 function App() {
   const [user, setUser] = useState<SessionUser | null>(null)
@@ -137,8 +136,6 @@ function App() {
         <ScalePage />
       ) : activeItem === 'trocas' && isCoordination ? (
         <ExchangesPage onCountChange={setExchangeCount} />
-      ) : activeItem === 'historico' && isCoordination ? (
-        <HistoryPage />
       ) : (
         <section className="mx-auto flex min-h-full w-full max-w-5xl items-center px-5 py-10 sm:px-8">
           <div className="w-full rounded-3xl border border-border bg-white p-8 shadow-(--shadow-soft) sm:p-12">

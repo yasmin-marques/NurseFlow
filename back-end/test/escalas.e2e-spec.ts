@@ -1141,51 +1141,6 @@ describe('Geração automática de escalas (e2e)', () => {
     });
   });
 
-  describe('histórico de escalas', () => {
-    it('lista a versão publicada mais recente por mês e protege a consulta para Coordenação', async () => {
-      await http.get('/escalas/historico?ano=2097').expect(401);
-      await http.get('/escalas/historico?ano=2097').set(auth(tokenEnf)).expect(403);
-      await http.get('/escalas/historico?ano=inválido').set(auth(tokenCoord)).expect(400);
-
-      const escalaId = new mongoose.Types.ObjectId();
-      const publicadoPor = new mongoose.Types.ObjectId();
-      await colecao('versoesEscala').insertMany([
-        {
-          escalaId, numero: 1, mes: 1, ano: 2097, publicadoPor,
-          publicadoEm: new Date('2096-12-20T12:00:00.000Z'),
-          snapshot: { plantoes: [{}, {}], visualizacao: { cobertura: { percentual: 85 } } },
-          pendenciasConfirmadas: false,
-        },
-        {
-          escalaId, numero: 2, mes: 1, ano: 2097, publicadoPor,
-          publicadoEm: new Date('2096-12-28T12:00:00.000Z'),
-          snapshot: { plantoes: [{}], visualizacao: { cobertura: { percentual: 100 } } },
-          pendenciasConfirmadas: false,
-        },
-        {
-          escalaId: new mongoose.Types.ObjectId(), numero: 1, mes: 2, ano: 2097, publicadoPor,
-          publicadoEm: new Date('2097-01-20T12:00:00.000Z'),
-          snapshot: { plantoes: [{}, {}, {}], visualizacao: { cobertura: { percentual: null } } },
-          pendenciasConfirmadas: false,
-        },
-        {
-          escalaId: new mongoose.Types.ObjectId(), numero: 1, mes: 1, ano: 2098, publicadoPor,
-          publicadoEm: new Date('2098-01-20T12:00:00.000Z'),
-          snapshot: { plantoes: [], visualizacao: { cobertura: { percentual: 100 } } },
-          pendenciasConfirmadas: false,
-        },
-      ]);
-
-      const response = await http.get('/escalas/historico?ano=2097').set(auth(tokenCoord)).expect(200);
-      expect(response.body.ano).toBe(2097);
-      expect(response.body.itens).toEqual([
-        expect.objectContaining({ escalaId: String(escalaId), mes: 1, numeroVersao: 2, totalPlantoes: 1, percentualCobertura: 100 }),
-        expect.objectContaining({ mes: 2, numeroVersao: 1, totalPlantoes: 3, percentualCobertura: null }),
-      ]);
-      expect(JSON.stringify(response.body)).not.toMatch(/cpf|coren|email|telefone/i);
-    });
-  });
-
   describe('limite de carga em plantões manuais', () => {
     it('rejeita o excesso de carga sem gravar vínculo ou plantão parcial', async () => {
       await http.patch('/configuracoes/limites?ano=2027&mes=1').set(auth(tokenCoord)).send({ limitePlantoes: 1, maxExtras: 0 }).expect(200);

@@ -74,65 +74,8 @@ describe('Trocas administrativas (e2e)', () => {
   it('protege as consultas e decisões com autenticação e perfil de Coordenação', async () => {
     await http.get('/trocas').expect(401);
     await http.get('/trocas').set(auth(tokenEnfermeiro)).expect(403);
-    await http.get('/trocas/historico?ano=2026').expect(401);
-    await http.get('/trocas/historico?ano=2026').set(auth(tokenEnfermeiro)).expect(403);
     await http.post('/trocas/64b7f0f0f0f0f0f0f0f0f0f0/aprovar').set(auth(tokenEnfermeiro)).send({}).expect(403);
     await http.post('/trocas/64b7f0f0f0f0f0f0f0f0f0f0/recusar').set(auth(tokenCoord)).send({}).expect(400);
-  });
-
-  it('lista decisões do ano, exclui pendentes e pagina por data de conclusão', async () => {
-    const db = mongo.db();
-    const coordenacao = await db.collection('usuarios').findOne({ email: 'coord-trocas@nurseflow.com' });
-    const datas = [
-      new Date('2097-02-10T12:00:00.000Z'),
-      new Date('2097-06-17T12:00:00.000Z'),
-      new Date('2098-01-01T12:00:00.000Z'),
-    ];
-    const base = {
-      ano: 2097, mes: 11,
-      solicitanteProfissionalId: ids.profissionalA,
-      profissionalSolicitadoId: ids.profissionalB,
-      vinculoSolicitanteId: ids.vinculoA,
-      vinculoSolicitadoId: ids.vinculoB,
-      aceite: { profissionalId: ids.profissionalB, aceitoEm: datas[0] },
-      criadaEm: datas[0],
-      createdAt: datas[0],
-      decisaoCoordenacao: null,
-    };
-    const registros = await db.collection('solicitacoesTroca').insertMany([
-      {
-        ...base,
-        status: 'aprovada',
-        decisaoCoordenacao: { resultado: 'aprovada', usuarioId: coordenacao!._id, decididaEm: datas[0] },
-        updatedAt: datas[0],
-      },
-      { ...base, status: 'recusada_pelo_profissional', updatedAt: datas[1] },
-      { ...base, ano: 2098, status: 'aprovada', updatedAt: datas[2],
-        decisaoCoordenacao: { resultado: 'aprovada', usuarioId: coordenacao!._id, decididaEm: datas[2] } },
-      { ...base, status: 'aguardando_coordenacao', updatedAt: datas[1] },
-    ]);
-
-    try {
-      await http.get('/trocas/historico?ano=2097&pagina=0').set(auth(tokenCoord)).expect(400);
-      const primeira = await http.get('/trocas/historico?ano=2097&pagina=1&limite=1').set(auth(tokenCoord)).expect(200);
-      expect(primeira.body).toMatchObject({ ano: 2097, pagina: 1, limite: 1, total: 2, totalPaginas: 2 });
-      expect(primeira.body.itens[0]).toMatchObject({
-        solicitante: { nome: 'Ana Souza' },
-        profissionalSolicitado: { nome: 'Beatriz Lima' },
-        resultado: 'recusada',
-        responsavel: { nome: 'Beatriz Lima' },
-        decididaEm: datas[1].toISOString(),
-      });
-      const segunda = await http.get('/trocas/historico?ano=2097&pagina=2&limite=1').set(auth(tokenCoord)).expect(200);
-      expect(segunda.body.itens[0]).toMatchObject({
-        resultado: 'aprovada',
-        responsavel: { nome: 'Coordenação' },
-        decididaEm: datas[0].toISOString(),
-      });
-      expect(JSON.stringify(segunda.body)).not.toMatch(/cpf|coren|email|telefone/i);
-    } finally {
-      await db.collection('solicitacoesTroca').deleteMany({ _id: { $in: Object.values(registros.insertedIds) } });
-    }
   });
 
   it('lista somente pedidos aceitos, retorna contador global e paginação e não oferece criação/aceite administrativos', async () => {

@@ -21,7 +21,6 @@ import { ParseObjectIdPipe } from '../common/pipes/parse-object-id.pipe';
 import { ConfirmarRemocaoEscalaDto, PeriodoEscalaDto, PublicarEscalaDto, RevisaoEscalaDto } from './dto/escala.dto';
 import { GerarEscalaDto } from './dto/gerar-escala.dto';
 import { ExportarEscalaPdfDto } from './dto/exportar-escala-pdf.dto';
-import { HistoricoEscalasDto } from './dto/historico-escalas.dto';
 import { LotePlantoesDto, PlantaoDto } from './dto/plantao.dto';
 import { EscalasService } from './escalas.service';
 import { EscalaPdfService } from './escala-pdf.service';
@@ -40,13 +39,6 @@ export class EscalasController {
   @ApiBadRequestResponse({ description: 'Ano ou mês inválido' })
   listar(@Query() periodo: PeriodoEscalaDto) {
     return this.service.listarPorPeriodo(periodo.ano, periodo.mes);
-  }
-
-  @Get('historico')
-  @ApiOperation({ summary: 'Lista as versões oficiais mais recentes de cada mês publicado no ano' })
-  @ApiOkResponse({ description: 'Metadados anuais de escalas publicadas, sem rascunhos ou revisões.' })
-  historico(@Query() query: HistoricoEscalasDto) {
-    return this.service.listarHistorico(query.ano);
   }
 
   @Post()
