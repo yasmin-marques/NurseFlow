@@ -15,6 +15,7 @@ import type { UsuarioAutenticado } from '../common/auth/usuario-autenticado';
 import type { AprovarTrocaDto, RecusarTrocaDto } from './dto/decidir-troca.dto';
 import { Setor } from '../setores/schemas/setor.schema';
 import { Usuario } from '../usuarios/schemas/usuario.schema';
+import { ListarHistoricoTrocasDto } from './dto/listar-historico-trocas.dto';
 import { FiltroTroca, ListarTrocasDto } from './dto/listar-trocas.dto';
 
 type TrocaRead = SolicitacaoTroca & { _id: Types.ObjectId };
@@ -66,6 +67,79 @@ export class TrocasService {
       total,
       totalPaginas: Math.ceil(total / dto.limite),
       contadores: { ...Object.fromEntries(contagensPorStatus), aguardandoCoordenacao },
+    };
+  }
+
+  async listarHistorico(dto: ListarHistoricoTrocasDto) {
+    const inicio = new Date(Date.UTC(dto.ano, 0, 1));
+    const fim = new Date(Date.UTC(dto.ano + 1, 0, 1));
+    const filtro = {
+      status: {
+        $in: [
+          StatusTroca.APROVADA,
+          StatusTroca.RECUSADA_PELA_COORDENACAO,
+          StatusTroca.RECUSADA_PELO_PROFISSIONAL,
+        ],
+      },
+      updatedAt: { $gte: inicio, $lt: fim },
+    };
+    const [docs, total] = await Promise.all([
+      this.trocas.find(filtro)
+        .sort({ updatedAt: -1, _id: -1 })
+        .skip((dto.pagina - 1) * dto.limite)
+        .limit(dto.limite)
+        .lean()
+        .exec(),
+      this.trocas.countDocuments(filtro).exec(),
+    ]);
+
+    const profissionaisIds = [...new Set(docs.flatMap((troca) => [
+      String(troca.solicitanteProfissionalId),
+      String(troca.profissionalSolicitadoId),
+    ]))].map((id) => new Types.ObjectId(id));
+    const profissionais = await this.profissionais
+      .find({ _id: { $in: profissionaisIds } })
+      .select('_id usuarioId')
+      .lean()
+      .exec();
+    const usuariosIds = [...new Set([
+      ...profissionais.map((profissional) => String(profissional.usuarioId)),
+      ...docs.flatMap((troca) => troca.decisaoCoordenacao ? [String(troca.decisaoCoordenacao.usuarioId)] : []),
+    ])].map((id) => new Types.ObjectId(id));
+    const usuarios = await this.usuarios
+      .find({ _id: { $in: usuariosIds } })
+      .select('_id nome')
+      .lean()
+      .exec();
+    const nomeUsuarioPorId = new Map(usuarios.map((usuario) => [String(usuario._id), usuario.nome]));
+    const nomeProfissionalPorId = new Map(profissionais.map((profissional) => [
+      String(profissional._id),
+      nomeUsuarioPorId.get(String(profissional.usuarioId)) ?? 'Profissional indisponível',
+    ]));
+    const itens = docs.map((troca) => {
+      const decisao = troca.decisaoCoordenacao;
+      const nomeSolicitado = nomeProfissionalPorId.get(String(troca.profissionalSolicitadoId)) ?? 'Profissional indisponível';
+      return {
+        id: String(troca._id),
+        decididaEm: decisao?.decididaEm ?? troca.updatedAt ?? troca.criadaEm,
+        solicitante: { nome: nomeProfissionalPorId.get(String(troca.solicitanteProfissionalId)) ?? 'Profissional indisponível' },
+        profissionalSolicitado: { nome: nomeSolicitado },
+        resultado: troca.status === StatusTroca.APROVADA ? 'aprovada' as const : 'recusada' as const,
+        responsavel: {
+          nome: decisao
+            ? nomeUsuarioPorId.get(String(decisao.usuarioId)) ?? 'Usuário indisponível'
+            : nomeSolicitado,
+        },
+      };
+    });
+
+    return {
+      ano: dto.ano,
+      itens,
+      pagina: dto.pagina,
+      limite: dto.limite,
+      total,
+      totalPaginas: Math.ceil(total / dto.limite),
     };
   }
 

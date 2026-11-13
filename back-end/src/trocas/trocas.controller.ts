@@ -6,6 +6,7 @@ import { ParseObjectIdPipe } from '../common/pipes/parse-object-id.pipe';
 import { UsuarioAtual } from '../common/decorators';
 import type { UsuarioAutenticado } from '../common/auth/usuario-autenticado';
 import { AprovarTrocaDto, RecusarTrocaDto } from './dto/decidir-troca.dto';
+import { ListarHistoricoTrocasDto } from './dto/listar-historico-trocas.dto';
 import { ListarTrocasDto } from './dto/listar-trocas.dto';
 import { TrocasService } from './trocas.service';
 
@@ -17,6 +18,11 @@ export class TrocasController {
   @ApiOperation({ summary: 'Lista solicitações de troca da Coordenação com filtro de situação e período' })
   @ApiOkResponse({ description: 'Lista paginada e contagem global de solicitações aguardando Coordenação.' })
   listar(@Query() query: ListarTrocasDto) { return this.service.listar(query); }
+
+  @Get('historico')
+  @ApiOperation({ summary: 'Lista decisões de troca finalizadas no ano selecionado' })
+  @ApiOkResponse({ description: 'Lista paginada de decisões aprovadas e recusadas.' })
+  historico(@Query() query: ListarHistoricoTrocasDto) { return this.service.listarHistorico(query); }
 
   @Get(':id')
   @ApiOperation({ summary: 'Consulta detalhes administrativos dos dois plantões e decisões registradas' })
