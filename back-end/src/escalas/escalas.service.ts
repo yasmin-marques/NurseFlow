@@ -815,6 +815,8 @@ export class EscalasService {
             horarioFim: preparadas[0].horarioFim,
             duracaoHoras: preparadas[0].duracaoHoras,
             tipo: dto.tipo,
+            motivo: dto.motivo,
+            observacao: dto.observacao,
           },
         ],
         { session },
@@ -880,6 +882,8 @@ export class EscalasService {
               horarioFim: item.horarioFim,
               duracaoHoras: item.duracaoHoras,
               tipo: item.dto.tipo,
+              motivo: item.dto.motivo,
+              observacao: item.dto.observacao,
             }],
             { session },
           );
@@ -894,6 +898,8 @@ export class EscalasService {
                 horarioFim: item.horarioFim,
                 duracaoHoras: item.duracaoHoras,
                 tipo: item.dto.tipo,
+                ...(item.dto.motivo === undefined ? {} : { motivo: item.dto.motivo }),
+                ...(item.dto.observacao === undefined ? {} : { observacao: item.dto.observacao }),
               },
             },
             { session },
@@ -946,6 +952,8 @@ export class EscalasService {
             horarioFim: preparada.horarioFim,
             duracaoHoras: preparada.duracaoHoras,
             tipo: dto.tipo,
+            ...(dto.motivo === undefined ? {} : { motivo: dto.motivo }),
+            ...(dto.observacao === undefined ? {} : { observacao: dto.observacao }),
           },
         },
         { session },
@@ -2026,6 +2034,8 @@ export class EscalasService {
         horarioFim: p.horarioFim,
         duracaoHoras: p.duracaoHoras,
         tipo: p.tipo,
+        ...(p.motivo ? { motivo: p.motivo } : {}),
+        ...(p.observacao ? { observacao: p.observacao } : {}),
         profissionais: vinculos
           .filter((v) => String(v.plantaoId) === String(p._id))
           .map((v) => {
