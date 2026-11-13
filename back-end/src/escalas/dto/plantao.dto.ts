@@ -1,11 +1,13 @@
 import { ApiProperty, ApiPropertyOptional, OmitType } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { ArrayMinSize, ArrayUnique, IsArray, IsBoolean, IsDateString, IsEnum, IsIn, IsInt, IsMongoId, IsOptional, Matches, Min, ValidateNested } from 'class-validator';
+import { ArrayMinSize, ArrayUnique, IsArray, IsBoolean, IsDateString, IsEnum, IsIn, IsInt, IsMongoId, IsOptional, IsString, Matches, MaxLength, Min, ValidateNested } from 'class-validator';
 import { Formacao } from '../../profissionais/profissionais.enums';
 import { OrigemCobertura, TipoPlantao } from '../schemas';
 
 export const OPCOES_PLANTAO = ['24h', '12d', '12n'] as const;
 export type OpcaoPlantaoManual = (typeof OPCOES_PLANTAO)[number];
+export const MOTIVOS_EXTRA = ['cobertura_ferias', 'cobertura_ausencia', 'cobertura_deficit', 'outro'] as const;
+export type MotivoPlantaoExtra = (typeof MOTIVOS_EXTRA)[number];
 
 export class ProfissionalPlantaoDto {
   @ApiProperty({ format: 'objectId' })
@@ -46,6 +48,14 @@ export class PlantaoDto {
   @ApiProperty({ enum: TipoPlantao })
   @IsEnum(TipoPlantao)
   tipo: TipoPlantao;
+
+  @ApiPropertyOptional({ enum: MOTIVOS_EXTRA })
+  @IsOptional() @IsIn(MOTIVOS_EXTRA)
+  motivo?: MotivoPlantaoExtra;
+
+  @ApiPropertyOptional({ maxLength: 500 })
+  @IsOptional() @IsString() @MaxLength(500)
+  observacao?: string;
 
   @ApiProperty({ type: [ProfissionalPlantaoDto], minItems: 1 })
   @IsArray() @ArrayMinSize(1) @ArrayUnique((item: ProfissionalPlantaoDto) => item.profissionalId)

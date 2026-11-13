@@ -83,6 +83,8 @@ describe('services/scales', () => {
       data: '2026-10-02',
       opcao: '12n',
       tipo: 'extra',
+      motivo: 'cobertura_ausencia',
+      observacao: 'Cobertura emergencial',
       equipe: [{ profissionalId: 'professional-1', funcao: 'enfermeiro' }],
     })
 
@@ -115,6 +117,8 @@ describe('services/scales', () => {
           data: '2026-10-02',
           opcao: '12n',
           tipo: 'extra',
+          motivo: 'cobertura_ausencia',
+          observacao: 'Cobertura emergencial',
           equipe: [{
             profissionalId: 'professional-1',
             funcao: 'enfermeiro',
