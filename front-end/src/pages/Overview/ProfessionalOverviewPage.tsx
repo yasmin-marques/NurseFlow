@@ -48,7 +48,7 @@ function ShiftDetails({ shift, compact = false }: { shift: MyShift; compact?: bo
           {shift.horarioInicio}—{shift.horarioFim}
         </span>
         <span className={`mt-1 block truncate text-[10px] ${compact ? 'text-text-muted' : 'text-white/75'}`}>
-          {shift.setor} · {shift.funcao === 'enfermeiro' ? 'Enfermagem' : 'Assistência'}
+          {shift.setor} · {shift.funcao === 'enfermeiro' ? 'Enfermagem' : 'Técnico'}
         </span>
       </span>
     </div>
@@ -109,7 +109,7 @@ function ShiftDetailPage({
             </div>
             <div className="flex items-center gap-4 py-4">
               <Users size={18} className="shrink-0 text-primary" />
-              <div><dt className="text-xs text-text-muted">Função</dt><dd className="mt-0.5 text-sm font-semibold text-text">{shift.funcao === 'enfermeiro' ? 'Enfermagem' : 'Assistência'}</dd></div>
+              <div><dt className="text-xs text-text-muted">Função</dt><dd className="mt-0.5 text-sm font-semibold text-text">{shift.funcao === 'enfermeiro' ? 'Enfermagem' : 'Técnico'}</dd></div>
             </div>
             <div className="flex items-center gap-4 py-4">
               <Clock size={18} className="shrink-0 text-primary" />
@@ -132,7 +132,7 @@ function ShiftDetailPage({
   )
 }
 
-export function NurseOverviewPage({ userName, onNavigate }: OverviewPageProps) {
+export function ProfessionalOverviewPage({ userName, onNavigate }: OverviewPageProps) {
   const [shifts, setShifts] = useState<MyShift[]>([])
   const [shiftLoading, setShiftLoading] = useState(true)
   const [shiftError, setShiftError] = useState<string | null>(null)
@@ -231,7 +231,7 @@ export function NurseOverviewPage({ userName, onNavigate }: OverviewPageProps) {
                 </p>
                 <div className="mt-2 flex flex-wrap gap-x-5 gap-y-2 text-sm text-white/80">
                   <span className="inline-flex items-center gap-1.5"><Building2 size={16} />{nextShift.setor}</span>
-                  <span className="inline-flex items-center gap-1.5"><Clock size={16} />{nextShift.funcao === 'enfermeiro' ? 'Enfermagem' : 'Assistência'}</span>
+                  <span className="inline-flex items-center gap-1.5"><Clock size={16} />{nextShift.funcao === 'enfermeiro' ? 'Enfermagem' : 'Técnico'}</span>
                 </div>
               </div>
             </div>
