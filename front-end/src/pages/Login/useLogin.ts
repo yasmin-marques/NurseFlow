@@ -4,7 +4,7 @@ import type { SessionUser } from '../../services/auth'
 import type { LoginProfile } from './types'
 
 export function useLogin(onLogin: (user: SessionUser) => void) {
-  const [profile, setProfile] = useState<LoginProfile>('coordenação')
+  const [profile, setProfile] = useState<LoginProfile>('coordenacao')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [message, setMessage] = useState('')

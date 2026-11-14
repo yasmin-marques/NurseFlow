@@ -3,7 +3,7 @@ import { AppLayout } from './components/layout/AppLayout'
 import { NAV_ITEMS, type NavItemId } from './components/layout/navItems'
 import { OverviewPage } from './pages/Overview/OverviewPage'
 import { CoordinationOverviewPage } from './pages/Overview/CoordinationOverviewPage'
-import { NurseOverviewPage } from './pages/Overview/NurseOverviewPage'
+import { ProfessionalOverviewPage } from './pages/Overview/ProfessionalOverviewPage'
 import { SettingsPage } from './pages/Settings/SettingsPage'
 import { LoginPage } from './pages/Login/LoginPage'
 import { currentUser, logout, type SessionUser } from './services/auth'
@@ -94,8 +94,8 @@ function App() {
     >
       {activeItem === 'configuracoes' && isCoordination ? (
         <SettingsPage searchQuery={searchQuery} />
-      ) : activeItem === 'visao-geral' && user.perfil === 'enfermeiro' ? (
-        <NurseOverviewPage userName={user.nome.split(/\s+/)[0]} onNavigate={navigate} />
+      ) : activeItem === 'visao-geral' && ['enfermeiro', 'tecnico'].includes(user.perfil) ? (
+        <ProfessionalOverviewPage userName={user.nome.split(/\s+/)[0]} onNavigate={navigate} />
       ) : activeItem === 'visao-geral' && isCoordination ? (
         <CoordinationOverviewPage userName={user.nome.split(/\s+/)[0]} onNavigate={navigate} />
       ) : activeItem === 'visao-geral' ? (

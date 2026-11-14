@@ -22,6 +22,24 @@ describe('services/auth', () => {
     expect(store.get('nurseflow.token')).toBe('jwt-1')
   })
 
+  it('envia o identificador de perfil técnico esperado pela API', async () => {
+    const technician = {
+      id: '2',
+      nome: 'Daniela Ferreira Alves',
+      email: 'daniela@nurseflow.test',
+      perfil: 'tecnico',
+    }
+    const { calls } = mockBackend(() => ({ body: { accessToken: 'jwt-tech', usuario: technician } }))
+
+    await login('tecnico', form(technician.email, 'segredo'))
+
+    expect(calls[0]).toMatchObject({
+      url: '/api/auth/login',
+      method: 'POST',
+      body: { email: technician.email, senha: 'segredo', perfil: 'tecnico' },
+    })
+  })
+
   it('propaga o erro da API e não guarda token com credenciais inválidas', async () => {
     const { store } = mockBackend(() => ({ status: 401, body: { message: 'Credenciais inválidas.' } }))
     await expect(login(profile('enfermeiro'), form('a@b.c', 'x'))).rejects.toMatchObject({
