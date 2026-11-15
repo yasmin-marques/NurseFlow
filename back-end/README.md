@@ -143,7 +143,6 @@ O chefe do plantão é contabilizado entre os enfermeiros (DA08).
 | Método | Rota | Descrição |
 |---|---|---|
 | GET | `/escalas?ano=&mes=` | Consulta a escala do período; retorna lista vazia quando não existe |
-| GET | `/escalas/historico?ano=` | Lista a versão oficial mais recente de cada mês publicado no ano (Coordenação) |
 | POST | `/escalas` | Cria rascunho para montagem manual |
 | POST | `/escalas/gerar` | Gera a escala mensal automaticamente; aceita setores, turnos e identificador da operação |
 | DELETE | `/escalas/gerar/:operacaoId` | Solicita cancelamento da geração ativa |
@@ -159,12 +158,6 @@ O chefe do plantão é contabilizado entre os enfermeiros (DA08).
 | DELETE | `/escalas/:id` | Remove somente rascunho; corpo exige `{ "confirmar": true, "revisaoEsperada": 3 }` |
 
 Estados do fluxo: `rascunho` → `em_revisao` → `validada` → `publicada` → `finalizada`. Alterações incrementam a revisão e invalidam uma validação anterior. Revisões desatualizadas e estados incompatíveis retornam 409; conflitos obrigatórios retornam 422. Pendências e alertas exigem confirmação explícita para publicar e permanecem no snapshot oficial e no PDF.
-
-### Histórico de trocas — somente **Coordenação**
-
-| Método | Rota | Descrição |
-|---|---|---|
-| GET | `/trocas/historico?ano=&pagina=&limite=` | Lista decisões aprovadas/recusadas no ano selecionado, com participantes, data e responsável; não inclui solicitações pendentes |
 
 ### `/notificacoes/escalas` — usuário autenticado
 
