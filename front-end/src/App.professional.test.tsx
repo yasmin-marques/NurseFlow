@@ -12,6 +12,7 @@ vi.mock('./pages/MyShifts/MyShiftsPage', () => ({ MyShiftsPage: () => <h1>Tela M
 vi.mock('./pages/GeneralSchedule/GeneralSchedulePage', () => ({ GeneralSchedulePage: () => <h1>Tela Escala geral</h1> }))
 vi.mock('./pages/Scale/ScalePage', () => ({ ScalePage: () => <h1>Gestão de escala</h1> }))
 vi.mock('./pages/Exchanges/ExchangesPage', () => ({ ExchangesPage: () => <h1>Trocas da Coordenação</h1> }))
+vi.mock('./pages/History/HistoryPage', () => ({ HistoryPage: () => <h1>Histórico administrativo</h1> }))
 
 const session = (perfil: string, nome = 'Camila Souza') => ({ id: 'u1', nome, email: 'c@x.com', perfil })
 
@@ -52,8 +53,11 @@ describe('App routing by profile', () => {
 
   it('keeps the existing side-menu layout for the Coordenação', async () => {
     currentUser.mockResolvedValue(session('coordenacao', 'Paloma Ferreira'))
+    const user = userEvent.setup()
     render(<App />)
     expect(await screen.findByText('Profissionais')).not.toBeNull()
     expect(screen.queryByRole('navigation', { name: 'Áreas do profissional' })).toBeNull()
+    await user.click(screen.getByRole('link', { name: 'Histórico' }))
+    expect(screen.getByRole('heading', { name: 'Histórico administrativo' })).not.toBeNull()
   })
 })
