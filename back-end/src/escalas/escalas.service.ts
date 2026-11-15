@@ -178,48 +178,6 @@ export class EscalasService {
     return escala ? [await this.montarResposta(escala)] : [];
   }
 
-  async listarHistorico(ano: number) {
-    const versoes = await this.versoes
-      .find({ ano })
-      .sort({ mes: 1, numero: -1 })
-      .lean()
-      .exec();
-    const ultimaPorMes = new Map<number, (typeof versoes)[number]>();
-    for (const versao of versoes) {
-      if (!ultimaPorMes.has(versao.mes)) ultimaPorMes.set(versao.mes, versao);
-    }
-
-    return {
-      ano,
-      itens: [...ultimaPorMes.values()].map((versao) => {
-        const snapshot = versao.snapshot as Record<string, unknown> | undefined;
-        const visualizacao =
-          typeof snapshot?.visualizacao === 'object' && snapshot.visualizacao !== null
-            ? snapshot.visualizacao as Record<string, unknown>
-            : undefined;
-        const cobertura =
-          typeof visualizacao?.cobertura === 'object' && visualizacao.cobertura !== null
-            ? visualizacao.cobertura as Record<string, unknown>
-            : undefined;
-        const plantoes = Array.isArray(snapshot?.plantoes)
-          ? snapshot.plantoes
-          : Array.isArray(visualizacao?.plantoes)
-            ? visualizacao.plantoes
-            : [];
-        return {
-          escalaId: String(versao.escalaId),
-          ano: versao.ano,
-          mes: versao.mes,
-          numeroVersao: versao.numero,
-          publicadoEm: versao.publicadoEm,
-          totalPlantoes: plantoes.length,
-          percentualCobertura:
-            typeof cobertura?.percentual === 'number' ? cobertura.percentual : null,
-        };
-      }),
-    };
-  }
-
   async criarRascunho(periodo: PeriodoEscalaDto, usuario: UsuarioAutenticado) {
     const administradorId = await this.administradorDe(usuario.id);
     const configuracao = await this.configuracoes.consultar(periodo.ano, periodo.mes);

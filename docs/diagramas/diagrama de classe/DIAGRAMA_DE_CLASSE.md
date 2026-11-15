@@ -1,134 +1,166 @@
-# Explicação do Diagrama de Classes — Sistema de Escalas de Plantão
+# NurseFlow - Diagrama de Classes
 
-Este documento descreve o diagrama de classes derivado do DER do sistema de escalas de plantão para profissionais da saúde (enfermeiros e técnicos).
+## Visão geral
 
-## 1. Visão geral
+O diagrama apresenta as principais classes persistidas pelo backend do NurseFlow e como elas se relacionam no MongoDB. O modelo contempla usuários e perfis, setores, configurações, restrições, escalas, plantões, alocações de profissionais, versões publicadas, auditoria, notificações e solicitações de troca.
 
-O sistema permite que um **administrador** monte **escalas** mensais compostas por **plantões**, aloque **profissionais da saúde** nesses plantões por **setor** e controle regras como restrições de horário, férias e limites de plantões. Os profissionais podem **solicitar trocas de plantão**, que passam por aceite do colega e aprovação do administrador, e recebem **notificações** sobre o que acontece.
+O diagrama foi elaborado a partir dos schemas Mongoose implementados no backend. Assim, ele representa o modelo de dados da aplicação, e não uma hierarquia abstrata de objetos: quando uma classe possui um campo `ObjectId` que referencia outra, a relação está representada como associação, não como herança.
 
-## 2. Hierarquia de usuários
+![Diagrama de classes do NurseFlow](./diagrama_classes-nurseflow.png)
 
-### `Usuario` (abstrata)
-Classe base com os dados comuns de acesso e identificação.
+Também está disponível a [versão vetorial SVG](./diagrama_classes-nurseflow.svg), que pode ser ampliada sem perda de qualidade.
 
-| Atributo | Descrição |
-|---|---|
-| `idUsuario` | Identificador interno |
-| `cpf` | CPF (único) |
-| `nome`, `email`, `telefone` | Dados de contato |
-| `senha` | Credencial de acesso |
+Para facilitar a leitura, foram omitidos os campos técnicos repetidos (`createdAt` e `updatedAt`). Campos flexíveis armazenados como objetos ou snapshots, como `validacao`, `geracao`, `detalhes` e `snapshot`, foram resumidos como `Object`.
 
-Métodos: `autenticar()`, `alterarSenha()`.
+## 1. Usuários e perfis
+
+### `Usuario`
+
+Armazena os dados comuns de identificação e autenticação. O documento inclui nome, e-mail, CPF, telefone opcional, senha e o tipo de usuário. Também concentra informações de segurança e preferências: senha temporária, recebimento de notificações de escala, tentativas falhas de login, bloqueio temporário, data do último login e dados de redefinição de senha.
+
+O campo `tipoUsuario` diferencia os perfis de administrador e profissional da saúde. A senha é armazenada como hash e não deve ser exposta em respostas da API.
 
 ### `Administrador`
-Especialização de `Usuario`. Gerencia o sistema: cria, publica e finaliza escalas, cadastra restrições, define configurações e aprova trocas.
 
-### `ProfissionalSaude`
-Especialização de `Usuario`. Representa quem cumpre os plantões.
+Representa o perfil de coordenação. Seu schema contém o campo obrigatório `usuarioId`, que referencia o documento `Usuario` com os dados de identificação e autenticação. O identificador do administrador é usado, por exemplo, pela escala e pela versão publicada para registrar quem criou ou publicou o registro.
 
-| Atributo | Descrição |
-|---|---|
-| `coren` | Registro profissional (identificador) |
-| `formacao` | `ENFERMEIRO` ou `TECNICO` |
-| `tipoVinculo` | `CLT`, `RPA` ou `CONCURSADO` |
-| `status` | `ATIVO`, `DESATIVADO`, `AFASTADO` ou `FERIAS` |
-| `sincronizaAgenda` | Indica se os plantões são sincronizados com a agenda pessoal |
+### `Profissional`
 
-Métodos: `solicitarTroca()`, `aceitarTroca()`, `recusarTroca()`, `consultarPlantoes()`, `sincronizarAgenda()`.
+Representa um enfermeiro ou técnico. Também referencia `Usuario` pelo campo obrigatório `usuarioId`; seus dados próprios incluem:
 
-> No DER, a generalização é disjunta (o "d"): um usuário é administrador **ou** profissional da saúde, nunca os dois.
+- `coren`, registro profissional;
+- `formacao`, como enfermeiro ou técnico;
+- `tipoVinculo`, como concursado, CLT ou RPA;
+- `status`, que indica se está ativo, desativado, afastado ou de férias;
+- `sincronizaAgenda`, preferência de sincronização com agenda externa;
+- `desativadoEm`, data opcional de desativação.
 
-## 3. Classes de escala e plantão
+Os dados pessoais e de acesso permanecem em `Usuario`, enquanto os dados profissionais ficam no documento `Profissional`. São dois documentos associados, não subclasses de uma classe base.
 
-### `Escala`
-Representa a escala de um mês/ano.
-- Atributos: `idEscala`, `mes`, `ano`, `dataCriacao`, `status`.
-- `status` (`StatusEscala`): `RASCUNHO` → `PUBLICADA` → `FINALIZADA`.
-- Métodos: `adicionarPlantao()`, `publicar()`, `finalizar()`.
-
-### `Plantao`
-Um turno de trabalho dentro de uma escala.
-- Atributos: `idPlantao`, `data`, `horarioInicio`, `horarioFim`, `tipo`.
-- `tipo` (`TipoPlantao`): `REGULAR` ou `EXTRA`.
-- Método: `alocarProfissional()`.
+## 2. Setores, quantitativos e configurações
 
 ### `Setor`
-Local/unidade onde o plantão ocorre.
-- Atributos: `idSetor`, `nome`, `descricao`.
-- `quantMinEnf` e `quantMinTec`: quantidade mínima de enfermeiros e técnicos exigida no setor, usada para validar se a escala cobre as necessidades.
 
-## 4. Trocas de plantão
+Representa uma unidade hospitalar em que os plantões podem ocorrer. Possui nome, descrição opcional, estado ativo/inativo e a estrutura `turnos`, incorporada ao próprio documento.
 
-### `TrocaPlantao`
-Registra o pedido de troca entre dois profissionais.
-- Atributos: `idTroca`, `dataSolicitacao`, `status`.
-- Associações:
-  - `solicitante` (`idOrigem`): profissional que pede a troca.
-  - `destinatario` (`idDestino`): profissional que recebe o pedido.
-  - `Plantao` envolvido na troca.
-- `status` (`StatusTroca`): `PENDENTE` → `ACEITA_ENF` (aceita pelo colega) → `APROVADA_ADMIN`, ou `RECUSADA`.
-- Métodos: `aceitar()`, `recusar()`, `aprovar()`.
-
-**Fluxo:**
-1. O profissional solicitante cria a troca (`PENDENTE`).
-2. O destinatário aceita (`ACEITA_ENF`) ou recusa (`RECUSADA`).
-3. O administrador aprova (`APROVADA_ADMIN`) e a alocação do plantão é atualizada.
-
-## 5. Regras e controle de disponibilidade
+`turnos` contém os quantitativos mínimos dos períodos diurno e noturno. Cada período é representado por `Quantitativo`, com as quantidades de enfermeiros e técnicos necessárias. `TurnosSetor` e `Quantitativo` são objetos incorporados: não têm coleção ou identificador próprios.
 
 ### `Configuracao`
-Parâmetros definidos pelo administrador:
-- `quantMaxExtra`: máximo de plantões extras.
-- `quantMaxTroca`: máximo de trocas permitidas.
-- `quantLimitePlantao`: limite geral de plantões.
+
+Armazena as regras gerais de escala identificadas por uma `chave` única. Inclui limites de trocas, plantões extras e plantões, além dos limites específicos de extras para profissionais concursados e CLT. O campo `cargas` guarda, por tipo de vínculo, os parâmetros de plantões de 24 e 12 horas.
+
+As configurações não são associadas a um administrador por um campo de referência no schema. O diagrama, portanto, apresenta `Configuracao` como configuração global do sistema.
+
+## 3. Restrições e disponibilidade
 
 ### `Restricao`
-Impedimento de horário de um profissional, cadastrado pelo administrador.
-- Atributos: `idRestricao`, `tipoRestricao`, `diaSemana`, `horarioInicio`, `horarioFim`.
 
-### `Ferias`
-Período de férias (`inicio`, `fim`) de um profissional. Existe somente enquanto o profissional existe (composição).
+Registra uma regra ou período relacionado à disponibilidade de um profissional. Cada restrição possui uma referência obrigatória a `Profissional`, um tipo, início e fim. Pode conter também um dia da semana e uma observação.
 
-## 6. Notificações
+Os tipos previstos são:
 
-### `Notificacao`
-Mensagem enviada a um profissional.
-- Atributos: `idNotificacao`, `mensagem`, `dataEnvio`, `lida`.
-- Método: `marcarComoLida()`.
+- `indisponivel` e `disponivel`;
+- `ferias` e `ausencia`;
+- `vinculo_externo`.
 
-## 7. Relacionamentos
+O documento modela férias e ausências como tipos de restrição com intervalo de datas; não há uma classe persistida separada chamada `Ferias`. O período pode ser usado pelo sistema ao avaliar a disponibilidade do profissional e a cobertura dos plantões.
 
-| Relação | Cardinalidade | Observação |
+## 4. Escalas, plantões e alocações
+
+### `Escala`
+
+Representa a escala de um mês e ano. Cada documento referencia o `Administrador` responsável e mantém seu estado de elaboração e publicação, a revisão atual, a versão publicada, a data de criação e os dados opcionais de validação e geração.
+
+O estado da escala pode ser `rascunho`, `em_revisao`, `validada`, `publicada` ou `finalizada`. Os dados de validação e geração são guardados como objetos flexíveis, para registrar informações que não correspondem a uma classe persistida independente no modelo atual.
+
+### `Plantao`
+
+Representa uma vaga de trabalho com setor, data, horário de início e fim, duração em horas e tipo (`regular` ou `extra`). O plantão referencia obrigatoriamente uma `Escala` e um `Setor`. Pode incluir um motivo de cobertura e uma observação.
+
+O plantão descreve a vaga e seus horários. A associação aos profissionais que a ocupam é mantida separadamente em `PlantaoProfissional`.
+
+### `PlantaoProfissional`
+
+É a classe de associação entre `Plantao` e `Profissional`. Cada registro referencia um plantão e um profissional e armazena também a função exercida naquele plantão, se a pessoa está em posição de liderança e a origem da cobertura.
+
+`origemCobertura` pode indicar cobertura regular, relacionada a uma restrição ou complementar. Como a alocação é um documento próprio, o modelo permite registrar profissionais relacionados a um plantão sem guardar uma lista de profissionais dentro do documento `Plantao`.
+
+## 5. Publicação, histórico e notificações de escala
+
+### `VersaoEscala`
+
+Guarda uma versão publicada da escala. Referencia a `Escala` e o `Administrador` que publicou, registra número da versão, mês, ano e data da publicação, e mantém um `snapshot` com o conteúdo da escala naquele momento. O campo `pendenciasConfirmadas` indica se pendências foram confirmadas na publicação.
+
+O snapshot preserva o retrato publicado mesmo quando a escala de trabalho continua sendo editada em revisões posteriores.
+
+### `AuditoriaEscala`
+
+Registra uma ação realizada sobre uma escala. Cada documento referencia a escala e o `Usuario` responsável, e informa a revisão, a ação e a data em que ocorreu. O campo opcional `detalhes` guarda informações adicionais da operação.
+
+### `NotificacaoEscala`
+
+Registra uma notificação associada a uma escala e a uma versão. Contém o usuário destinatário, uma chave do evento, título e mensagem. `lidaEm` indica quando a notificação foi lida; quando não há data, a notificação ainda não foi marcada como lida.
+
+## 6. Solicitações de troca de plantão
+
+### `SolicitacaoTroca`
+
+Representa o fluxo de troca entre dois profissionais. A solicitação registra o mês e ano de referência, a data de criação e o estado atual. Mantém referências distintas para o profissional solicitante e para o profissional solicitado, além das referências aos dois documentos `PlantaoProfissional` envolvidos.
+
+Os estados registrados no modelo são:
+
+- `aguardando_resposta`;
+- `aguardando_coordenacao`;
+- `recusada_pelo_profissional`;
+- `aprovada`;
+- `recusada_pela_coordenacao`.
+
+Os campos `aceite` e `decisaoCoordenacao` guardam, quando aplicável, os dados da resposta do profissional e da decisão da coordenação, incluindo usuário responsável, data e justificativa opcional. `chaveIdempotencia` é opcional e permite identificar operações repetidas.
+
+### `AuditoriaTroca`
+
+Registra a decisão tomada sobre uma solicitação de troca. Referencia `SolicitacaoTroca` e o `Usuario` responsável e armazena resultado, data da decisão, justificativa opcional, indicação de exceção ao limite, informações de vínculos e versões afetadas e um identificador da operação.
+
+### `NotificacaoTroca`
+
+Registra uma notificação ligada a uma solicitação de troca e ao usuário destinatário. Armazena uma chave do evento, título, mensagem e, opcionalmente, a data em que foi lida.
+
+## 7. Relações apresentadas no diagrama
+
+| Origem | Destino | Referência / relação |
 |---|---|---|
-| `Usuario` ← `Administrador` / `ProfissionalSaude` | Herança | Generalização disjunta |
-| `Administrador` → `Configuracao` | 1 para 0..* | "adiciona" |
-| `Administrador` → `Escala` | 1 para 0..* | "faz" |
-| `Administrador` → `Restricao` | 1 para 0..* | "cadastra" |
-| `ProfissionalSaude` → `Restricao` | 1 para 0..* | "tem" |
-| `ProfissionalSaude` ◆ `Ferias` | 1 para 0..* | Composição |
-| `ProfissionalSaude` → `Notificacao` | 1 para 0..* | "recebe" |
-| `Escala` ◆ `Plantao` | 1 para 1..* | Composição, "contém" |
-| `Plantao` → `ProfissionalSaude` | 0..* para 0..1 | "aloca" |
-| `Plantao` → `Setor` | 0..* para 1 | "ocorre em" |
-| `TrocaPlantao` → `ProfissionalSaude` | 0..* para 1 (duas vezes) | Solicitante e destinatário |
-| `TrocaPlantao` → `Plantao` | 0..* para 1 | "envolve" |
+| `Administrador` | `Usuario` | `usuarioId` associa o perfil aos dados de usuário. |
+| `Profissional` | `Usuario` | `usuarioId` associa o perfil profissional aos dados de usuário. |
+| `Escala` | `Administrador` | `administradorId` identifica o responsável pela escala. |
+| `Plantao` | `Escala` | `escalaId` identifica a escala à qual a vaga pertence. |
+| `Plantao` | `Setor` | `setorId` identifica o local do plantão. |
+| `PlantaoProfissional` | `Plantao` | `plantaoId` associa uma alocação à vaga. |
+| `PlantaoProfissional` | `Profissional` | `profissionalId` identifica quem ocupa a vaga. |
+| `Restricao` | `Profissional` | `profissionalId` identifica a pessoa a que a regra se aplica. |
+| `VersaoEscala` | `Escala` e `Administrador` | Identifica a escala versionada e quem a publicou. |
+| `AuditoriaEscala` | `Escala` e `Usuario` | Identifica a escala alterada e quem realizou a ação. |
+| `NotificacaoEscala` | `Escala` e `Usuario` | Identifica a escala relacionada e o destinatário. |
+| `SolicitacaoTroca` | `Profissional` e `PlantaoProfissional` | Registra solicitante, destinatário e os dois vínculos envolvidos. |
+| `AuditoriaTroca` | `SolicitacaoTroca` e `Usuario` | Identifica a solicitação decidida e quem registrou a decisão. |
+| `NotificacaoTroca` | `SolicitacaoTroca` e `Usuario` | Identifica a solicitação relacionada e o destinatário. |
 
-## 8. Enumerações
+As linhas do desenho destacam associações principais para manter a leitura clara. Todos os campos de referência estão indicados também nos atributos das classes. Como os dados ficam no MongoDB, as referências são armazenadas como `ObjectId`; elas não representam herança e não implicam, por si só, exclusão em cascata. A quantidade de documentos associados depende dos dados gravados e das regras da aplicação.
 
-| Enum | Valores |
-|---|---|
-| `Formacao` | `ENFERMEIRO`, `TECNICO` |
-| `TipoVinculo` | `CLT`, `RPA`, `CONCURSADO` |
-| `StatusProfissional` | `ATIVO`, `DESATIVADO`, `AFASTADO`, `FERIAS` |
-| `StatusEscala` | `RASCUNHO`, `PUBLICADA`, `FINALIZADA` |
-| `TipoPlantao` | `REGULAR`, `EXTRA` |
-| `StatusTroca` | `PENDENTE`, `ACEITA_ENF`, `APROVADA_ADMIN`, `RECUSADA` |
+## 8. Escopo e interpretação
 
-## 9. Decisões de modelagem e pontos em aberto
+O diagrama foca nas classes persistidas e nas referências declaradas nos schemas Mongoose. DTOs, controllers, serviços, enums e componentes da interface não são documentos de domínio e, por isso, não aparecem como classes independentes. Os valores fechados de status e tipo foram apresentados dentro das classes correspondentes para deixar o desenho mais compacto.
 
-- **Atributos de domínio fechado** do DER (formação, vínculo, status, tipo) viraram enums.
-- **`id_origem` e `id_destino`** da troca viraram associações com `ProfissionalSaude`, em vez de inteiros soltos.
-- **Métodos** são sugestões baseadas nos relacionamentos; o DER não os define.
-- **Aprovação da troca:** o status `APROVADA_ADMIN` indica participação do administrador, mas o DER só liga a troca ao profissional. Pode-se adicionar uma associação `TrocaPlantao → Administrador` para registrar quem aprovou.
-- **Cardinalidade de "aloca":** a notação do DER é ambígua; foi interpretada como um plantão com no máximo um profissional.
-- **Identificadores:** os `id_*` foram mantidos como atributos. Em uma implementação orientada a objetos, alguns podem ficar apenas no mapeamento para o banco.
+As classes `TurnosSetor` e `Quantitativo` aparecem como estruturas incorporadas em `Setor`. De modo semelhante, `aceite`, `decisaoCoordenacao`, snapshots, dados de validação e detalhes de auditoria aparecem como objetos, pois o schema os mantém dentro do documento pai.
+
+As referências indicadas mostram a estrutura dos dados, mas não garantem sozinhas regras de exclusividade, integridade ou cardinalidade inversa. Essas regras dependem das validações e operações implementadas nos serviços.
+
+## 9. Arquivos de origem
+
+O diagrama foi conferido com os schemas do backend:
+
+- `back-end/src/usuarios/schemas/usuario.schema.ts` e `administrador.schema.ts`;
+- `back-end/src/profissionais/schemas/profissional.schema.ts`;
+- `back-end/src/restricoes/restricao.schema.ts`;
+- `back-end/src/setores/schemas/setor.schema.ts`;
+- `back-end/src/configuracoes/configuracao.schema.ts`;
+- `back-end/src/escalas/schemas.ts`, que contém os schemas de escala, plantão, alocação, versões, auditorias, notificações e trocas.

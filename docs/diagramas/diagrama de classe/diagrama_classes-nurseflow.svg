@@ -1,0 +1,257 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2280" height="1740" viewBox="0 0 2280 1740" role="img" aria-labelledby="title description">
+  <title id="title">Diagrama de classes do NurseFlow</title>
+  <desc id="description">Classes principais do backend NurseFlow, atributos e associações persistidas em MongoDB.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#59718d"/>
+    </marker>
+    <style>
+      text { font-family: Inter, "Segoe UI", Arial, sans-serif; fill: #172b4d; }
+      .title { font-size: 34px; font-weight: 700; }
+      .subtitle { font-size: 17px; fill: #53677f; }
+      .section { font-size: 19px; font-weight: 700; fill: #36506e; }
+      .card { fill: #fff; stroke: #8da3bb; stroke-width: 2; rx: 12; }
+      .head { fill: #e9f1fb; }
+      .headAccent { fill: #e4f4ef; }
+      .className { font-size: 21px; font-weight: 700; }
+      .collection { font-size: 13px; fill: #60758d; }
+      .field { font-size: 15px; }
+      .small { font-size: 14px; fill: #53677f; }
+      .edge { fill: none; stroke: #59718d; stroke-width: 2.2; }
+      .edgePlain { fill: none; stroke: #59718d; stroke-width: 2.2; }
+      .edgeLabel { font-size: 13px; font-weight: 600; fill: #344c68; }
+      .pill { fill: #f0f5fa; stroke: #c3d0dd; stroke-width: 1; rx: 7; }
+      .legend { font-size: 14px; fill: #455b74; }
+      .divider { stroke: #d7e0e9; stroke-width: 1.2; }
+    </style>
+  </defs>
+  <rect width="2280" height="1740" fill="#f7f9fc"/>
+  <text class="title" x="48" y="52">NurseFlow — Diagrama de classes</text>
+  <text class="subtitle" x="48" y="82">Modelo de domínio persistido no backend (NestJS + Mongoose) · campos técnicos de timestamps omitidos</text>
+
+  <text class="section" x="48" y="125">Identidade e operação</text>
+  <text class="section" x="48" y="470">Escalas e alocações</text>
+  <text class="section" x="48" y="1005">Publicação, histórico e trocas</text>
+
+  <!-- Associations behind the class cards -->
+  <path class="edge" d="M440 190 C475 190 485 188 520 188"/>
+  <path class="edge" d="M440 284 C480 284 470 440 520 440"/>
+  <path class="edge" d="M520 240 C500 320 485 425 450 530"/>
+  <path class="edge" d="M970 460 C1020 460 1040 550 1090 550"/>
+  <path class="edge" d="M500 640 C555 640 540 760 590 810"/>
+  <path class="edge" d="M1310 385 C1320 520 1100 590 940 690"/>
+  <path class="edge" d="M970 500 C1060 560 1070 720 1180 820"/>
+  <path class="edge" d="M1080 820 C1120 820 1140 820 1180 820"/>
+  <path class="edge" d="M280 790 C280 900 280 980 280 1080"/>
+  <path class="edge" d="M1740 830 C1710 870 1685 890 1660 910"/>
+  <path class="edge" d="M1880 860 C1880 915 1880 940 1880 990"/>
+  <path class="edge" d="M1990 860 C2050 970 2050 1140 1990 1280"/>
+
+  <!-- User and role documents -->
+  <g>
+    <rect class="card" x="40" y="145" width="400" height="260"/>
+    <path class="head" d="M52 145 H428 Q440 145 440 157 V198 H40 V157 Q40 145 52 145Z"/>
+    <text class="className" x="60" y="178">Usuario</text>
+    <text class="collection" x="60" y="195">collection: usuarios</text>
+    <line class="divider" x1="40" y1="205" x2="440" y2="205"/>
+    <text class="field" x="60" y="230">+ nome, email, cpf, telefone?</text>
+    <text class="field" x="60" y="254">+ senha, senhaTemporaria</text>
+    <text class="field" x="60" y="278">+ tipoUsuario: TipoUsuario</text>
+    <text class="field" x="60" y="302">+ recebeNotificacoesEscala</text>
+    <text class="field" x="60" y="326">+ tentativasFalhasLogin, bloqueadoAte?</text>
+    <text class="field" x="60" y="350">+ ultimoLoginEm?, redefinicaoSenha?</text>
+    <text class="small" x="60" y="382">Perfis separados; sem herança</text>
+  </g>
+  <g>
+    <rect class="card" x="520" y="125" width="410" height="145"/>
+    <path class="head" d="M532 125 H918 Q930 125 930 137 V178 H520 V137 Q520 125 532 125Z"/>
+    <text class="className" x="540" y="158">Administrador</text>
+    <text class="collection" x="540" y="175">collection: administradores</text>
+    <line class="divider" x1="520" y1="185" x2="930" y2="185"/>
+    <text class="field" x="540" y="214">+ usuarioId: ObjectId</text>
+    <text class="small" x="540" y="242">Perfil de coordenação</text>
+  </g>
+  <g>
+    <rect class="card" x="520" y="330" width="450" height="255"/>
+    <path class="headAccent" d="M532 330 H958 Q970 330 970 342 V383 H520 V342 Q520 330 532 330Z"/>
+    <text class="className" x="540" y="363">Profissional</text>
+    <text class="collection" x="540" y="380">collection: profissionaisDaSaude</text>
+    <line class="divider" x1="520" y1="390" x2="970" y2="390"/>
+    <text class="field" x="540" y="417">+ usuarioId: ObjectId</text>
+    <text class="field" x="540" y="441">+ coren: string</text>
+    <text class="field" x="540" y="465">+ formacao: enfermeiro | tecnico</text>
+    <text class="field" x="540" y="489">+ tipoVinculo: concursado | CLT | RPA</text>
+    <text class="field" x="540" y="513">+ status: ativo | desativado | afastado | ferias</text>
+    <text class="field" x="540" y="537">+ sincronizaAgenda, desativadoEm?</text>
+    <text class="small" x="540" y="563">Dados pessoais ficam em Usuario</text>
+  </g>
+
+  <!-- Configuration and staffing -->
+  <g>
+    <rect class="card" x="1660" y="125" width="520" height="220"/>
+    <path class="head" d="M1672 125 H2168 Q2180 125 2180 137 V178 H1660 V137 Q1660 125 1672 125Z"/>
+    <text class="className" x="1680" y="158">Configuracao</text>
+    <text class="collection" x="1680" y="175">collection: configuracoes</text>
+    <line class="divider" x1="1660" y1="185" x2="2180" y2="185"/>
+    <text class="field" x="1680" y="214">+ chave: string (única)</text>
+    <text class="field" x="1680" y="238">+ limiteTrocas, maxExtras</text>
+    <text class="field" x="1680" y="262">+ limitePlantoes, maxExtrasConcursado</text>
+    <text class="field" x="1680" y="286">+ maxExtrasClt</text>
+    <text class="field" x="1680" y="310">+ cargas: Object</text>
+    <text class="small" x="1680" y="332">Configuração global</text>
+  </g>
+  <g>
+    <rect class="card" x="1090" y="125" width="440" height="260"/>
+    <path class="headAccent" d="M1102 125 H1518 Q1530 125 1530 137 V178 H1090 V137 Q1090 125 1102 125Z"/>
+    <text class="className" x="1110" y="158">Setor</text>
+    <text class="collection" x="1110" y="175">collection: setores</text>
+    <line class="divider" x1="1090" y1="185" x2="1530" y2="185"/>
+    <text class="field" x="1110" y="214">+ nome, descricao?</text>
+    <text class="field" x="1110" y="238">+ turnos: TurnosSetor</text>
+    <text class="field" x="1110" y="262">+ ativo: boolean</text>
+    <rect class="pill" x="1110" y="280" width="400" height="78"/>
+    <text class="small" x="1124" y="303">TurnosSetor (embedded)</text>
+    <text class="field" x="1124" y="328">diurno, noturno: Quantitativo</text>
+    <text class="field" x="1124" y="349">Quantitativo: enfermeiros, tecnicos</text>
+  </g>
+  <g>
+    <rect class="card" x="1090" y="450" width="440" height="225"/>
+    <path class="headAccent" d="M1102 450 H1518 Q1530 450 1530 462 V503 H1090 V462 Q1090 450 1102 450Z"/>
+    <text class="className" x="1110" y="483">Restricao</text>
+    <text class="collection" x="1110" y="500">collection: restricoes</text>
+    <line class="divider" x1="1090" y1="510" x2="1530" y2="510"/>
+    <text class="field" x="1110" y="539">+ profissionalId: ObjectId</text>
+    <text class="field" x="1110" y="563">+ tipo: indisponivel | disponivel</text>
+    <text class="field" x="1110" y="587">  | ferias | ausencia | vinculo_externo</text>
+    <text class="field" x="1110" y="611">+ inicio, fim: Date</text>
+    <text class="field" x="1110" y="635">+ diaSemana?, observacao?</text>
+  </g>
+
+  <!-- Schedule, shift and allocation -->
+  <g>
+    <rect class="card" x="40" y="530" width="460" height="265"/>
+    <path class="head" d="M52 530 H488 Q500 530 500 542 V583 H40 V542 Q40 530 52 530Z"/>
+    <text class="className" x="60" y="563">Escala</text>
+    <text class="collection" x="60" y="580">collection: escalas</text>
+    <line class="divider" x1="40" y1="590" x2="500" y2="590"/>
+    <text class="field" x="60" y="619">+ administradorId: ObjectId</text>
+    <text class="field" x="60" y="643">+ mes, ano: number</text>
+    <text class="field" x="60" y="667">+ status: rascunho | em_revisao | validada</text>
+    <text class="field" x="60" y="691">  | publicada | finalizada</text>
+    <text class="field" x="60" y="715">+ revisao, versaoPublicada: number</text>
+    <text class="field" x="60" y="739">+ dataCriacao: Date</text>
+    <text class="field" x="60" y="763">+ validacao?, geracao?: Object</text>
+  </g>
+  <g>
+    <rect class="card" x="590" y="690" width="490" height="300"/>
+    <path class="head" d="M602 690 H1068 Q1080 690 1080 702 V743 H590 V702 Q590 690 602 690Z"/>
+    <text class="className" x="610" y="723">Plantao</text>
+    <text class="collection" x="610" y="740">collection: plantoes</text>
+    <line class="divider" x1="590" y1="750" x2="1080" y2="750"/>
+    <text class="field" x="610" y="779">+ escalaId, setorId: ObjectId</text>
+    <text class="field" x="610" y="803">+ data: Date</text>
+    <text class="field" x="610" y="827">+ horarioInicio, horarioFim: string</text>
+    <text class="field" x="610" y="851">+ duracaoHoras: number</text>
+    <text class="field" x="610" y="875">+ tipo: regular | extra</text>
+    <text class="field" x="610" y="899">+ motivo?, observacao?</text>
+    <text class="small" x="610" y="963">Profissionais relacionados via PlantaoProfissional</text>
+  </g>
+  <g>
+    <rect class="card" x="1180" y="760" width="480" height="240"/>
+    <path class="headAccent" d="M1192 760 H1648 Q1660 760 1660 772 V813 H1180 V772 Q1180 760 1192 760Z"/>
+    <text class="className" x="1200" y="793">PlantaoProfissional</text>
+    <text class="collection" x="1200" y="810">collection: profissionaisRelacionados</text>
+    <line class="divider" x1="1180" y1="820" x2="1660" y2="820"/>
+    <text class="field" x="1200" y="849">+ plantaoId, profissionalId: ObjectId</text>
+    <text class="field" x="1200" y="873">+ funcao: enfermeiro | tecnico</text>
+    <text class="field" x="1200" y="897">+ lideranca: boolean</text>
+    <text class="field" x="1200" y="921">+ origemCobertura: regular | restricao</text>
+    <text class="field" x="1200" y="945">  | complementar</text>
+    <text class="small" x="1200" y="977">Classe associativa (N:N)</text>
+  </g>
+
+  <!-- Publication and audit records -->
+  <g>
+    <rect class="card" x="40" y="1080" width="460" height="260"/>
+    <path class="head" d="M52 1080 H488 Q500 1080 500 1092 V1133 H40 V1092 Q40 1080 52 1080Z"/>
+    <text class="className" x="60" y="1113">VersaoEscala</text>
+    <text class="collection" x="60" y="1130">collection: versoesEscala</text>
+    <line class="divider" x1="40" y1="1140" x2="500" y2="1140"/>
+    <text class="field" x="60" y="1169">+ escalaId, publicadoPor: ObjectId</text>
+    <text class="field" x="60" y="1193">+ numero, mes, ano: number</text>
+    <text class="field" x="60" y="1217">+ publicadoEm: Date</text>
+    <text class="field" x="60" y="1241">+ snapshot: Object</text>
+    <text class="field" x="60" y="1265">+ pendenciasConfirmadas: boolean</text>
+  </g>
+  <g>
+    <rect class="card" x="590" y="1080" width="500" height="250"/>
+    <path class="head" d="M602 1080 H1078 Q1090 1080 1090 1092 V1133 H590 V1092 Q590 1080 602 1080Z"/>
+    <text class="className" x="610" y="1113">AuditoriaEscala</text>
+    <text class="collection" x="610" y="1130">collection: auditoriaEscalas</text>
+    <line class="divider" x1="590" y1="1140" x2="1090" y2="1140"/>
+    <text class="field" x="610" y="1169">+ escalaId, usuarioId: ObjectId</text>
+    <text class="field" x="610" y="1193">+ revisao: number, acao: string</text>
+    <text class="field" x="610" y="1217">+ ocorridoEm: Date</text>
+    <text class="field" x="610" y="1241">+ detalhes?: Object</text>
+  </g>
+  <g>
+    <rect class="card" x="1180" y="1080" width="480" height="250"/>
+    <path class="head" d="M1192 1080 H1648 Q1660 1080 1660 1092 V1133 H1180 V1092 Q1180 1080 1192 1080Z"/>
+    <text class="className" x="1200" y="1113">NotificacaoEscala</text>
+    <text class="collection" x="1200" y="1130">collection: notificacoesEscala</text>
+    <line class="divider" x1="1180" y1="1140" x2="1660" y2="1140"/>
+    <text class="field" x="1200" y="1169">+ escalaId, destinatarioId: ObjectId</text>
+    <text class="field" x="1200" y="1193">+ versao: number, eventKey: string</text>
+    <text class="field" x="1200" y="1217">+ titulo, mensagem: string</text>
+    <text class="field" x="1200" y="1241">+ lidaEm?: Date</text>
+  </g>
+
+  <!-- Shift exchanges -->
+  <g>
+    <rect class="card" x="1740" y="480" width="500" height="390"/>
+    <path class="headAccent" d="M1752 480 H2228 Q2240 480 2240 492 V533 H1740 V492 Q1740 480 1752 480Z"/>
+    <text class="className" x="1760" y="513">SolicitacaoTroca</text>
+    <text class="collection" x="1760" y="530">collection: solicitacoesTroca</text>
+    <line class="divider" x1="1740" y1="540" x2="2240" y2="540"/>
+    <text class="field" x="1760" y="569">+ status: aguardando_resposta | aguardando_coordenacao</text>
+    <text class="field" x="1760" y="593">  | recusada_pelo_profissional | aprovada</text>
+    <text class="field" x="1760" y="617">  | recusada_pela_coordenacao</text>
+    <text class="field" x="1760" y="641">+ mes, ano: number, criadaEm: Date</text>
+    <text class="field" x="1760" y="665">+ solicitanteProfissionalId: ObjectId</text>
+    <text class="field" x="1760" y="689">+ profissionalSolicitadoId: ObjectId</text>
+    <text class="field" x="1760" y="713">+ vinculoSolicitanteId: ObjectId</text>
+    <text class="field" x="1760" y="737">+ vinculoSolicitadoId: ObjectId</text>
+    <text class="field" x="1760" y="761">+ aceite?, decisaoCoordenacao?: Object</text>
+    <text class="field" x="1760" y="785">+ chaveIdempotencia?: string</text>
+    <text class="small" x="1760" y="841">Dois profissionais e dois vínculos de plantão</text>
+  </g>
+  <g>
+    <rect class="card" x="1740" y="990" width="500" height="250"/>
+    <path class="head" d="M1752 990 H2228 Q2240 990 2240 1002 V1043 H1740 V1002 Q1740 990 1752 990Z"/>
+    <text class="className" x="1760" y="1023">AuditoriaTroca</text>
+    <text class="collection" x="1760" y="1040">collection: auditoriaTrocas</text>
+    <line class="divider" x1="1740" y1="1050" x2="2240" y2="1050"/>
+    <text class="field" x="1760" y="1079">+ solicitacaoId, usuarioId: ObjectId</text>
+    <text class="field" x="1760" y="1103">+ resultado, decididaEm</text>
+    <text class="field" x="1760" y="1127">+ justificativa?, excecaoLimite</text>
+    <text class="field" x="1760" y="1151">+ vinculos, versoesEscala: Object[]</text>
+    <text class="field" x="1760" y="1175">+ operacaoId: string</text>
+  </g>
+  <g>
+    <rect class="card" x="1740" y="1280" width="500" height="230"/>
+    <path class="head" d="M1752 1280 H2228 Q2240 1280 2240 1292 V1333 H1740 V1292 Q1740 1280 1752 1280Z"/>
+    <text class="className" x="1760" y="1313">NotificacaoTroca</text>
+    <text class="collection" x="1760" y="1330">collection: notificacoesTroca</text>
+    <line class="divider" x1="1740" y1="1340" x2="2240" y2="1340"/>
+    <text class="field" x="1760" y="1369">+ solicitacaoId, destinatarioId: ObjectId</text>
+    <text class="field" x="1760" y="1393">+ eventKey, titulo, mensagem: string</text>
+    <text class="field" x="1760" y="1417">+ lidaEm?: Date</text>
+  </g>
+
+  <line class="divider" x1="48" y1="1600" x2="2232" y2="1600"/>
+  <path class="edgePlain" d="M70 1635 H130"/>
+  <text class="legend" x="145" y="1640">Associação / referência ObjectId declarada no schema</text>
+  <rect class="pill" x="500" y="1618" width="28" height="28"/>
+  <text class="legend" x="540" y="1640">Objeto incorporado (sem coleção própria)</text>
+  <text class="small" x="48" y="1690">Os identificadores terminados em Id mostram a classe referenciada; multiplicidades inversas dependem dos dados persistidos.</text>
+</svg>
