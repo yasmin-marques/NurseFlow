@@ -10,7 +10,7 @@ import {
 type HistoryTab = 'escalas' | 'trocas'
 
 function errorMessage(error: unknown) {
-  return error instanceof Error ? error.message : 'Não foi possível carregar o histórico.'
+  return error instanceof Error ? error.message : 'Não foi possível carregar o seu histórico.'
 }
 
 function monthLabel(ano: number, mes: number) {
