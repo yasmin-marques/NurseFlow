@@ -5,6 +5,7 @@ export type ScaleShift = 'diurno' | 'noturno'
 export type ShiftOption = '24h' | '12d' | '12n'
 export type ShiftType = 'regular' | 'extra'
 export type ShiftRole = 'enfermeiro' | 'tecnico'
+export type ExtraShiftReason = 'cobertura_ferias' | 'cobertura_ausencia' | 'cobertura_deficit' | 'outro'
 export type CoverageOrigin = 'regular' | 'restricao' | 'complementar'
 
 export interface CoverageSummary {
@@ -42,6 +43,8 @@ export interface ScheduledShift {
   horarioFim: string
   duracaoHoras: number
   tipo: ShiftType
+  motivo?: ExtraShiftReason
+  observacao?: string
   profissionais: ScheduleProfessional[]
 }
 
@@ -112,6 +115,8 @@ export interface ShiftInput {
   data: string
   opcao: ShiftOption
   tipo: ShiftType
+  motivo?: ExtraShiftReason
+  observacao?: string
   equipe: ShiftAssignmentInput[]
   coberturaReconhecida?: boolean
 }
@@ -153,6 +158,8 @@ interface ApiScheduledShift {
   horarioFim: string
   duracaoHoras: number
   tipo: ShiftType
+  motivo?: ExtraShiftReason
+  observacao?: string
   profissionais: ApiScheduleProfessional[]
 }
 
@@ -179,6 +186,8 @@ const toApiShift = (input: ShiftInput) => ({
   data: input.data,
   opcao: input.opcao,
   tipo: input.tipo,
+  ...(input.motivo ? { motivo: input.motivo } : {}),
+  ...(input.observacao ? { observacao: input.observacao } : {}),
   ...(input.coberturaReconhecida ? { coberturaReconhecida: true } : {}),
   equipe: input.equipe.map((person) => ({
     profissionalId: person.profissionalId,
@@ -197,6 +206,8 @@ const toApiBatch = (revisaoEsperada: number, alteracoes: ShiftBatchChange[]) => 
     data: input.data,
     opcao: input.opcao,
     tipo: input.tipo,
+    ...(input.motivo ? { motivo: input.motivo } : {}),
+    ...(input.observacao ? { observacao: input.observacao } : {}),
     equipe: input.equipe.map((person) => ({
       profissionalId: person.profissionalId,
       funcao: person.funcao,

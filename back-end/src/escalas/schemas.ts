@@ -50,6 +50,8 @@ export class Plantao {
   @Prop({ required: true }) horarioFim: string;
   @Prop({ required: true, min: 1 }) duracaoHoras: number;
   @Prop({ required: true, enum: TipoPlantao }) tipo: TipoPlantao;
+  @Prop({ type: String, enum: ['cobertura_ferias', 'cobertura_ausencia', 'cobertura_deficit', 'outro'] }) motivo?: string;
+  @Prop({ type: String, maxlength: 500 }) observacao?: string;
   createdAt: Date;
   updatedAt: Date;
 }

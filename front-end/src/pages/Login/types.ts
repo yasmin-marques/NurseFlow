@@ -1,6 +1,6 @@
 import type { SessionUser } from '../../services/auth'
 
-export type LoginProfile = 'coordenação' | 'enfermeiro' | 'técnico'
+export type LoginProfile = 'coordenacao' | 'enfermeiro' | 'tecnico'
 
 export type LoginFormValues = {
   email: string

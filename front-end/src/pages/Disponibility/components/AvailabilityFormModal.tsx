@@ -376,7 +376,7 @@ export function AvailabilityFormModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/35 p-3 backdrop-blur-[2px] sm:p-5"
+      className="fixed inset-0 z-50 flex justify-end overflow-hidden bg-black/35 backdrop-blur-[3px]"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose()
       }}
@@ -385,7 +385,7 @@ export function AvailabilityFormModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="availability-form-title"
-        className="my-auto flex max-h-[calc(100dvh-1.5rem)] w-full max-w-2xl flex-col overflow-hidden rounded-3xl border border-border bg-white shadow-[0_24px_80px_rgba(22,29,24,0.2)] sm:max-h-[calc(100dvh-2.5rem)]"
+        className="relative ml-auto flex h-full max-h-[100dvh] w-full max-w-[min(29rem,100vw)] flex-col overflow-hidden border-l border-border bg-white shadow-[-16px_0_48px_rgba(22,29,24,0.16)]"
       >
         <header className="flex shrink-0 items-start justify-between gap-4 border-b border-border px-5 py-4 sm:px-7 sm:py-5">
           <div>

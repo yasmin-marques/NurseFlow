@@ -10,6 +10,7 @@ import { EscalaPdfService } from './escala-pdf.service';
 import { EscalaProfissionalController } from './escala-profissional.controller';
 import { EscalaProfissionalService } from './escala-profissional.service';
 import { NotificacoesEscalaController } from './notificacoes-escalas.controller';
+import { MinhaEscalaController } from './minha-escala.controller';
 import { OtimizadorEscala, OtimizadorHttp } from './otimizador/otimizador';
 import {
   AuditoriaEscala,

@@ -70,6 +70,7 @@ export function ProfilePage({ user, onClose, onUserUpdated, onLogout }: ProfileP
     .join('')
     .toUpperCase()
   const userRole = PROFILE_LABELS[user.perfil] ?? user.perfil
+  const isHealthcareProfessional = user.perfil === 'enfermeiro' || user.perfil === 'tecnico'
   const profession = profile?.formacao
     ? FORMATION_LABELS[profile.formacao]
     : userRole
@@ -77,6 +78,16 @@ export function ProfilePage({ user, onClose, onUserUpdated, onLogout }: ProfileP
     profession,
     profile?.coren ? (profile.coren.toLocaleLowerCase('pt-BR').startsWith('coren') ? profile.coren : `COREN ${profile.coren}`) : null,
   ].filter(Boolean).join(' · ')
+  const profileMetrics = isHealthcareProfessional
+    ? [
+        { label: 'Vínculo', value: profile?.tipoVinculo ? BOND_LABELS[profile.tipoVinculo] : '—' },
+        { label: 'Próximo setor', value: profile?.proximoSetor ?? '—' },
+        { label: 'COREN', value: profile?.coren ?? '—' },
+      ]
+    : [
+        { label: 'Perfil', value: userRole || '—' },
+        { label: 'Notificações', value: loading || loadError ? '—' : notificationsEnabled ? 'Ativas' : 'Desativadas' },
+      ]
 
   const saveEmail = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -172,23 +183,15 @@ export function ProfilePage({ user, onClose, onUserUpdated, onLogout }: ProfileP
             </div>
           ) : null}
 
-          <dl className="mt-[27px] grid min-h-[75px] grid-cols-3 overflow-hidden rounded-[14px] border border-[#e8eae5]">
-            <div className="flex min-w-0 flex-col items-center justify-center border-r border-[#e8eae5] px-1.5 py-3">
-              <dt className="text-[9px] text-[#777d74]">Vínculo</dt>
-              <dd className="mt-1.5 truncate text-[11px] font-bold text-[#20231f]">
-                {loading ? '—' : profile?.tipoVinculo ? BOND_LABELS[profile.tipoVinculo] : '—'}
-              </dd>
-            </div>
-            <div className="flex min-w-0 flex-col items-center justify-center border-r border-[#e8eae5] px-1.5 py-3">
-              <dt className="text-[9px] text-[#777d74]">Próximo setor</dt>
-              <dd className="mt-1.5 max-w-full truncate text-[11px] font-bold text-[#20231f]">
-                {loading ? '—' : profile?.proximoSetor ?? '—'}
-              </dd>
-            </div>
-            <div className="flex min-w-0 flex-col items-center justify-center px-1.5 py-3">
-              <dt className="text-[9px] text-[#777d74]">Jornada</dt>
-              <dd className="mt-1.5 truncate text-[11px] font-bold text-[#20231f]">—</dd>
-            </div>
+          <dl className={`mt-[27px] grid min-h-[75px] overflow-hidden rounded-[14px] border border-[#e8eae5] ${isHealthcareProfessional ? 'grid-cols-3' : 'grid-cols-2'}`}>
+            {profileMetrics.map((metric, index) => (
+              <div key={metric.label} className={`flex min-w-0 flex-col items-center justify-center px-1.5 py-3 ${index < profileMetrics.length - 1 ? 'border-r border-[#e8eae5]' : ''}`}>
+                <dt className="text-[9px] text-[#777d74]">{metric.label}</dt>
+                <dd className="mt-1.5 max-w-full truncate text-[11px] font-bold text-[#20231f]">
+                  {loading ? '—' : metric.value}
+                </dd>
+              </div>
+            ))}
           </dl>
 
           <div className="mt-[27px]">
@@ -216,12 +219,12 @@ export function ProfilePage({ user, onClose, onUserUpdated, onLogout }: ProfileP
               </form>
             ) : (
               <div className="flex min-h-[31px] items-center justify-center gap-2 rounded-[11px] border border-[#dfe2db] bg-[#f7f8f5] px-2.5 py-1.5">
-                <span className="min-w-0 truncate text-[9px] text-[#626960]">{profile?.email ?? user.email}</span>
+                <span className="min-w-0 truncate text-[10px] text-[#626960]">{profile?.email ?? user.email}</span>
                 <button
                   type="button"
                   onClick={() => { setIsEditingEmail(true); setActionError(null) }}
                   disabled={loading || Boolean(loadError)}
-                  className="shrink-0 rounded-md bg-[#e5f1e1] px-1.5 py-1 text-[9px] font-semibold text-[#27653b] disabled:cursor-not-allowed disabled:opacity-50"
+                  className="shrink-0 rounded-md bg-[#e5f1e1] px-1.5 py-0.5 text-[8px] font-semibold leading-3 text-[#27653b] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Editar
                 </button>
