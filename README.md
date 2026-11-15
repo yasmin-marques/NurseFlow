@@ -226,6 +226,7 @@ Abra http://localhost:5173. Ao desenvolver localmente, a API aceita essa origem 
 | Configurações | Consulta e gravação por `GET /configuracoes`, `PATCH /configuracoes/limites`, `PUT /configuracoes/cargas` |
 | Disponibilidade | Listagem/criação/exclusão via `/profissionais/:id/restricoes` |
 | Escalas | Fluxo integrado de geração/montagem, revisão, edição, validação, publicação, notificações e exportação PDF/ZIP via `/escalas/*` e `/notificacoes/escalas/*` |
+| Escala do profissional | Enfermeiro/Técnico consultam, somente leitura e sobre a versão publicada, `GET /escala-profissional/meus-plantoes?situacao=proximos\|anteriores&pagina&limite`, `GET /escala-profissional/geral?ano&mes` e `GET /escala-profissional/geral/dia?data=AAAA-MM-DD`. A identidade vem do JWT (403 sem vínculo de profissional) e nenhuma resposta traz CPF, COREN, e-mail, telefone ou restrições. O botão "Google Agenda" aparece desabilitado e a aba "Trocas" do profissional ainda é um placeholder. |
 
 **Limitações intencionais**:
 
