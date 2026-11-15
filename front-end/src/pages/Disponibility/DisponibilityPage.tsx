@@ -64,13 +64,16 @@ export function DisponibilityPage() {
   }, []);
 
   useEffect(() => {
-    void reload();
+    const initialLoad = window.setTimeout(() => void reload(), 0);
     // Ao voltar à janela, atualiza o status alterado em Profissionais.
     const onFocus = () => {
       void reload();
     };
     window.addEventListener("focus", onFocus);
-    return () => window.removeEventListener("focus", onFocus);
+    return () => {
+      window.clearTimeout(initialLoad);
+      window.removeEventListener("focus", onFocus);
+    };
   }, [reload]);
 
   const [activeCategory, setActiveCategory] =
@@ -370,6 +373,7 @@ export function DisponibilityPage() {
 
       {isFormOpen ? (
         <AvailabilityFormModal
+          key={editingRecord?.id ?? "novo"}
           category={activeCategory}
           record={editingRecord ?? undefined}
           professionals={professionals}

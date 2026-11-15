@@ -123,6 +123,7 @@ interface ExtraPopulado {
   cobertoId?: ProfissionalPopulado;
   plantaoProfissionalId?: Types.ObjectId | null;
   escalaId?: Types.ObjectId | null;
+  escalaStatus?: StatusEscala | null;
   [key: string]: unknown;
 }
 
@@ -1592,6 +1593,7 @@ export class ExtrasService {
         populate: { path: 'usuarioId', select: 'nome email' },
       })
       .populate('setorId', 'nome')
+      .populate('escalaId', 'status')
       .populate('criadoPor', 'nome email')
       .populate('atualizadoPor', 'nome email')
       .populate('canceladoPor', 'nome email')
@@ -1638,6 +1640,9 @@ export class ExtrasService {
       ...rawExtra,
       id: (extraTyped._id as Types.ObjectId).toString(),
       statusVinculo,
+      escalaStatus: typeof extraTyped.escalaId === 'object' && extraTyped.escalaId && 'status' in extraTyped.escalaId
+        ? (extraTyped.escalaId as unknown as { status?: StatusEscala }).status ?? null
+        : null,
       historico,
     };
   }
@@ -1748,6 +1753,7 @@ export class ExtrasService {
         populate: { path: 'usuarioId', select: 'nome email' },
       })
       .populate('setorId', 'nome')
+      .populate('escalaId', 'status')
       .lean()
       .exec();
 
@@ -1771,6 +1777,9 @@ export class ExtrasService {
         ...itemTyped,
         id: (itemTyped._id as Types.ObjectId).toString(),
         statusVinculo,
+        escalaStatus: typeof itemTyped.escalaId === 'object' && itemTyped.escalaId && 'status' in itemTyped.escalaId
+          ? (itemTyped.escalaId as unknown as { status?: StatusEscala }).status ?? null
+          : null,
       };
     });
 

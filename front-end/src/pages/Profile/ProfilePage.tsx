@@ -59,7 +59,8 @@ export function ProfilePage({ user, onClose, onUserUpdated, onLogout }: ProfileP
   }, [])
 
   useEffect(() => {
-    void loadProfile()
+    const initialLoad = window.setTimeout(() => void loadProfile(), 0)
+    return () => window.clearTimeout(initialLoad)
   }, [loadProfile])
 
   const initials = user.nome

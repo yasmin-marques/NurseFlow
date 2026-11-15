@@ -13,11 +13,14 @@ import { ScalePage } from './pages/Scale/ScalePage'
 import { ProfilePage } from './pages/Profile/ProfilePage'
 import { ExchangesPage } from './pages/Exchanges/ExchangesPage'
 import { api } from './services/api'
+import { ExtrasPage } from './pages/Extras/ExtrasPage'
 
 function App() {
   const [user, setUser] = useState<SessionUser | null>(null)
   const [checkingSession, setCheckingSession] = useState(true)
-  const [activeItem, setActiveItem] = useState<NavItemId>('visao-geral')
+  const [activeItem, setActiveItem] = useState<NavItemId>(() =>
+    window.location.pathname === '/extras' ? 'extras' : 'visao-geral',
+  )
   const [searchQuery, setSearchQuery] = useState('')
   const [exchangeCount, setExchangeCount] = useState<number | null>(null)
   const lastNonProfileItem = useRef<NavItemId>('visao-geral')
@@ -40,7 +43,7 @@ function App() {
   }, [])
 
   useEffect(() => {
-    if (!user || user.perfil !== 'coordenacao') { setExchangeCount(null); return }
+    if (!user || user.perfil !== 'coordenacao') return
     const loadCount = () => api<{ contadores: { aguardandoCoordenacao: number } }>('/trocas?status=pendentes&pagina=1&limite=1')
       .then((result) => setExchangeCount(result.contadores.aguardandoCoordenacao))
       .catch(() => setExchangeCount(null))
@@ -88,7 +91,7 @@ function App() {
       onProfileClick={() => navigate('perfil')}
       user={{ name: user.nome, role, initials, isCoordination }}
       onLogout={handleLogout}
-      exchangeCount={exchangeCount}
+      exchangeCount={isCoordination ? exchangeCount : null}
     >
       {activeItem === 'configuracoes' && isCoordination ? (
         <SettingsPage searchQuery={searchQuery} />
@@ -104,6 +107,8 @@ function App() {
         <ScalePage />
       ) : activeItem === 'trocas' && isCoordination ? (
         <ExchangesPage onCountChange={setExchangeCount} />
+      ) : activeItem === 'extras' && isCoordination ? (
+        <ExtrasPage />
       ) : (
         <section className="mx-auto flex min-h-full w-full max-w-5xl items-center px-5 py-10 sm:px-8">
           <div className="w-full rounded-3xl border border-border bg-white p-8 shadow-(--shadow-soft) sm:p-12">

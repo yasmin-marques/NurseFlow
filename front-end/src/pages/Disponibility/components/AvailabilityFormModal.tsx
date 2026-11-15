@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Check, Clock, X } from "../../../components/icons";
 
 export type AvailabilityCategory =
@@ -312,32 +312,19 @@ export function AvailabilityFormModal({
         .filter((name, index, names) => names.indexOf(name) !== index),
     ).size > 0;
 
-  useEffect(() => {
-    if (!record) return;
+  const previousRecordId = useRef(record?.id);
+  if (record?.id !== previousRecordId.current) {
+    previousRecordId.current = record?.id;
     setProfessionalId(
-      record.professionalId ??
-        professionals.find((item) => item.name === record.name)?.id ??
+      record?.professionalId ??
+        professionals.find((item) => item.name === record?.name)?.id ??
         "",
     );
-    setName(record.name ?? "");
+    setName(record?.name ?? "");
     setAbsenceType(
-      normalizeLegacyAbsenceType(record.details?.absenceType ?? ""),
+      normalizeLegacyAbsenceType(record?.details?.absenceType ?? ""),
     );
-  }, [record, professionals]);
-
-  useEffect(() => {
-    if (!professionalId) {
-      setName(record?.name ?? "");
-      return;
-    }
-
-    const selectedProfessional = professionals.find(
-      (item) => item.id === professionalId,
-    );
-    if (selectedProfessional) {
-      setName(selectedProfessional.name);
-    }
-  }, [professionalId, professionals, record?.name]);
+  }
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -424,8 +411,8 @@ export function AvailabilityFormModal({
     event.preventDefault();
     if (!validate()) return;
 
-    let rule = "";
-    let period = "";
+    let rule: string;
+    let period: string;
     let details: AvailabilityRecord["details"];
 
     const nextNote = noteEdited ? note.trim() : undefined;
@@ -592,7 +579,11 @@ export function AvailabilityFormModal({
                     value={professionalId}
                     onChange={(event) =>
                       updateField("name", () => {
+                        const selectedProfessional = professionals.find(
+                          (item) => item.id === event.target.value,
+                        );
                         setProfessionalId(event.target.value);
+                        setName(selectedProfessional?.name ?? "");
                       })
                     }
                     aria-invalid={Boolean(errors.name)}

@@ -57,27 +57,27 @@
 
 ## 7. Página de consulta e indicadores de Extras
 
-- [ ] 7.1 Criar `front-end/src/services/extras.ts` com tipos, tratamento de erros e chamadas reais às rotas, incluindo paginação e indicadores; verificar por testes de serviço com respostas de sucesso e erro, sem mock como fonte de dados em produção.
-- [ ] 7.2 Implementar a página em `/extras` aproveitando layout, `Drawer` e componentes existentes, tomando `design/` como referência visual; verificar navegação pelo menu e renderização em desktop/mobile sem alterar módulos não relacionados.
-- [ ] 7.3 Implementar navegação por mês, busca, filtros de setor/motivo/situação e paginação sincronizados com a API; verificar por testes da página que alterar filtros atualiza consulta e resultado e que estado vazio é apresentado corretamente.
-- [ ] 7.4 Implementar cards e indicadores reais de extras, horas, RPAs e cobertura, distinguindo programação sem escala de cobertura efetivada; verificar por testes com dados distintos e exibição de “cobertura não calculada” quando aplicável.
-- [ ] 7.5 Implementar loading, erro, retry, labels, foco de teclado e responsividade da consulta; verificar por testes de componentes e conferência manual em larguras móvel e desktop.
+- [x] 7.1 Criar `front-end/src/services/extras.ts` com tipos, tratamento de erros e chamadas reais às rotas, incluindo paginação e indicadores; verificar por testes de serviço com respostas de sucesso e erro, sem mock como fonte de dados em produção.
+- [x] 7.2 Implementar a página em `/extras` aproveitando layout, `Drawer` e componentes existentes, tomando `design/` como referência visual; verificar navegação pelo menu e renderização em desktop/mobile sem alterar módulos não relacionados.
+- [x] 7.3 Implementar navegação por mês, busca, filtros de setor/motivo/situação e paginação sincronizados com a API; verificar por testes da página que alterar filtros atualiza consulta e resultado e que estado vazio é apresentado corretamente.
+- [x] 7.4 Implementar cards e indicadores reais de extras, horas, RPAs e cobertura, distinguindo programação sem escala de cobertura efetivada; verificar por testes com dados distintos e exibição de “cobertura não calculada” quando aplicável.
+- [x] 7.5 Implementar loading, erro, retry, labels, foco de teclado e responsividade da consulta; verificar por testes de componentes e conferência manual em larguras móvel e desktop.
 
 ## 8. Formulários de registro, edição, cancelamento e RPA
 
-- [ ] 8.1 Implementar o drawer **Registrar extra** com data, `12d`/`12n`/`24h`, setor, função, motivo, substituto e coberto condicional, reutilizando seletores existentes; verificar por teste de formulário que os campos obrigatórios mudam conforme o motivo.
-- [ ] 8.2 Integrar o registro à API com estados de salvamento, validações por campo e preservação do formulário em falhas; verificar por teste que só fecha/atualiza a listagem depois de `201` e exibe corretamente `409`/`422`.
-- [ ] 8.3 Implementar o drawer **Editar extra** carregando o registro e enviando `revisaoEsperada`; verificar por teste que alterações válidas atualizam listagem/indicadores e conflito de versão não sobrescreve a edição persistida.
-- [ ] 8.4 Implementar **Cancelar extra** com confirmação e justificativa obrigatória, sem remoção física da listagem histórica; verificar por teste que o cancelado não entra no resumo de ativos e não pode ser cancelado novamente como novo evento.
-- [ ] 8.5 Integrar **Cadastrar RPA** ao cadastro único existente de Profissionais, com tratamento de CPF duplicado e seleção posterior por ID; verificar por teste que um cadastro válido torna o RPA selecionável e que não há novo registro em caso de duplicidade.
-- [ ] 8.6 Garantir visibilidade de estado de vínculo com escala, bloqueio de edição/cancelamento em escala oficial e mensagens acessíveis; verificar por testes de interface para `sem_escala`, `vinculado`, erro de permissão e escala publicada.
-- [ ] 8.7 Documentar o fluxo de uso da tela (registro antecipado, cobertura, edição, cancelamento e RPA) e atualizar testes de componentes afetados; verificar que as instruções funcionam com a API real em ambiente de teste.
+- [x] 8.1 Implementar o drawer **Registrar extra** com data, `12d`/`12n`/`24h`, setor, função, motivo, substituto e coberto condicional, reutilizando seletores existentes; verificar por teste de formulário que os campos obrigatórios mudam conforme o motivo.
+- [x] 8.2 Integrar o registro à API com estados de salvamento, validações por campo e preservação do formulário em falhas; verificar por teste que só fecha/atualiza a listagem depois de `201` e exibe corretamente `409`/`422`.
+- [x] 8.3 Implementar o drawer **Editar extra** carregando o registro e enviando `revisaoEsperada`; verificar por teste que alterações válidas atualizam listagem/indicadores e conflito de versão não sobrescreve a edição persistida.
+- [x] 8.4 Implementar **Cancelar extra** com confirmação e justificativa obrigatória, sem remoção física da listagem histórica; verificar por teste que o cancelado não entra no resumo de ativos e não pode ser cancelado novamente como novo evento.
+- [x] 8.5 Integrar **Cadastrar RPA** ao cadastro único existente de Profissionais, com tratamento de CPF duplicado e seleção posterior por ID; verificar por teste que um cadastro válido torna o RPA selecionável e que não há novo registro em caso de duplicidade.
+- [x] 8.6 Garantir visibilidade de estado de vínculo com escala, bloqueio de edição/cancelamento em escala oficial e mensagens acessíveis; verificar por testes de interface para `sem_escala`, `vinculado`, erro de permissão e escala publicada.
+- [x] 8.7 Documentar o fluxo de uso da tela (registro antecipado, cobertura, edição, cancelamento e RPA) e atualizar testes de componentes afetados; verificar que as instruções funcionam com a API real em ambiente de teste.
 
 ## 9. Verificações integradas e preparação da entrega
 
-- [ ] 9.1 Executar ponta a ponta, com MongoDB em replica set, backend e otimizador reais, os fluxos: extra antes da escala, geração, revisão, regeneração, edição e cancelamento; verificar que nenhuma programação gera dupla cobertura ou gravação parcial.
-- [ ] 9.2 Homologar casos adversos intermodulares: férias/ausência noturna, vínculo externo, conflito entre setores, limite mensal, concorrência e tentativa de alterar escala publicada; verificar respostas e snapshots com evidências de cada cenário dos dois deltas.
-- [ ] 9.3 Rodar `npm test -- --runInBand`, `npm run test:e2e -- --runInBand`, `npm run build` e `npm run lint:check` no backend; verificar que todos terminam sem falhas introduzidas pela change.
-- [ ] 9.4 Rodar `npm test -- --run`, `npm run build` e `npm run lint` no frontend e a suíte Python do otimizador no ambiente com dependências instaladas; verificar conclusão sem falhas introduzidas pela change.
-- [ ] 9.5 Validar `openspec validate implementar-gerenciamento-extras-programados` e `git diff --check`, revisar `git status --short` e conferir que screenshots, specs, design e tarefas versionadas correspondem ao código; verificar saídas limpas e ausência de arquivos temporários ou segredos.
-- [ ] 9.6 Ensaiar implantação compatível (índices → backend/optimizer compatíveis → frontend), indisponibilidade de solver antigo e rollback coordenado sem perda do histórico; verificar que uma geração bloqueada não altera escalas ou extras existentes.
+- [x] 9.1 Executar ponta a ponta, com MongoDB em replica set, backend e otimizador reais, os fluxos: extra antes da escala, geração, revisão, regeneração, edição e cancelamento; verificar que nenhuma programação gera dupla cobertura ou gravação parcial.
+- [x] 9.2 Homologar casos adversos intermodulares: férias/ausência noturna, vínculo externo, conflito entre setores, limite mensal, concorrência e tentativa de alterar escala publicada; verificar respostas e snapshots com evidências de cada cenário dos dois deltas.
+- [x] 9.3 Rodar `npm test -- --runInBand`, `npm run test:e2e -- --runInBand`, `npm run build` e `npm run lint:check` no backend; verificar que todos terminam sem falhas introduzidas pela change.
+- [x] 9.4 Rodar `npm test -- --run`, `npm run build` e `npm run lint` no frontend e a suíte Python do otimizador no ambiente com dependências instaladas; verificar conclusão sem falhas introduzidas pela change.
+- [x] 9.5 Validar `openspec validate implementar-gerenciamento-extras-programados` e `git diff --check`, revisar `git status --short` e conferir que screenshots, specs, design e tarefas versionadas correspondem ao código; verificar saídas limpas e ausência de arquivos temporários ou segredos.
+- [x] 9.6 Ensaiar implantação compatível (índices → backend/optimizer compatíveis → frontend), indisponibilidade de solver antigo e rollback coordenado sem perda do histórico; verificar que uma geração bloqueada não altera escalas ou extras existentes.
