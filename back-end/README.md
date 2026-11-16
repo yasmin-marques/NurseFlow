@@ -29,6 +29,9 @@ Variáveis (veja `.env.example`):
 | `JWT_EXPIRES_IN_SECONDS` | Validade do token | `28800` (8 h) |
 | `LOGIN_MAX_ATTEMPTS` / `LOGIN_LOCK_MINUTES` | Bloqueio temporário após tentativas inválidas | `5` / `15` |
 | `PASSWORD_RESET_TTL_MINUTES` | Validade do token de recuperação de senha | `30` |
+| `RATE_LIMIT_WINDOW_MS` | Janela dos limitadores | `60000` ms |
+| `RATE_LIMIT_MAX_REQUESTS` | Limite por sessão autenticada (ou por IP para requisições sem token) | `120` |
+| `RATE_LIMIT_IP_MAX_REQUESTS` | Teto agregado por IP, compartilhado entre sessões | `1200` |
 | `SEED_COORDENACAO_*` | Dados da primeira conta de Coordenação | — |
 | `DEMO_SEED_ENABLED` | Habilita a criação de dados fictícios de demonstração | `false` |
 | `DEMO_ADMIN_PASSWORD` / `DEMO_PRO_PASSWORD` | Senhas das contas fictícias (8–72 caracteres; obrigatórias com seed habilitado) | — |
@@ -254,3 +257,5 @@ O front-end consome a API autenticada para cadastro e ciclo de vida das escalas.
 ## Configurações e restrições
 
 Consulte [`../IMPLEMENTACAO_CONFIGURACOES_RESTRICOES.md`](../IMPLEMENTACAO_CONFIGURACOES_RESTRICOES.md) para endpoints, exemplos e fluxo de execução.
+
+A Coordenação pode consultar todas as restrições de uma vez por `GET /restricoes`. A rota evita chamadas individuais por profissional ao carregar a disponibilidade; os endpoints por profissional continuam disponíveis para consulta e operações individuais.

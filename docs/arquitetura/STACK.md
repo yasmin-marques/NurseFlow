@@ -8,6 +8,7 @@ Este documento identifica as tecnologias e ferramentas usadas no projeto e como 
 |---|---|
 | Front-end | React + TypeScript + Tailwind CSS |
 | Back-end | NestJS (sobre Express) |
+| Otimizador de escalas | Python + FastAPI + OR-Tools |
 | API | REST |
 | Banco de dados | MongoDB |
 | Infraestrutura | Docker |
@@ -62,6 +63,7 @@ Framework Node.js com TypeScript, organizado em módulos, controllers e services
 
 ### Express
 Servidor HTTP que o NestJS usa por padrão (`@nestjs/platform-express`). Não é preciso instalá-lo separadamente nem escrever um servidor Express à parte; ele já faz parte do NestJS. Pode ser acessado diretamente quando necessário (por exemplo, para middlewares específicos).
+O bootstrap aplica Helmet e `express-rate-limit`: 120 requisições por sessão autenticada e, como teto agregado, 1.200 por IP em uma janela padrão de 60 segundos. Requisições sem token são limitadas por IP; os valores são configuráveis por ambiente.
 
 ### API REST
 A comunicação entre front-end e back-end é feita por endpoints REST em JSON. Exemplos de recursos:
@@ -72,21 +74,22 @@ A comunicação entre front-end e back-end é feita por endpoints REST em JSON. 
 | Plantões | `GET /escalas/:id/plantoes`, `PATCH /plantoes/:id/alocar` |
 | Trocas | `POST /trocas`, `PATCH /trocas/:id/aceitar`, `PATCH /trocas/:id/aprovar` |
 | Notificações | `GET /notificacoes`, `PATCH /notificacoes/:id/lida` |
+| Disponibilidade | `GET /restricoes` para consulta em lote pela Coordenação; operações individuais em `/profissionais/:id/restricoes` |
 
 ## 5. Banco de dados
 
 ### MongoDB
-Banco de dados NoSQL orientado a documentos. Como o modelo original (DER) é relacional, vale decidir como mapear as relações:
+Banco de dados NoSQL orientado a documentos. No projeto, as entidades abaixo são persistidas em coleções próprias e relacionadas por referências:
 
-| Entidade | Sugestão de mapeamento |
+| Entidade | Decisão de persistência |
 |---|---|
-| `Ferias`, `Restricao` | Embutidas no documento do profissional (ou coleção própria, se crescerem muito) |
+| `Restricao` (inclui férias e ausências) | Coleção própria, referenciando o profissional |
 | `Plantao` | Coleção própria, referenciando escala, setor e profissional |
 | `TrocaPlantao` | Coleção própria, referenciando solicitante, destinatário e plantão |
-| `Notificacao` | Coleção própria, referenciando o profissional |
+| Notificações de escala e de troca | Coleções próprias, referenciando destinatário e entidade relacionada |
 | `Escala`, `Setor`, `Configuracao` | Coleções próprias |
 
-Para integrar com o NestJS, as opções mais comuns são **Mongoose** (`@nestjs/mongoose`) ou **Typeorm/MikroORM** com suporte a Mongo.
+O back-end integra MongoDB ao NestJS com **Mongoose** (`@nestjs/mongoose`).
 
 ## 6. Infraestrutura
 
@@ -114,5 +117,11 @@ Boa prática: manter um arquivo de contexto do projeto (por exemplo, `CLAUDE.md`
 - **Modelo relacional em banco NoSQL:** o DER tem muitas relações (escala → plantão → profissional → troca). Definir cedo o que é embutido e o que é referenciado evita retrabalho.
 - **Integridade das regras de negócio:** limites de plantões, trocas e quantidades mínimas por setor devem ser validados no back-end (services do NestJS), não só no front.
 - **Transações:** operações como aprovar uma troca alteram mais de um documento. O MongoDB suporta transações, mas só em replica set, e isso precisa estar configurado no container.
-- **Segurança:** o sistema guarda CPF e senha. Use hash de senha (por exemplo, bcrypt), autenticação com JWT e controle de acesso por perfil (administrador x profissional).
+- **Segurança:** dados de autenticação usam hash de senha e JWT com controle de acesso por perfil. Helmet configura cabeçalhos HTTP, e o limite de requisições protege contra excesso de chamadas.
 - **Validação e tipos compartilhados:** usar DTOs com `class-validator` no NestJS e, se possível, compartilhar os tipos entre front e back.
+
+## 9. Decisões tomadas
+
+- A geração de escalas é delegada pelo NestJS a um serviço Python com FastAPI e OR-Tools, via HTTP; o endereço e os timeouts são configuráveis.
+- Restrições, escalas, plantões, trocas e notificações são persistidos em coleções MongoDB próprias. A leitura de disponibilidade da Coordenação usa `GET /restricoes` para carregar os dados em lote.
+- O limite HTTP diferencia a cota por sessão autenticada do teto agregado por IP; Helmet e esse limite são aplicados no bootstrap da API.

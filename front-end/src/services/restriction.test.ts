@@ -93,7 +93,7 @@ describe("services/restriction", () => {
   });
 
   it("lista restrições de todos os profissionais e separa por categoria", async () => {
-    mockBackend((call: Call) => {
+    const { calls } = mockBackend((call: Call) => {
       if (call.url.includes("/profissionais?")) {
         return {
           body: profissionaisResponse(ANA, {
@@ -104,35 +104,35 @@ describe("services/restriction", () => {
           }),
         };
       }
-      if (call.url.endsWith("/profissionais/p1/restricoes")) {
-        return {
-          body: [
-            {
-              _id: "r1",
-              tipo: "indisponivel",
-              inicio: "2026-10-01T00:00:00.000Z",
-              fim: "2026-10-31T23:59:59.999Z",
-              diaSemana: 1,
-              observacao: "Faculdade",
-            },
-            {
-              _id: "r2",
-              tipo: "vinculo_externo",
-              inicio: "2026-10-01T00:00:00.000Z",
-              fim: "2026-12-31T23:59:59.999Z",
-              diaSemana: null,
-            },
-          ],
-        };
-      }
       return {
         body: [
           {
             _id: "r3",
+            profissionalId: "p2",
             tipo: "ferias",
             inicio: "2026-11-01T00:00:00.000Z",
             fim: "2026-11-30T23:59:59.999Z",
             diaSemana: null,
+          },
+          {
+            _id: "r2",
+            profissionalId: "p1",
+            tipo: "vinculo_externo",
+            inicio: "2026-10-01T00:00:00.000Z",
+            fim: "2026-12-31T23:59:59.999Z",
+            diaSemana: null,
+            instituicao: "Hospital Central",
+            tipoVinculo: "clt",
+            turno: "flexivel",
+          },
+          {
+            _id: "r1",
+            profissionalId: "p1",
+            tipo: "indisponivel",
+            inicio: "2026-10-01T00:00:00.000Z",
+            fim: "2026-10-31T23:59:59.999Z",
+            diasSemana: [1, 3],
+            observacao: "Faculdade",
           },
         ],
       };
@@ -141,14 +141,22 @@ describe("services/restriction", () => {
     const { records, professionals: options } = await fetchAllRestrictions();
     // Somente profissionais ativos podem receber novos registros.
     expect(options).toEqual([{ id: "p1", name: "Ana Souza" }]);
+    expect(calls.map((call) => call.url)).toEqual([
+      "/api/profissionais?limit=100&page=1",
+      "/api/restricoes",
+    ]);
     expect(records.restrictions).toHaveLength(1);
     expect(records.restrictions[0]).toMatchObject({
       id: "r1",
       professionalId: "p1",
       rule: "Indisponível · Faculdade",
-      period: "2026-10-01 a 2026-10-31 · segunda",
+      period: "2026-10-01 a 2026-10-31 · segunda, quarta",
     });
-    expect(records.externalLinks.map((r) => r.id)).toEqual(["r2"]);
+    expect(records.externalLinks[0]).toMatchObject({
+      id: "r2",
+      rule: "Hospital Central · clt",
+      details: { institution: "Hospital Central", linkType: "clt" },
+    });
     expect(records.absences[0]).toMatchObject({
       id: "r3",
       professionalStatus: "desativado",
@@ -389,6 +397,7 @@ describe("services/restriction", () => {
         body: [
           {
             _id: "r1",
+            profissionalId: "p1",
             tipo: "disponivel",
             inicio: "2026-10-01T00:00:00.000Z",
             fim: "2026-10-31T23:59:59.999Z",
@@ -397,6 +406,7 @@ describe("services/restriction", () => {
           },
           {
             _id: "r2",
+            profissionalId: "p1",
             tipo: "disponivel",
             inicio: "2026-10-01T00:00:00.000Z",
             fim: "2026-10-31T23:59:59.999Z",
@@ -405,6 +415,7 @@ describe("services/restriction", () => {
           },
           {
             _id: "r3",
+            profissionalId: "p1",
             tipo: "disponivel",
             inicio: "2026-10-01T00:00:00.000Z",
             fim: "2026-10-31T23:59:59.999Z",
@@ -468,6 +479,7 @@ describe("services/restriction", () => {
         body: [
           {
             _id: "r9",
+            profissionalId: "p1",
             tipo: "indisponivel",
             inicio: "2026-10-01T00:00:00.000Z",
             fim: "2026-10-31T23:59:59.999Z",
@@ -565,6 +577,7 @@ describe("services/restriction", () => {
         body: [
           {
             _id: "r1",
+            profissionalId: "p1",
             tipo: "ferias",
             inicio: "2026-10-01T00:00:00.000Z",
             fim: "2026-10-31T23:59:59.999Z",
@@ -572,6 +585,7 @@ describe("services/restriction", () => {
           },
           {
             _id: "r2",
+            profissionalId: "p1",
             tipo: "ausencia",
             inicio: "2026-10-01T00:00:00.000Z",
             fim: "2026-10-31T23:59:59.999Z",

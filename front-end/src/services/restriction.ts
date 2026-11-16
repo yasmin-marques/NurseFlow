@@ -17,6 +17,7 @@ type RestrictionType =
 
 type RestrictionApi = {
   _id: string;
+  profissionalId: string;
   tipo: RestrictionType;
   inicio: string;
   fim: string;
@@ -173,58 +174,58 @@ export async function fetchAllRestrictions(): Promise<{
     absences: [],
   };
 
-  await Promise.all(
-    allProfessionals.map(async (professional) => {
-      const restrictions = await api<RestrictionApi[]>(
-        `/profissionais/${professional.id}/restricoes`,
-      );
-
-      for (const restriction of restrictions) {
-        const category = getCategory(restriction.tipo);
-        const label = getLabel(restriction.tipo);
-        const diasSemana = parseDays(restriction);
-
-        const rule =
-          restriction.tipo === "vinculo_externo" && restriction.instituicao
-            ? `${restriction.instituicao} · ${restriction.tipoVinculo ?? "vínculo externo"}`
-            : restriction.observacao?.trim()
-              ? `${label} · ${restriction.observacao.trim()}`
-              : label;
-
-        const normalizedShift = normalizeApiShift(restriction.turno);
-        const shiftLabel = formatShiftLabel(normalizedShift);
-        const absenceType = getAbsenceType(restriction);
-        records[category].push({
-          id: restriction._id,
-          professionalId: professional.id,
-          professionalStatus: getStatus(professional),
-          category,
-          name: professional.name,
-          role: professional.formation,
-          rule,
-          period: `${datePart(restriction.inicio)} a ${datePart(restriction.fim)}${
-            diasSemana.length ? ` · ${formatWeekdays(diasSemana)}` : ""
-          }${shiftLabel ? ` · ${shiftLabel}` : ""}`,
-          details: {
-            note: restriction.observacao ?? undefined,
-            startDate: datePart(restriction.inicio),
-            endDate: datePart(restriction.fim),
-            validFrom: datePart(restriction.inicio),
-            validTo: datePart(restriction.fim),
-            days: diasSemana.map((day) => WEEKDAYS[day]).filter(Boolean),
-            institution: restriction.instituicao ?? undefined,
-            linkType: restriction.tipoVinculo ?? undefined,
-            linkShift: normalizedShift,
-            absenceType,
-            shift: normalizedShift,
-            ruleType:
-              restriction.tipo === "disponivel" ? "allowedShift" : undefined,
-            noteEdited: false,
-          },
-        });
-      }
-    }),
+  const professionalById = new Map(
+    allProfessionals.map((professional) => [professional.id, professional]),
   );
+  const restrictions = await api<RestrictionApi[]>("/restricoes");
+
+  for (const restriction of restrictions) {
+    const professional = professionalById.get(restriction.profissionalId);
+    if (!professional) continue;
+
+    const category = getCategory(restriction.tipo);
+    const label = getLabel(restriction.tipo);
+    const diasSemana = parseDays(restriction);
+
+    const rule =
+      restriction.tipo === "vinculo_externo" && restriction.instituicao
+        ? `${restriction.instituicao} · ${restriction.tipoVinculo ?? "vínculo externo"}`
+        : restriction.observacao?.trim()
+          ? `${label} · ${restriction.observacao.trim()}`
+          : label;
+
+    const normalizedShift = normalizeApiShift(restriction.turno);
+    const shiftLabel = formatShiftLabel(normalizedShift);
+    const absenceType = getAbsenceType(restriction);
+    records[category].push({
+      id: restriction._id,
+      professionalId: professional.id,
+      professionalStatus: getStatus(professional),
+      category,
+      name: professional.name,
+      role: professional.formation,
+      rule,
+      period: `${datePart(restriction.inicio)} a ${datePart(restriction.fim)}${
+        diasSemana.length ? ` · ${formatWeekdays(diasSemana)}` : ""
+      }${shiftLabel ? ` · ${shiftLabel}` : ""}`,
+      details: {
+        note: restriction.observacao ?? undefined,
+        startDate: datePart(restriction.inicio),
+        endDate: datePart(restriction.fim),
+        validFrom: datePart(restriction.inicio),
+        validTo: datePart(restriction.fim),
+        days: diasSemana.map((day) => WEEKDAYS[day]).filter(Boolean),
+        institution: restriction.instituicao ?? undefined,
+        linkType: restriction.tipoVinculo ?? undefined,
+        linkShift: normalizedShift,
+        absenceType,
+        shift: normalizedShift,
+        ruleType:
+          restriction.tipo === "disponivel" ? "allowedShift" : undefined,
+        noteEdited: false,
+      },
+    });
+  }
 
   for (const category of Object.keys(records) as AvailabilityCategory[]) {
     records[category].sort((left, right) =>

@@ -50,3 +50,10 @@ export class RestricoesController {
     return this.service.excluir(id, restricaoId);
   }
 }
+
+@ApiTags('Restrições') @ApiBearerAuth() @Perfis(Perfil.COORDENACAO)
+@Controller('restricoes')
+export class TodasRestricoesController {
+  constructor(private readonly service: RestricoesService) {}
+  @Get() listarTodas() { return this.service.listarTodas(); }
+}

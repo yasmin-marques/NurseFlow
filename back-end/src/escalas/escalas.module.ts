@@ -7,19 +7,20 @@ import { Setor, SetorSchema } from '../setores/schemas/setor.schema';
 import { UsuariosModule } from '../usuarios/usuarios.module';
 import { EscalasController } from './escalas.controller';
 import { EscalasService } from './escalas.service';
+import { EscalaAuditoriaService } from './escala-auditoria.service';
+import { EscalaGeracaoService } from './escala-geracao.service';
 import { EscalaPdfService } from './escala-pdf.service';
+import { EscalaSnapshotsModule } from './escala-snapshots.module';
 import { EscalaProfissionalController } from './escala-profissional.controller';
 import { EscalaProfissionalService } from './escala-profissional.service';
-import { NotificacoesEscalaController } from './notificacoes-escalas.controller';
 import { MinhaEscalaController } from './minha-escala.controller';
 import { OtimizadorEscala, OtimizadorHttp } from './otimizador/otimizador';
+import { NotificacoesModule } from '../notificacoes/notificacoes.module';
 import {
   AuditoriaEscala,
   AuditoriaEscalaSchema,
   Escala,
   EscalaSchema,
-  NotificacaoEscala,
-  NotificacaoEscalaSchema,
   Plantao,
   PlantaoProfissional,
   PlantaoProfissionalSchema,
@@ -32,10 +33,11 @@ import {
   imports: [
     UsuariosModule,
     ConfiguracoesModule,
+    EscalaSnapshotsModule,
+    NotificacoesModule,
     MongooseModule.forFeature([
       { name: AuditoriaEscala.name, schema: AuditoriaEscalaSchema },
       { name: Escala.name, schema: EscalaSchema },
-      { name: NotificacaoEscala.name, schema: NotificacaoEscalaSchema },
       { name: Plantao.name, schema: PlantaoSchema },
       { name: PlantaoProfissional.name, schema: PlantaoProfissionalSchema },
       { name: VersaoEscala.name, schema: VersaoEscalaSchema },
@@ -44,7 +46,14 @@ import {
       { name: ExtraProgramado.name, schema: ExtraProgramadoSchema },
     ]),
   ],
-  controllers: [EscalasController, NotificacoesEscalaController, EscalaProfissionalController],
-  providers: [EscalasService, EscalaProfissionalService, EscalaPdfService, { provide: OtimizadorEscala, useClass: OtimizadorHttp }],
+  controllers: [EscalasController, EscalaProfissionalController, MinhaEscalaController],
+  providers: [
+    EscalasService,
+    EscalaProfissionalService,
+    EscalaPdfService,
+    EscalaAuditoriaService,
+    EscalaGeracaoService,
+    { provide: OtimizadorEscala, useClass: OtimizadorHttp },
+  ],
 })
 export class EscalasModule {}

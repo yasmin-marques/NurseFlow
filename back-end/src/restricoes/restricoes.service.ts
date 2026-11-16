@@ -523,6 +523,12 @@ export class RestricoesService {
     ).map((registro) => this.serializar(registro));
   }
 
+  async listarTodas() {
+    return (
+      await this.model.find().sort({ inicio: 1 }).lean().exec()
+    ).map((registro) => this.serializar(registro));
+  }
+
   async excluir(id: string, restricaoId: string) {
     await this.profissional(id);
     if (!Types.ObjectId.isValid(restricaoId))

@@ -99,7 +99,9 @@ function App() {
         onProfileClick={() => navigate('perfil')}
         user={{ name: user.nome, role, initials }}
       >
-        {professionalTab === 'meus-plantoes' ? (
+        {professionalTab === 'inicio' ? (
+          <ProfessionalOverviewPage userName={user.nome.split(/\s+/)[0]} onNavigate={navigate} />
+        ) : professionalTab === 'meus-plantoes' ? (
           <MyShiftsPage />
         ) : professionalTab === 'escala-geral' ? (
           <GeneralSchedulePage />
