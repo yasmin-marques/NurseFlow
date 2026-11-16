@@ -1,6 +1,6 @@
 import { ConflictException, Injectable, Logger, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import { type ClientSession, type Connection, Model, Types } from 'mongoose';
 import type { UsuarioAutenticado } from '../common/auth/usuario-autenticado';
@@ -12,6 +12,7 @@ import { ConfiguracoesService } from '../configuracoes/configuracoes.service';
 import { Formacao, StatusProfissional } from '../profissionais/profissionais.enums';
 import { Profissional } from '../profissionais/schemas/profissional.schema';
 import { Restricao } from '../restricoes/restricao.schema';
+import { ExtraProgramado, ExtraProgramadoSituacao, ExtraOpcao } from '../extras/extras.schema';
 import { Setor } from '../setores/schemas/setor.schema';
 import { Administrador } from '../usuarios/schemas/administrador.schema';
 import { Usuario } from '../usuarios/schemas/usuario.schema';
@@ -27,7 +28,7 @@ import {
   type ProfissionalEntrada,
   validarEntrada,
 } from './montar-problema';
-import { OtimizadorEscala, type OpcaoPlantao } from './otimizador/otimizador';
+import { OtimizadorEscala, type AlocacaoFixaOtimizacao, type OpcaoPlantao, type SolucaoOtimizacao } from './otimizador/otimizador';
 import { isVisualizacaoEscalaPdf, type DadosEscalaPdf } from './escala-pdf.types';
 import {
   calcularPendenciasCobertura,
@@ -61,6 +62,53 @@ const HORARIOS: Record<OpcaoPlantao, { inicio: string; fim: string; horas: numbe
 const rotuloPeriodo = (ano: number, mes: number) => `${String(mes).padStart(2, '0')}/${String(ano).padStart(4, '0')}`;
 const isoDia = (d: Date) => d.toISOString().slice(0, 10);
 
+type ExtraGeracaoFingerprint = {
+  _id: Types.ObjectId;
+  revisao: number;
+  data: string;
+  opcao: ExtraOpcao;
+  setorId: Types.ObjectId;
+  substitutoId: Types.ObjectId;
+  funcao: string;
+  situacao: ExtraProgramadoSituacao;
+};
+
+function fingerprintExtras(extras: ExtraGeracaoFingerprint[]): string {
+  const material = extras
+    .map((extra) => ({
+      id: String(extra._id),
+      revisao: extra.revisao,
+      data: extra.data,
+      opcao: extra.opcao,
+      setorId: String(extra.setorId),
+      substitutoId: String(extra.substitutoId),
+      funcao: extra.funcao,
+      situacao: extra.situacao,
+    }))
+    .sort((a, b) => a.id.localeCompare(b.id));
+  return createHash('sha256').update(JSON.stringify(material)).digest('hex');
+}
+
+function validarSolucaoGeracao(solucao: unknown): asserts solucao is SolucaoOtimizacao {
+  if (!solucao || typeof solucao !== 'object') {
+    throw new ConflictException('O otimizador devolveu uma resposta inválida; a escala anterior foi preservada.');
+  }
+  const resposta = solucao as Partial<SolucaoOtimizacao>;
+  if (resposta.versao_contrato !== 2 || !Array.isArray(resposta.capacidades) || !resposta.capacidades.includes('alocacoes_fixas')) {
+    throw new ConflictException('O otimizador devolveu um contrato incompatível; a escala anterior foi preservada.');
+  }
+  if (!Array.isArray(resposta.alocacoes) || !Array.isArray(resposta.descobertos) || !resposta.estatisticas) {
+    throw new ConflictException('O otimizador devolveu uma solução incompleta; a escala anterior foi preservada.');
+  }
+  for (const alocacao of resposta.alocacoes) {
+    if (!alocacao || typeof alocacao !== 'object' || typeof alocacao.profissional_id !== 'string' || typeof alocacao.setor_id !== 'string' ||
+      !Number.isInteger(alocacao.dia) || !['24h', '12d', '12n'].includes(alocacao.opcao) || typeof alocacao.extra !== 'boolean' ||
+      (alocacao.extra_id !== undefined && alocacao.extra_id !== null && typeof alocacao.extra_id !== 'string')) {
+      throw new ConflictException('O otimizador devolveu uma alocação inválida; a escala anterior foi preservada.');
+    }
+  }
+}
+
 interface SnapshotEscala {
   escala?: { geracao?: Record<string, unknown> };
   geracao?: Record<string, unknown>;
@@ -75,6 +123,15 @@ interface SnapshotEscala {
 interface GeracaoEmAndamento {
   controller: AbortController;
   estado: 'otimizando' | 'cancelando' | 'salvando';
+}
+
+interface AlocacaoGerada {
+  profissional_id: string;
+  setor_id: string;
+  dia: number;
+  opcao: OpcaoPlantao;
+  extra: boolean;
+  extra_id?: string | null;
 }
 
 interface AlteracaoPlantaoPreparada {
@@ -120,6 +177,7 @@ export class EscalasService {
     @InjectModel(Administrador.name) private readonly administradores: Model<Administrador>,
     @InjectModel(Setor.name) private readonly setores: Model<Setor>,
     @InjectModel(Restricao.name) private readonly restricoes: Model<Restricao>,
+    @InjectModel(ExtraProgramado.name) private readonly extras: Model<ExtraProgramado>,
     private readonly configuracoes: ConfiguracoesService,
     private readonly otimizador: OtimizadorEscala,
     private readonly config: ConfigService<AppConfig, true>,
@@ -828,7 +886,13 @@ export class EscalasService {
         tipo: item.tipo,
         inicio: item.inicio,
         fim: item.fim,
+        diasSemana: item.diasSemana,
         diaSemana: item.diaSemana,
+        turno: item.turno,
+        motivo: item.motivo,
+        observacao: item.observacao,
+        instituicao: item.instituicao,
+        tipoVinculo: item.tipoVinculo,
       })),
       anteriores: await this.plantoesDoMesAnterior(escala.ano, escala.mes, inicioMes, session),
       existentes: [],
@@ -1137,7 +1201,13 @@ export class EscalasService {
         tipo: item.tipo,
         inicio: item.inicio,
         fim: item.fim,
+        diasSemana: item.diasSemana,
         diaSemana: item.diaSemana,
+        turno: item.turno,
+        motivo: item.motivo,
+        observacao: item.observacao,
+        instituicao: item.instituicao,
+        tipoVinculo: item.tipoVinculo,
       })),
       anteriores,
       existentes,
@@ -1265,7 +1335,13 @@ export class EscalasService {
         tipo: item.tipo,
         inicio: item.inicio,
         fim: item.fim,
+        diasSemana: item.diasSemana,
         diaSemana: item.diaSemana,
+        turno: item.turno,
+        motivo: item.motivo,
+        observacao: item.observacao,
+        instituicao: item.instituicao,
+        tipoVinculo: item.tipoVinculo,
       })),
       anteriores: await this.plantoesDoMesAnterior(escala.ano, escala.mes, inicioMes, session),
       existentes: [],
@@ -1746,7 +1822,13 @@ export class EscalasService {
       tipo: r.tipo,
       inicio: r.inicio,
       fim: r.fim,
+      diasSemana: r.diasSemana,
       diaSemana: r.diaSemana,
+      turno: r.turno,
+      motivo: r.motivo,
+      observacao: r.observacao,
+      instituicao: r.instituicao,
+      tipoVinculo: r.tipoVinculo,
     }));
 
     const { problema, conflitos, avisos } = montarProblema({
@@ -1761,9 +1843,64 @@ export class EscalasService {
       turnosSelecionados,
     });
 
+    const inicioData = `${String(ano).padStart(4, '0')}-${String(mes).padStart(2, '0')}-01`;
+    const fimData = `${String(ano).padStart(4, '0')}-${String(mes).padStart(2, '0')}-${String(diasDoMes(ano, mes)).padStart(2, '0')}`;
+    const extrasFixos = await this.extras
+      .find({
+        situacao: ExtraProgramadoSituacao.PROGRAMADO,
+        data: { $gte: inicioData, $lte: fimData },
+      })
+      .lean()
+      .exec();
+    const fingerprintProgramacoes = fingerprintExtras(extrasFixos);
+    const idsProfissionaisAtivos = new Set(profissionais.filter((p) => p.status === StatusProfissional.ATIVO).map((p) => p.id));
+    const idsSetoresDoProblema = new Set(setores.map((setor) => setor.id));
+    const turnosDoProblema = new Set(turnosSelecionados);
+    const cobreTurno = (opcao: ExtraOpcao, turno: 'diurno' | 'noturno') =>
+      opcao === ExtraOpcao.VINTE_QUATRO_HORAS ||
+      (opcao === ExtraOpcao.DOZE_DIA && turno === 'diurno') ||
+      (opcao === ExtraOpcao.DOZE_NOITE && turno === 'noturno');
+    const alocacoesFixas: AlocacaoFixaOtimizacao[] = extrasFixos
+      .filter((extra) => idsProfissionaisAtivos.has(String(extra.substitutoId)) && idsSetoresDoProblema.has(String(extra.setorId)))
+      .filter((extra) => (['diurno', 'noturno'] as const).filter((turno) => cobreTurno(extra.opcao as ExtraOpcao, turno)).every((turno) => turnosDoProblema.has(turno)))
+      .map((extra) => ({
+        extra_id: String(extra._id),
+        profissional_id: String(extra.substitutoId),
+        setor_id: String(extra.setorId),
+        dia: Number(extra.data.slice(-2)),
+        opcao: extra.opcao as ExtraOpcao,
+        tipo: 'extra',
+      }));
+    const idsFixos = new Set(alocacoesFixas.map((item) => item.extra_id));
+    const reservasForaDoEscopo = extrasFixos.filter(
+      (extra) => idsProfissionaisAtivos.has(String(extra.substitutoId)) && !idsFixos.has(String(extra._id)),
+    );
+    const profissionalPorId = new Map(problema.profissionais.map((item) => [item.id, item]));
+    for (const extra of reservasForaDoEscopo) {
+      const profissional = profissionalPorId.get(String(extra.substitutoId));
+      const dia = Number(extra.data.slice(-2));
+      if (!profissional || dia < 1 || dia > problema.dias_mes) continue;
+      const turnos = (['diurno', 'noturno'] as const).filter((turno) => cobreTurno(extra.opcao as ExtraOpcao, turno));
+      profissional.turnos_bloqueados = [
+        ...(profissional.turnos_bloqueados ?? []),
+        ...turnos.filter((turno) => !profissional.turnos_bloqueados?.some((item) => item.dia === dia && item.turno === turno)).map((turno) => ({ dia, turno })),
+      ];
+      conflitos.push({
+        tipo: 'EXTRA_FORA_DO_ESCOPO',
+        profissionalId: String(extra.substitutoId),
+        setorId: String(extra.setorId),
+        motivo: `Extra programado ${String(extra._id)} reservado fora do escopo selecionado.`,
+        dias: [dia],
+      });
+    }
+    problema.versao_contrato = 2;
+    problema.capacidades = ['alocacoes_fixas'];
+    problema.alocacoes_fixas = alocacoesFixas;
+
     problema.operacao_id = dto.operacaoId;
     this.exigirGeracaoAtiva(operacao);
     const solucao = await this.otimizador.resolver(problema, operacao.controller.signal);
+    validarSolucaoGeracao(solucao);
     this.exigirGeracaoAtiva(operacao);
 
     const porId = new Map(profissionais.map((p) => [p.id, p]));
@@ -1845,6 +1982,9 @@ export class EscalasService {
       { ano, mes, administradorId, geracao },
       solucao.alocacoes,
       porId,
+      usuario.id,
+      new Set(alocacoesFixas.map((item) => item.extra_id)),
+      fingerprintProgramacoes,
     );
     return this.obter(String(escalaId));
   }
@@ -1860,12 +2000,33 @@ export class EscalasService {
     existenteId: Types.ObjectId | undefined,
     revisaoExistente: number | undefined,
     base: { ano: number; mes: number; administradorId: Types.ObjectId; geracao: Record<string, unknown> },
-    alocacoes: { profissional_id: string; setor_id: string; dia: number; opcao: OpcaoPlantao; extra: boolean }[],
+    alocacoes: AlocacaoGerada[],
     porId: Map<string, ProfissionalEntrada>,
+    usuarioId: string,
+    extrasEsperados: Set<string>,
+    fingerprintProgramacoes: string,
   ): Promise<Types.ObjectId> {
     try {
+      const idsExtrasResposta = alocacoes.filter((item) => item.extra_id != null).map((item) => item.extra_id!);
+      if (idsExtrasResposta.some((id) => !extrasEsperados.has(id)) || new Set(idsExtrasResposta).size !== idsExtrasResposta.length ||
+        alocacoes.some((item) => item.extra_id != null && !item.extra)) {
+        throw new ConflictException('O otimizador devolveu vínculos de extras inconsistentes; nenhuma alteração foi persistida.');
+      }
       return await executarTransacao(this.connection, async (session) => {
         const escalaId = existenteId ?? new Types.ObjectId();
+        const inicioCompetencia = `${String(base.ano).padStart(4, '0')}-${String(base.mes).padStart(2, '0')}-01`;
+        const fimCompetencia = `${String(base.ano).padStart(4, '0')}-${String(base.mes).padStart(2, '0')}-${String(diasDoMes(base.ano, base.mes)).padStart(2, '0')}`;
+        const programacoesAtuais = await this.extras
+          .find({ situacao: ExtraProgramadoSituacao.PROGRAMADO, data: { $gte: inicioCompetencia, $lte: fimCompetencia } })
+          .session(session)
+          .lean()
+          .exec();
+        if (fingerprintExtras(programacoesAtuais) !== fingerprintProgramacoes) {
+          throw new ConflictException('As programações de extras foram alteradas durante a geração; a escala anterior foi preservada.');
+        }
+        const extrasAnteriores = existenteId
+          ? await this.extras.find({ escalaId: existenteId }, { _id: 1, revisao: 1 }).session(session).lean().exec()
+          : [];
         if (existenteId) {
           await this.removerConteudo(escalaId, session);
           const atualizada = await this.escalas.updateOne(
@@ -1893,7 +2054,7 @@ export class EscalasService {
           await this.escalas.create([{ _id: escalaId, ...base, status: StatusEscala.RASCUNHO }], { session });
         }
 
-        const agrupados = new Map<string, { doc: Partial<Plantao> & { _id: Types.ObjectId }; opcao: string; profissionais: string[] }>();
+        const agrupados = new Map<string, { doc: Partial<Plantao> & { _id: Types.ObjectId }; opcao: string; profissionais: { id: string; extraId?: Types.ObjectId }[] }>();
         for (const a of alocacoes) {
           const chave = `${a.setor_id}|${a.dia}|${a.opcao}|${a.extra}`;
           let grupo = agrupados.get(chave);
@@ -1915,7 +2076,10 @@ export class EscalasService {
             };
             agrupados.set(chave, grupo);
           }
-          grupo.profissionais.push(a.profissional_id);
+          grupo.profissionais.push({
+            id: a.profissional_id,
+            extraId: a.extra_id ? new Types.ObjectId(a.extra_id) : undefined,
+          });
         }
         const docs = [...agrupados.values()];
         if (docs.length > 0) {
@@ -1923,14 +2087,59 @@ export class EscalasService {
           await this.relacionados.insertMany(
             docs.flatMap((g) => {
               // O enfermeiro chefe existe apenas no plantão de 24h; a geração indica o primeiro enfermeiro da equipe.
-              const chefe = g.opcao === '24h' ? g.profissionais.find((pid) => porId.get(pid)!.formacao === Formacao.ENFERMEIRO) : undefined;
-              return g.profissionais.map((pid) => ({
+              const chefe = g.opcao === '24h' ? g.profissionais.find((item) => porId.get(item.id)!.formacao === Formacao.ENFERMEIRO) : undefined;
+              return g.profissionais.map((item) => ({
                 plantaoId: g.doc._id,
-                profissionalId: new Types.ObjectId(pid),
-                funcao: porId.get(pid)!.formacao,
-                lideranca: pid === chefe,
+                profissionalId: new Types.ObjectId(item.id),
+                funcao: porId.get(item.id)!.formacao,
+                lideranca: item.id === chefe?.id,
+                origemCobertura: item.extraId ? OrigemCobertura.COMPLEMENTAR : OrigemCobertura.REGULAR,
+                extraProgramadoId: item.extraId ?? null,
               }));
             }),
+            { session },
+          );
+        }
+        const vinculacoes = new Map<string, { plantaoId: Types.ObjectId; plantaoProfissionalId: Types.ObjectId }>();
+        for (const g of docs) {
+          const vinculos = await this.relacionados.find({ plantaoId: g.doc._id }).session(session).lean().exec();
+          for (const vinculo of vinculos) {
+            if (vinculo.extraProgramadoId) {
+              vinculacoes.set(String(vinculo.extraProgramadoId), { plantaoId: g.doc._id, plantaoProfissionalId: vinculo._id });
+            }
+          }
+        }
+        const idsGerados = new Set(vinculacoes.keys());
+        for (const extraId of extrasEsperados) {
+          if (!idsGerados.has(extraId)) {
+            throw new ConflictException(`O otimizador não devolveu a alocação fixa do extra ${extraId}.`);
+          }
+        }
+        for (const extra of extrasAnteriores) {
+          if (!idsGerados.has(String(extra._id))) {
+            await this.extras.updateOne(
+              { _id: extra._id },
+              { $set: { escalaId: null, plantaoId: null, plantaoProfissionalId: null, atualizadoPor: new Types.ObjectId(usuarioId) }, $inc: { revisao: 1 } },
+              { session },
+            );
+          }
+        }
+        for (const [extraId, vinculo] of vinculacoes) {
+          const extra = await this.extras.findById(extraId).session(session).lean().exec();
+          if (!extra || extra.situacao !== ExtraProgramadoSituacao.PROGRAMADO) {
+            throw new ConflictException(`O extra programado ${extraId} não está disponível para reconciliação.`);
+          }
+          await this.extras.updateOne(
+            { _id: extra._id },
+            {
+              $set: {
+                escalaId,
+                plantaoId: vinculo.plantaoId,
+                plantaoProfissionalId: vinculo.plantaoProfissionalId,
+                atualizadoPor: new Types.ObjectId(usuarioId),
+              },
+              ...(String(extra.escalaId) === String(escalaId) && String(extra.plantaoProfissionalId) === String(vinculo.plantaoProfissionalId) ? {} : { $inc: { revisao: 1 } }),
+            },
             { session },
           );
         }

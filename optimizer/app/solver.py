@@ -9,7 +9,8 @@ Unidade de decisão: o profissional `p` inicia, no dia `d`, um plantão do tipo 
 Restrições obrigatórias (duras):
   * cada plantão ocupa um único setor e o profissional não faz dois plantões ao mesmo tempo;
   * descanso mínimo após cada plantão: 72 h após 24h (regime 24x72) e 36 h após 12h;
-  * dia de início bloqueado (férias, ausência, indisponibilidade, vínculo externo...) não é alocado;
+  * dia ou turno de início bloqueado (férias, ausência, indisponibilidade, vínculo externo...) não é alocado;
+  * disponibilidade por turno e dias fixos recorrentes respeitados na seleção de opções;
   * descanso herdado do mês anterior;
   * teto de extras por profissional e teto total de plantões no mês;
   * cada função (enfermeiro/técnico) só é coberta por profissionais da respectiva formação.
@@ -127,12 +128,15 @@ def resolver(problema: Problema) -> Solucao:
 
     for pi, p in enumerate(profs):
         bloqueados = set(p.dias_bloqueados)
+        turnos_bloq = {(tb.dia, tb.turno) for tb in getattr(p, "turnos_bloqueados", [])}
         for d in range(n):
             if (d + 1) in bloqueados:
                 continue
             for o in OPCOES:
                 turnos_opcao = set(cobre(o))
                 if not turnos_opcao.issubset(turnos_selecionados):
+                    continue
+                if any((d + 1, t) in turnos_bloq for t in turnos_opcao):
                     continue
                 if janela(d, o)[0] < p.livre_a_partir_horas:
                     continue
@@ -145,6 +149,20 @@ def resolver(problema: Problema) -> Solucao:
                     yv = modelo.NewBoolVar(f"y_{pi}_{d}_{o}")
                     modelo.Add(sum(por_setor) == yv)
                     y[(pi, d, o)] = yv
+
+    prof_por_id = {p.id: pi for pi, p in enumerate(profs)}
+    setor_por_id = {s.id: si for si, s in enumerate(setores)}
+    fixas_por_chave: dict[tuple[int, int, int, str], str] = {}
+    for fixa in problema.alocacoes_fixas:
+        chave = (prof_por_id[fixa.profissional_id], setor_por_id[fixa.setor_id], fixa.dia - 1, fixa.opcao)
+        if chave in fixas_por_chave:
+            raise RuntimeError(f"Alocações fixas incompatíveis para o extra {fixa.extra_id}.")
+        if chave not in x:
+            raise RuntimeError(
+                f"Alocação fixa inviável: {fixa.extra_id} não pode iniciar no dia/turno informado."
+            )
+        fixas_por_chave[chave] = fixa.extra_id
+        modelo.Add(x[chave] == 1)
 
     conflitos = pares_em_conflito(n, par.descanso_apos_24h, par.descanso_apos_12h)
     for pi in range(len(profs)):
@@ -188,15 +206,22 @@ def resolver(problema: Problema) -> Solucao:
     contagens = {}
     extras_vars = []
     for pi, p in enumerate(profs):
-        n24 = sum(v for o, v in por_prof_vars[pi] if o == "24h")
-        n12 = sum(v for o, v in por_prof_vars[pi] if o != "24h")
+        vars_regulares = [(o, v) for (p_i, _si, _d, o), v in x.items() if p_i == pi and (p_i, _si, _d, o) not in fixas_por_chave]
+        n24 = sum(v for o, v in vars_regulares if o == "24h")
+        n12 = sum(v for o, v in vars_regulares if o != "24h")
+        fixas24 = sum(1 for p_i, _si, _d, o in fixas_por_chave if p_i == pi and o == "24h")
+        fixas12 = sum(1 for p_i, _si, _d, o in fixas_por_chave if p_i == pi and o != "24h")
         teto = 3 * n
+        inferidos24 = modelo.NewIntVar(0, teto, f"inferidos24_{pi}")
+        inferidos12 = modelo.NewIntVar(0, teto, f"inferidos12_{pi}")
         e24 = modelo.NewIntVar(0, teto, f"e24_{pi}")
         e12 = modelo.NewIntVar(0, teto, f"e12_{pi}")
         f24 = modelo.NewIntVar(0, p.carga_24h, f"f24_{pi}")
         f12 = modelo.NewIntVar(0, p.carga_12h, f"f12_{pi}")
-        modelo.Add(e24 >= n24 - p.carga_24h)
-        modelo.Add(e12 >= n12 - p.carga_12h)
+        modelo.Add(inferidos24 >= n24 - p.carga_24h)
+        modelo.Add(inferidos12 >= n12 - p.carga_12h)
+        modelo.Add(e24 == inferidos24 + fixas24)
+        modelo.Add(e12 == inferidos12 + fixas12)
         modelo.Add(f24 >= p.carga_24h - n24)
         modelo.Add(f12 >= p.carga_12h - n12)
         modelo.Add(e24 + e12 <= p.max_extras)
@@ -205,7 +230,7 @@ def resolver(problema: Problema) -> Solucao:
         objetivo.append(PESO_EXTRA * (e24 + e12))
         objetivo.append(PESO_CARGA_FALTANTE * (f24 + f12))
         extras_vars.append(e24 + e12)
-        contagens[pi] = (e24, e12, f24, f12)
+        contagens[pi] = (e24, e12, inferidos24, inferidos12, f24, f12)
 
     if extras_vars:
         maximo = modelo.NewIntVar(0, max([p.max_extras for p in profs] + [0]), "max_extras")
@@ -241,18 +266,22 @@ def resolver(problema: Problema) -> Solucao:
     extras_marcados: set[tuple[int, int, str]] = set()
     cargas = []
     for pi, p in enumerate(profs):
-        e24, e12, f24, f12 = contagens[pi]
+        e24, e12, inferidos24, inferidos12, f24, f12 = contagens[pi]
         v24, v12 = solver.Value(e24), solver.Value(e12)
+        vi24, vi12 = solver.Value(inferidos24), solver.Value(inferidos12)
         lista = sorted(por_prof.get(pi, []))
-        l24 = [t for t in lista if t[2] == "24h"]
-        l12 = [t for t in lista if t[2] != "24h"]
-        for d, _s, o in (l24[len(l24) - v24 :] if v24 else []) + (l12[len(l12) - v12 :] if v12 else []):
+        l24_todos = [t for t in lista if t[2] == "24h"]
+        l12_todos = [t for t in lista if t[2] != "24h"]
+        l24 = [t for t in l24_todos if (pi, t[1], t[0], t[2]) not in fixas_por_chave]
+        l12 = [t for t in l12_todos if (pi, t[1], t[0], t[2]) not in fixas_por_chave]
+        extras_marcados.update((pi, d, o) for p_i, _s, d, o in fixas_por_chave if p_i == pi)
+        for d, _s, o in (l24[len(l24) - vi24 :] if vi24 else []) + (l12[len(l12) - vi12 :] if vi12 else []):
             extras_marcados.add((pi, d, o))
         cargas.append(
             CargaProfissional(
                 profissional_id=p.id,
-                plantoes_24h=len(l24),
-                plantoes_12h=len(l12),
+                plantoes_24h=len(l24_todos),
+                plantoes_12h=len(l12_todos),
                 extras=v24 + v12,
                 faltam_24h=solver.Value(f24),
                 faltam_12h=solver.Value(f12),
@@ -266,6 +295,7 @@ def resolver(problema: Problema) -> Solucao:
             dia=d + 1,
             opcao=o,
             extra=(pi, d, o) in extras_marcados,
+            extra_id=fixas_por_chave.get((pi, si, d, o)),
         )
         for pi, si, d, o in escolhidos
     ]
@@ -288,6 +318,8 @@ def resolver(problema: Problema) -> Solucao:
     descobertos.sort(key=lambda t: (t.dia, t.setor_id, t.turno, t.funcao))
 
     return Solucao(
+        versao_contrato=problema.versao_contrato,
+        capacidades=problema.capacidades,
         alocacoes=alocacoes,
         descobertos=descobertos,
         estatisticas=Estatisticas(

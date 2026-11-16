@@ -19,12 +19,15 @@ import type { ProfessionalTabId } from './components/layout/professionalTabs'
 import { MyShiftsPage } from './pages/MyShifts/MyShiftsPage'
 import { GeneralSchedulePage } from './pages/GeneralSchedule/GeneralSchedulePage'
 import { api } from './services/api'
+import { ExtrasPage } from './pages/Extras/ExtrasPage'
 import { HistoryPage } from './pages/History/HistoryPage'
 
 function App() {
   const [user, setUser] = useState<SessionUser | null>(null)
   const [checkingSession, setCheckingSession] = useState(true)
-  const [activeItem, setActiveItem] = useState<NavItemId>('visao-geral')
+  const [activeItem, setActiveItem] = useState<NavItemId>(() =>
+    window.location.pathname === '/extras' ? 'extras' : 'visao-geral',
+  )
   const [searchQuery, setSearchQuery] = useState('')
   const [exchangeCount, setExchangeCount] = useState<number | null>(null)
   const [professionalTab, setProfessionalTab] = useState<ProfessionalTabId>('inicio')
@@ -48,7 +51,7 @@ function App() {
   }, [])
 
   useEffect(() => {
-    if (!user || user.perfil !== 'coordenacao') { setExchangeCount(null); return }
+    if (!user || user.perfil !== 'coordenacao') return
     const loadCount = () => api<{ contadores: { aguardandoCoordenacao: number } }>('/trocas?status=pendentes&pagina=1&limite=1')
       .then((result) => setExchangeCount(result.contadores.aguardandoCoordenacao))
       .catch(() => setExchangeCount(null))
@@ -123,7 +126,7 @@ function App() {
       onProfileClick={() => navigate('perfil')}
       user={{ name: user.nome, role, initials, isCoordination }}
       onLogout={handleLogout}
-      exchangeCount={exchangeCount}
+      exchangeCount={isCoordination ? exchangeCount : null}
     >
       {activeItem === 'configuracoes' && isCoordination ? (
         <SettingsPage searchQuery={searchQuery} />
@@ -143,6 +146,8 @@ function App() {
         <ScalePage />
       ) : activeItem === 'trocas' && isCoordination ? (
         <ExchangesPage onCountChange={setExchangeCount} />
+      ) : activeItem === 'extras' && isCoordination ? (
+        <ExtrasPage />
       ) : activeItem === 'historico' && isCoordination ? (
         <HistoryPage />
       ) : (

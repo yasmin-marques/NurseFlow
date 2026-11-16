@@ -85,6 +85,33 @@ npm run start:prod       # executa dist/main
 
 Swagger/OpenAPI: **http://localhost:3000/docs** (use *Authorize* com o `accessToken` retornado por `POST /auth/login`).
 
+## Contrato e implantação do otimizador
+
+O backend e o serviço Python usam o contrato versionado **v2**. Toda requisição de geração
+envia `versao_contrato: 2`, `capacidades: ["alocacoes_fixas"]` e `alocacoes_fixas`.
+Cada alocação fixa contém `extra_id`, `profissional_id`, `setor_id`, `dia`, `opcao` (`12d`,
+`12n` ou `24h`) e `tipo: "extra"`. A resposta mantém a versão/capacidade e identifica a
+alocação efetiva por `extra_id` quando ela é um extra programado.
+
+O rollout compatível é:
+
+1. Aplicar migrations e índices do backend.
+2. Publicar o optimizer v2 em uma instância não roteada e verificar `GET /saude`.
+3. Verificar o contrato v2 em uma chamada de integração, incluindo `alocacoes_fixas`.
+4. Publicar o backend que envia e valida o contrato v2 e só então direcionar tráfego para
+   as instâncias novas.
+5. Publicar a interface depois de backend e optimizer estarem compatíveis.
+
+Não se deve fazer rollout misto entre backend antigo e optimizer v2: o optimizer v2 rejeita
+payloads sem a versão/capacidade exigidas. Da mesma forma, o backend recusa respostas de
+solver antigo ou sem suporte a `alocacoes_fixas` com erro de gateway, antes de iniciar a
+gravação da escala. A geração fica sem efeitos persistidos; escalas existentes, extras e
+vínculos permanecem intactos. O serviço também revalida a solução antes do commit, portanto
+um dublê que contorne o adaptador não pode introduzir um contrato obsoleto.
+
+Para rollback, retire o tráfego do backend v2 e restaure backend e optimizer como um par
+compatível. Não reverta apenas o optimizer enquanto houver backend v2 ativo.
+
 ## Testes e lint
 
 ```bash

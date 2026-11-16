@@ -58,6 +58,18 @@ export class Plantao {
 export type PlantaoDocument = HydratedDocument<Plantao>;
 export const PlantaoSchema = SchemaFactory.createForClass(Plantao);
 
+/**
+ * Vínculo de alocação de um profissional a um plantão na escala.
+ *
+ * Relação com Extras Programados:
+ * - `extraProgramadoId`: Referência opcional e exclusiva (índice parcial único) ao registro independente
+ *   em `extrasProgramados`.
+ * - `origemCobertura`: Metadado de origem da cobertura (`OrigemCobertura.COMPLEMENTAR` para extras conciliados),
+ *   distinto do `motivo` de negócio (férias, ausência, reforço, etc.) preservado em `ExtraProgramado`.
+ * - `funcao`: Função exercida no plantão (`enfermeiro` ou `tecnico`).
+ * - O vínculo empregatício do profissional (`tipoVinculo`: CLT, concursado ou RPA) permanece no cadastro
+ *   em `Profissional` e nunca é alterado ou confundido com o tipo de plantão ou motivo de cobertura.
+ */
 @Schema({ collection: 'profissionaisRelacionados', timestamps: true, versionKey: false })
 export class PlantaoProfissional {
   @Prop({ type: Types.ObjectId, ref: 'Plantao', required: true }) plantaoId: Types.ObjectId;
@@ -65,11 +77,17 @@ export class PlantaoProfissional {
   @Prop({ required: true, enum: ['enfermeiro', 'tecnico'] }) funcao: string;
   @Prop({ required: true, default: false }) lideranca: boolean;
   @Prop({ required: true, enum: OrigemCobertura, default: OrigemCobertura.REGULAR }) origemCobertura: OrigemCobertura;
+  @Prop({ type: Types.ObjectId, ref: 'ExtraProgramado', default: null }) extraProgramadoId?: Types.ObjectId | null;
   createdAt: Date;
   updatedAt: Date;
 }
 export type PlantaoProfissionalDocument = HydratedDocument<PlantaoProfissional>;
 export const PlantaoProfissionalSchema = SchemaFactory.createForClass(PlantaoProfissional);
+PlantaoProfissionalSchema.index({ plantaoId: 1, profissionalId: 1 }, { unique: true });
+PlantaoProfissionalSchema.index(
+  { extraProgramadoId: 1 },
+  { unique: true, partialFilterExpression: { extraProgramadoId: { $type: 'objectId' } } },
+);
 
 @Schema({ collection: 'versoesEscala', timestamps: true, versionKey: false })
 export class VersaoEscala {

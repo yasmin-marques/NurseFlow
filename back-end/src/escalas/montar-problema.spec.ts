@@ -137,6 +137,44 @@ describe('RN003/RN005 — disponibilidade, férias e ausências', () => {
     expect(conflitos).toContainEqual(expect.objectContaining({ tipo: 'INDISPONIBILIDADE', motivo: 'ferias', dias: [5, 6, 7] }));
   });
 
+  it('recorrência semanal com array diasSemana bloqueia múltiplos dias (segundas e quartas)', () => {
+    // Outubro/2026: segundas = [5, 12, 19, 26], quartas = [7, 14, 21, 28]
+    const dias = diasAfetados(restricao({ tipo: TipoRestricao.VINCULO_EXTERNO, diasSemana: [1, 3] }), 2026, 10);
+    expect(dias).toEqual([5, 7, 12, 14, 19, 21, 26, 28]);
+  });
+
+  it('bloqueio por turno específico (vínculo noturno) gera turnos_bloqueados sem bloquear o dia inteiro', () => {
+    // Quintas de outubro/2026: 1, 8, 15, 22, 29
+    const { problema, conflitos } = montarProblema(
+      entrada([prof('p1', TipoVinculo.CLT)], {
+        restricoes: [restricao({ tipo: TipoRestricao.VINCULO_EXTERNO, diasSemana: [4], turno: 'noturno', motivo: 'Hospital Geral' })],
+      }),
+    );
+    const p1 = problema.profissionais[0];
+    expect(p1.dias_bloqueados).toEqual([]);
+    expect(p1.turnos_bloqueados).toContainEqual({ dia: 1, turno: 'noturno' });
+    expect(p1.turnos_bloqueados).toContainEqual({ dia: 8, turno: 'noturno' });
+    expect(conflitos).toContainEqual(
+      expect.objectContaining({ tipo: 'INDISPONIBILIDADE_TURNO', dias: [1, 8, 15, 22, 29] }),
+    );
+  });
+
+  it('disponibilidade por turno e dias fixos restringe dias e turnos corretamente', () => {
+    // Terças de outubro/2026: 6, 13, 20, 27 disponíveis apenas para diurno
+    const { problema } = montarProblema(
+      entrada([prof('p1', TipoVinculo.CLT)], {
+        restricoes: [restricao({ tipo: TipoRestricao.DISPONIVEL, diasSemana: [2], turno: 'diurno' })],
+      }),
+    );
+    const p1 = problema.profissionais[0];
+    // Dias fora das terças estão em dias_bloqueados
+    expect(p1.dias_bloqueados.includes(6)).toBe(false);
+    expect(p1.dias_bloqueados.includes(7)).toBe(true);
+    // Nas terças, o turno noturno está bloqueado
+    expect(p1.turnos_bloqueados).toContainEqual({ dia: 6, turno: 'noturno' });
+    expect(p1.turnos_bloqueados).toContainEqual({ dia: 13, turno: 'noturno' });
+  });
+
   it('só profissionais ativos participam; afastados/férias viram conflito informativo e desativados são ignorados', () => {
     const { problema, conflitos } = montarProblema(
       entrada([

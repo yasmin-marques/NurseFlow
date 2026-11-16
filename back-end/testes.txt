@@ -1,0 +1,428 @@
+
+> nurseflow-back-end@1.0.0 test:e2e
+> cross-env NODE_OPTIONS=--experimental-vm-modules jest --config ./test/jest-e2e.json --runInBand --runInBand
+
+(node:140599) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+[31m[Nest] 140599  - [39m11/04/2026, 9:23:20 PM [31m  ERROR[39m [38;5;3m[EscalasService] [39m[31mFalha ao gravar a escala 10/2026: E11000 duplicate key error collection: nurseflow_escalas.profissionaisRelacionados index: plantaoId_1_profissionalId_1 dup key: { plantaoId: ObjectId('6aebcc78c86ce9b3e609a0c6'), profissionalId: ObjectId('6aebcc75c86ce9b3e609a031') }[39m
+[31m[Nest] 140599  - [39m11/04/2026, 9:25:22 PM [31m  ERROR[39m [38;5;3m[EscalasService] [39m[31mFalha ao gravar a escala 12/2026: E11000 duplicate key error collection: nurseflow_escalas.profissionaisRelacionados index: plantaoId_1_profissionalId_1 dup key: { plantaoId: ObjectId('6aebccf2c86ce9b3e609a136'), profissionalId: ObjectId('6aebcc75c86ce9b3e609a031') }[39m
+[31m[Nest] 140599  - [39m11/04/2026, 9:25:22 PM [31m  ERROR[39m [38;5;3m[AllExceptionsFilter] [39m[31mError: indisponível
+    at OtimizadorFalso.otimizador.resolver (/home/perykles/NurseFlow/back-end/test/escalas.e2e-spec.ts:1355:50)
+    at EscalasService.gerarPeriodo (/home/perykles/NurseFlow/back-end/src/escalas/escalas.service.ts:1776:43)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at EscalasService.gerar (/home/perykles/NurseFlow/back-end/src/escalas/escalas.service.ts:199:14)
+    at /home/perykles/NurseFlow/back-end/node_modules/@nestjs/core/router/router-execution-context.js:68:62
+    at EscalasController.gerar (/home/perykles/NurseFlow/back-end/node_modules/@nestjs/core/router/router-proxy.js:6:17)[39m
+FAIL test/escalas.e2e-spec.ts (130.342 s)
+  ● Geração automática de escalas (e2e) › falhas do otimizador › rejeita resultado obsoleto quando uma programação muda durante o solver
+
+    thrown: "Exceeded timeout of 120000 ms for a test.
+    Add a timeout value to this test to increase the timeout, if this is a long-running test. See https://jestjs.io/docs/api#testname-fn-timeout."
+
+      at _getError (node_modules/jest-circus/build/jestAdapterInit.js:1985:12)
+          at Array.map (<anonymous>)
+
+    Cause:
+        thrown: "Exceeded timeout of 120000 ms for a test.
+        Add a timeout value to this test to increase the timeout, if this is a long-running test. See https://jestjs.io/docs/api#testname-fn-timeout."
+
+          1268 |     });
+          1269 |
+        > 1270 |     it('rejeita resultado obsoleto quando uma programação muda durante o solver', async () => {
+               |     ^
+          1271 |       await configurarCargas(2031, 2, 7).expect(200);
+          1272 |       const setor = await http
+          1273 |         .post('/setores')
+
+          at test/escalas.e2e-spec.ts:1270:5
+          at test/escalas.e2e-spec.ts:1252:3
+          at test/escalas.e2e-spec.ts:104:1
+
+(node:140599) [MONGOOSE] Warning: mongoose: the `new` option for `findOneAndUpdate()` and `findOneAndReplace()` is deprecated. Use `returnDocument: 'after'` instead.
+(node:140599) [MONGOOSE] Warning: mongoose: the `new` option for `findOneAndUpdate()` and `findOneAndReplace()` is deprecated. Use `returnDocument: 'after'` instead.
+(node:140599) [MONGOOSE] Warning: mongoose: the `new` option for `findOneAndUpdate()` and `findOneAndReplace()` is deprecated. Use `returnDocument: 'after'` instead.
+FAIL test/restricoes-configuracoes.e2e-spec.ts
+  ● Restrições e Configurações (e2e) › Configurações › devolve os valores padrão quando o período ainda não foi configurado
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 1
+    Received: 0
+
+      137 |       expect(
+      138 |         await colecao("configuracoes").countDocuments({ chave: "2026-10" }),
+    > 139 |       ).toBe(1);
+          |         ^
+      140 |     });
+      141 |
+      142 |     it("salva o limite de trocas e os máximos de extras no MongoDB e os devolve na leitura", async () => {
+
+      at Object.<anonymous> (test/restricoes-configuracoes.e2e-spec.ts:139:9)
+
+  ● Restrições e Configurações (e2e) › Configurações › salva o limite de trocas e os máximos de extras no MongoDB e os devolve na leitura
+
+    expect(received).toMatchObject(expected)
+
+    Matcher error: received value must be a non-null object
+
+    Received has value: null
+
+      155 |
+      156 |       const doc = await colecao("configuracoes").findOne({ chave: "2026-10" });
+    > 157 |       expect(doc).toMatchObject(dto);
+          |                   ^
+      158 |
+      159 |       const relido = await http
+      160 |         .get(`/configuracoes${periodo}`)
+
+      at Object.<anonymous> (test/restricoes-configuracoes.e2e-spec.ts:157:19)
+
+  ● Restrições e Configurações (e2e) › Configurações › atualização parcial preserva os demais campos e não duplica o documento
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 1
+    Received: 0
+
+      181 |       expect(
+      182 |         await colecao("configuracoes").countDocuments({ chave: "2026-10" }),
+    > 183 |       ).toBe(1);
+          |         ^
+      184 |     });
+      185 |
+      186 |     it("mantém cada período isolado", async () => {
+
+      at Object.<anonymous> (test/restricoes-configuracoes.e2e-spec.ts:183:9)
+
+  ● Restrições e Configurações (e2e) › Configurações › mantém cada período isolado
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+    -   "limiteTrocas": 3,
+    +   "limiteTrocas": 0,
+        "maxExtras": 2,
+        "periodo": "2026-11",
+      }
+
+      189 |         .set(auth(tokenCoord))
+      190 |         .expect(200);
+    > 191 |       expect(res.body).toMatchObject({
+          |                        ^
+      192 |         periodo: "2026-11",
+      193 |         limiteTrocas: 3,
+      194 |         maxExtras: 2,
+
+      at Object.<anonymous> (test/restricoes-configuracoes.e2e-spec.ts:191:24)
+
+  ● Restrições e Configurações (e2e) › Configurações › consulta e salva configurações em qualquer mês dos anos permitidos
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+    -   "limiteTrocas": 3,
+    +   "limiteTrocas": 8,
+        "periodo": "0001-01",
+      }
+
+      221 |         .set(auth(tokenCoord))
+      222 |         .expect(200);
+    > 223 |       expect(outroPeriodo.body).toMatchObject({
+          |                                 ^
+      224 |         periodo: "0001-01",
+      225 |         limiteTrocas: 3,
+      226 |       });
+
+      at Object.<anonymous> (test/restricoes-configuracoes.e2e-spec.ts:223:33)
+
+  ● Restrições e Configurações (e2e) › Configurações › rejeita valores inválidos e campos desconhecidos
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 0
+    Received: 8
+
+      257 |         (await http.get(`/configuracoes${periodo}`).set(auth(tokenCoord))).body
+      258 |           .limiteTrocas,
+    > 259 |       ).toBe(0);
+          |         ^
+      260 |     });
+      261 |
+      262 |     it("valida o período informado", async () => {
+
+      at Object.<anonymous> (test/restricoes-configuracoes.e2e-spec.ts:259:9)
+
+  ● Restrições e Configurações (e2e) › Configurações › exige autenticação e restringe a Coordenação (Enfermeiro e Técnico recebem 403)
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 0
+    Received: 8
+
+      349 |         (await http.get(`/configuracoes${periodo}`).set(auth(tokenCoord))).body
+      350 |           .limiteTrocas,
+    > 351 |       ).toBe(0);
+          |         ^
+      352 |     });
+      353 |   });
+      354 |
+
+      at Object.<anonymous> (test/restricoes-configuracoes.e2e-spec.ts:351:9)
+
+[31m[Nest] 140599  - [39m11/04/2026, 9:25:30 PM [31m  ERROR[39m [38;5;3m[AllExceptionsFilter] [39m[31mServiceUnavailableException: Decisões de troca estão desabilitadas até a confirmação de replica set/transações no MongoDB de produção.
+    at TrocasService.exigirTransacoesConfirmadas (/home/perykles/NurseFlow/back-end/src/trocas/trocas.service.ts:210:13)
+    at TrocasService.recusar (/home/perykles/NurseFlow/back-end/src/trocas/trocas.service.ts:163:10)
+    at TrocasController.recusar (/home/perykles/NurseFlow/back-end/src/trocas/trocas.controller.ts:45:25)
+    at /home/perykles/NurseFlow/back-end/node_modules/@nestjs/core/router/router-execution-context.js:44:37
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at /home/perykles/NurseFlow/back-end/node_modules/@nestjs/core/router/router-execution-context.js:68:62
+    at TrocasController.recusar (/home/perykles/NurseFlow/back-end/node_modules/@nestjs/core/router/router-proxy.js:6:17)[39m
+FAIL test/trocas.e2e-spec.ts
+  ● Trocas administrativas (e2e) › bloqueia validação quando a escala está em revisão e quando os plantões não são da mesma competência
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      135 |     expect(await db.collection('auditoriaTrocas').countDocuments({ solicitacaoId: trocaRevisao.id })).toBe(0);
+      136 |     await db.collection('escalas').updateOne({ _id: escalaId }, { $set: { status: 'publicada' } });
+    > 137 |     expect((await http.get(`/trocas/${trocaRevisao.id}/validacao`).set(auth(tokenCoord)).expect(200)).body.apta).toBe(true);
+          |                                                                                                                  ^
+      138 |
+      139 |     const outroPeriodoId = new mongoose.Types.ObjectId(); const novoPlantaoId = new mongoose.Types.ObjectId(); const novoVinculoId = new mongoose.Types.ObjectId();
+      140 |     const setorId = (await db.collection('plantoes').findOne({ escalaId }))!.setorId;
+
+      at Object.<anonymous> (test/trocas.e2e-spec.ts:137:114)
+
+  ● Trocas administrativas (e2e) › revalida status, formação, férias/ausência, descanso e carga dos dois profissionais
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      162 |     await db.collection('profissionaisRelacionados').updateOne({ _id: ids.vinculoB }, { $set: { funcao: 'tecnico' } });
+      163 |     result = await http.get(`/trocas/${troca.id}/validacao`).set(auth(tokenCoord)).expect(200);
+    > 164 |     expect(result.body.impedimentos.some((item: { mensagem: string }) => item.mensagem.includes('formação exigida'))).toBe(true);
+          |                                                                                                                       ^
+      165 |     await db.collection('profissionaisRelacionados').updateOne({ _id: ids.vinculoB }, { $set: { funcao: 'enfermeiro' } });
+      166 |
+      167 |     const restricaoId = new mongoose.Types.ObjectId();
+
+      at Object.<anonymous> (test/trocas.e2e-spec.ts:164:119)
+
+  ● Trocas administrativas (e2e) › faz rollback integral quando falha uma etapa posterior à alteração dos vínculos
+
+    ReferenceError: jest is not defined
+
+      217 |       vinculoSolicitanteId: ids.vinculoA, vinculoSolicitadoId: ids.vinculoB });
+      218 |     const notificacoes = app.get(getModelToken(NotificacaoTroca.name)) as { insertMany: (...args: unknown[]) => Promise<unknown> };
+    > 219 |     const spy = jest.spyOn(notificacoes, 'insertMany').mockRejectedValueOnce(new Error('falha injetada ao persistir eventos'));
+          |                 ^
+      220 |     try {
+      221 |       await http.post(`/trocas/${troca.id}/aprovar`).set(auth(tokenCoord)).send({ revisaoEsperada: 1, operacaoId: randomUUID() }).expect(500);
+      222 |     } finally { spy.mockRestore(); }
+
+      at Object.<anonymous> (test/trocas.e2e-spec.ts:219:17)
+
+  ● Trocas administrativas (e2e) › revalida e aprova a permuta com versão oficial nova, preservando vínculos e metadados; retry é idempotente
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 2
+    + Received  + 2
+
+      Object {
+    -   "apta": true,
+    -   "limiteTrocas": 3,
+    +   "apta": false,
+    +   "limiteTrocas": null,
+        "revisaoEsperada": 1,
+        "versaoPublicada": 1,
+      }
+
+      237 |       vinculoSolicitanteId: ids.vinculoA, vinculoSolicitadoId: ids.vinculoB });
+      238 |     const validacao = await http.get(`/trocas/${troca.id}/validacao`).set(auth(tokenCoord)).expect(200);
+    > 239 |     expect(validacao.body).toMatchObject({ apta: true, revisaoEsperada: 1, versaoPublicada: 1, limiteTrocas: 3 });
+          |                            ^
+      240 |     const operation = randomUUID();
+      241 |     const body = { revisaoEsperada: 1, operacaoId: operation };
+      242 |     const response = await http.post(`/trocas/${troca.id}/aprovar`).set(auth(tokenCoord)).send(body).expect(200);
+
+      at Object.<anonymous> (test/trocas.e2e-spec.ts:239:28)
+
+  ● Trocas administrativas (e2e) › serializa decisões concorrentes em vínculos compartilhados e atende retries simultâneos com a mesma chave
+
+    expect(received).toHaveLength(expected)
+
+    Expected length: 1
+    Received length: 0
+    Received array:  []
+
+      284 |       http.post(`/trocas/${contender.id}/aprovar`).set(auth(tokenCoord)).send({ revisaoEsperada, operacaoId: operacaoContender }),
+      285 |     ]);
+    > 286 |     expect([respostaWinner.status, respostaContender.status].filter((status) => status === 200)).toHaveLength(1);
+          |                                                                                                  ^
+      287 |     expect([respostaWinner.status, respostaContender.status].filter((status) => [409, 422].includes(status))).toHaveLength(1);
+      288 |     const vencedorId = respostaWinner.status === 200 ? winner.id : contender.id;
+      289 |     const perdedorId = respostaWinner.status === 200 ? contender.id : winner.id;
+
+      at Object.<anonymous> (test/trocas.e2e-spec.ts:286:98)
+
+  ● Trocas administrativas (e2e) › conta o limite mensal por participante, permite exceção justificada e não ignora outros bloqueios
+
+    expect(received).toEqual(expected) // deep equality
+
+    Expected: ArrayContaining [ObjectContaining {"aprovadas": 3, "profissionalId": "6aebccf9b25146b0deb03d01"}, ObjectContaining {"aprovadas": 3, "profissionalId": "6aebccf9b25146b0deb03d03"}]
+    Received: [{"aprovadas": 1, "profissionalId": "6aebccf9b25146b0deb03d01"}, {"aprovadas": 1, "profissionalId": "6aebccf9b25146b0deb03d03"}]
+
+      315 |       profissionalSolicitadoId: participanteB, vinculoSolicitanteId: ids.vinculoA, vinculoSolicitadoId: ids.vinculoB });
+      316 |     const validacao = await http.get(`/trocas/${troca.id}/validacao`).set(auth(tokenCoord)).expect(200);
+    > 317 |     expect(validacao.body.contagemTrocas).toEqual(expect.arrayContaining([
+          |                                           ^
+      318 |       expect.objectContaining({ profissionalId: String(participanteA), aprovadas: 3 }),
+      319 |       expect.objectContaining({ profissionalId: String(participanteB), aprovadas: 3 }),
+      320 |     ]));
+
+      at Object.<anonymous> (test/trocas.e2e-spec.ts:317:43)
+
+FAIL test/seed-demo.e2e-spec.ts
+  ● Console
+
+    console.error
+      ◇ injected env (19) from .env
+
+      1 | ﻿/** Dados fictÃ­cios e idempotentes. Uso EXCLUSIVO em ambiente de desenvolvimento. */
+    > 2 | require('dotenv').config();
+        |                   ^
+      3 | const { MongoClient, ObjectId } = require('mongodb');
+      4 | const bcrypt = require('bcryptjs');
+      5 |
+
+      at ie (node_modules/dotenv/dist/index.cjs:7:155)
+      at Object.ae [as configDotenv] (node_modules/dotenv/dist/index.cjs:7:1128)
+      at Object.le [as config] (node_modules/dotenv/dist/index.cjs:7:1237)
+      at Object.<anonymous> (scripts/seed-demo.js:2:19)
+      at test/seed-demo.e2e-spec.ts:12:26
+
+  ● seed de demonstração (e2e) › cria 27 profissionais com a distribuição aprovada
+
+    ReferenceError: jest is not defined
+
+      36 |     client = new mongoose.mongo.MongoClient(banco.uri);
+      37 |     db = client.db();
+    > 38 |     jest.spyOn(console, "log").mockImplementation(() => undefined);
+         |     ^
+      39 |     Object.assign(process.env, {
+      40 |       MONGODB_URI: banco.uri,
+      41 |       DEMO_SEED_ENABLED: "true",
+
+      at Object.<anonymous> (test/seed-demo.e2e-spec.ts:38:5)
+
+  ● seed de demonstração (e2e) › gera CPFs válidos e únicos, e-mails e COREN únicos, e vincula usuários e profissionais
+
+    ReferenceError: jest is not defined
+
+      36 |     client = new mongoose.mongo.MongoClient(banco.uri);
+      37 |     db = client.db();
+    > 38 |     jest.spyOn(console, "log").mockImplementation(() => undefined);
+         |     ^
+      39 |     Object.assign(process.env, {
+      40 |       MONGODB_URI: banco.uri,
+      41 |       DEMO_SEED_ENABLED: "true",
+
+      at Object.<anonymous> (test/seed-demo.e2e-spec.ts:38:5)
+
+  ● seed de demonstração (e2e) › restrições referenciam profissionais existentes e coincidem com o status
+
+    ReferenceError: jest is not defined
+
+      36 |     client = new mongoose.mongo.MongoClient(banco.uri);
+      37 |     db = client.db();
+    > 38 |     jest.spyOn(console, "log").mockImplementation(() => undefined);
+         |     ^
+      39 |     Object.assign(process.env, {
+      40 |       MONGODB_URI: banco.uri,
+      41 |       DEMO_SEED_ENABLED: "true",
+
+      at Object.<anonymous> (test/seed-demo.e2e-spec.ts:38:5)
+
+  ● seed de demonstração (e2e) › cria configurações mensais padrão para outubro e novembro de 2026
+
+    ReferenceError: jest is not defined
+
+      36 |     client = new mongoose.mongo.MongoClient(banco.uri);
+      37 |     db = client.db();
+    > 38 |     jest.spyOn(console, "log").mockImplementation(() => undefined);
+         |     ^
+      39 |     Object.assign(process.env, {
+      40 |       MONGODB_URI: banco.uri,
+      41 |       DEMO_SEED_ENABLED: "true",
+
+      at Object.<anonymous> (test/seed-demo.e2e-spec.ts:38:5)
+
+  ● seed de demonstração (e2e) › é idempotente: executar de novo não duplica nem altera registros
+
+    ReferenceError: jest is not defined
+
+      36 |     client = new mongoose.mongo.MongoClient(banco.uri);
+      37 |     db = client.db();
+    > 38 |     jest.spyOn(console, "log").mockImplementation(() => undefined);
+         |     ^
+      39 |     Object.assign(process.env, {
+      40 |       MONGODB_URI: banco.uri,
+      41 |       DEMO_SEED_ENABLED: "true",
+
+      at Object.<anonymous> (test/seed-demo.e2e-spec.ts:38:5)
+
+  ● seed de demonstração (e2e) › mantém as proteções: desabilitado e produção sem autorização não gravam
+
+    ReferenceError: jest is not defined
+
+      36 |     client = new mongoose.mongo.MongoClient(banco.uri);
+      37 |     db = client.db();
+    > 38 |     jest.spyOn(console, "log").mockImplementation(() => undefined);
+         |     ^
+      39 |     Object.assign(process.env, {
+      40 |       MONGODB_URI: banco.uri,
+      41 |       DEMO_SEED_ENABLED: "true",
+
+      at Object.<anonymous> (test/seed-demo.e2e-spec.ts:38:5)
+
+
+  ● Test suite failed to run
+
+    ReferenceError: jest is not defined
+
+      52 |       else process.env[k] = original[k];
+      53 |     }
+    > 54 |     jest.restoreAllMocks();
+         |     ^
+      55 |     await client.close();
+      56 |     await banco.parar();
+      57 |   });
+
+      at Object.<anonymous> (test/seed-demo.e2e-spec.ts:54:5)
+
+PASS test/migrations.e2e-spec.ts (14.674 s)
+PASS test/app.e2e-spec.ts (5.631 s)
+(node:140599) [MONGOOSE] Warning: mongoose: the `new` option for `findOneAndUpdate()` and `findOneAndReplace()` is deprecated. Use `returnDocument: 'after'` instead.
+(node:140599) [MONGOOSE] Warning: mongoose: the `new` option for `findOneAndUpdate()` and `findOneAndReplace()` is deprecated. Use `returnDocument: 'after'` instead.
+(node:140599) [MONGOOSE] Warning: mongoose: the `new` option for `findOneAndUpdate()` and `findOneAndReplace()` is deprecated. Use `returnDocument: 'after'` instead.
+PASS test/extras.e2e-spec.ts
+
+Test Suites: 4 failed, 3 passed, 7 total
+Tests:       20 failed, 101 passed, 121 total
+Snapshots:   0 total
+Time:        163.257 s, estimated 186 s
+Ran all test suites.
+Jest did not exit one second after the test run has completed.
+
+'This usually means that there are asynchronous operations that weren't stopped in your tests. Consider running Jest with `--detectOpenHandles` to troubleshoot this issue.
