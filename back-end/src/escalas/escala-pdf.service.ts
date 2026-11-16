@@ -1,8 +1,12 @@
-import { Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
 import { ZipArchive } from 'archiver';
 import PDFDocument from 'pdfkit';
 import { PassThrough } from 'node:stream';
-import type { DadosEscalaPdf } from './escala-pdf.types';
+import { EscalaSnapshotService } from './escala-snapshot.service';
+import { isVisualizacaoEscalaPdf, type DadosEscalaPdf } from './escala-pdf.types';
+import { Escala, VersaoEscala } from './schemas';
 
 interface SetorPdf {
   id: string;
@@ -11,6 +15,29 @@ interface SetorPdf {
 
 @Injectable()
 export class EscalaPdfService {
+  constructor(
+    @InjectModel(Escala.name) private readonly escalas: Model<Escala>,
+    @InjectModel(VersaoEscala.name) private readonly versoes: Model<VersaoEscala>,
+    private readonly snapshots: EscalaSnapshotService,
+  ) {}
+
+  async obterDados(escalaId: string): Promise<DadosEscalaPdf> {
+    const escala = await this.escalas.findById(escalaId).lean().exec();
+    if (!escala) throw new NotFoundException('Escala não encontrada.');
+    const versao = await this.versoes.findOne({ escalaId: escala._id }).sort({ numero: -1 }).lean().exec();
+    if (!versao) throw new NotFoundException('A escala ainda não possui uma versão oficial publicada.');
+    const snapshot = await this.snapshots.snapshotComVisualizacao(escala, versao.snapshot);
+    const visualizacao = snapshot.visualizacao;
+    if (!isVisualizacaoEscalaPdf(visualizacao)) {
+      throw new ConflictException('A versão oficial não contém dados suficientes para exportação.');
+    }
+    return {
+      ...visualizacao,
+      numero: versao.numero,
+      publicadoEm: new Date(versao.publicadoEm),
+    };
+  }
+
   async geral(dados: DadosEscalaPdf): Promise<Buffer> {
     return this.gerarPdf(dados);
   }

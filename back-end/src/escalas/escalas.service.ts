@@ -1,34 +1,27 @@
-import { ConflictException, Injectable, Logger, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { randomUUID } from 'node:crypto';
+import { ConflictException, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import { type ClientSession, type Connection, Model, Types } from 'mongoose';
 import type { UsuarioAutenticado } from '../common/auth/usuario-autenticado';
 import { executarTransacao } from '../common/utils/mongo-transaction';
 import { utcDate } from '../common/utils/date';
-import type { AppConfig } from '../config/configuration';
 import { chaveCarga } from '../configuracoes/configuracao.schema';
 import { ConfiguracoesService } from '../configuracoes/configuracoes.service';
-import { Formacao, StatusProfissional } from '../profissionais/profissionais.enums';
+import { StatusProfissional } from '../profissionais/profissionais.enums';
 import { Profissional } from '../profissionais/schemas/profissional.schema';
 import { Restricao } from '../restricoes/restricao.schema';
 import { Setor } from '../setores/schemas/setor.schema';
 import { Administrador } from '../usuarios/schemas/administrador.schema';
 import { Usuario } from '../usuarios/schemas/usuario.schema';
 import type { LotePlantoesDto, PlantaoAlteracaoDto, PlantaoDto } from './dto/plantao.dto';
-import type { GerarEscalaDto } from './dto/gerar-escala.dto';
 import type { PeriodoEscalaDto, PublicarEscalaDto } from './dto/escala.dto';
 import {
   type ConfiguracaoVigente,
   diasDoMes,
   type Mensagem,
-  montarProblema,
   type PlantaoAnterior,
   type ProfissionalEntrada,
-  validarEntrada,
 } from './montar-problema';
-import { OtimizadorEscala, type OpcaoPlantao } from './otimizador/otimizador';
-import { isVisualizacaoEscalaPdf, type DadosEscalaPdf } from './escala-pdf.types';
+import type { OpcaoPlantao } from './otimizador/otimizador';
 import {
   calcularPendenciasCobertura,
   type AlocacaoPlantaoValidacao,
@@ -39,9 +32,7 @@ import {
   validarAlocacoesPlantao,
 } from './regras-plantao';
 import {
-  AuditoriaEscala,
   Escala,
-  NotificacaoEscala,
   OrigemCobertura,
   Plantao,
   PlantaoProfissional,
@@ -49,6 +40,9 @@ import {
   TipoPlantao,
   VersaoEscala,
 } from './schemas';
+import { EscalaAuditoriaService } from './escala-auditoria.service';
+import { EscalaSnapshotService, isSnapshotEscala } from './escala-snapshot.service';
+import { NotificacoesEscalaService } from '../notificacoes/notificacoes-escalas.service';
 
 const MS_DIA = 86_400_000;
 
@@ -59,23 +53,6 @@ const HORARIOS: Record<OpcaoPlantao, { inicio: string; fim: string; horas: numbe
 };
 
 const rotuloPeriodo = (ano: number, mes: number) => `${String(mes).padStart(2, '0')}/${String(ano).padStart(4, '0')}`;
-const isoDia = (d: Date) => d.toISOString().slice(0, 10);
-
-interface SnapshotEscala {
-  escala?: { geracao?: Record<string, unknown> };
-  geracao?: Record<string, unknown>;
-  plantoes: (Partial<Plantao> & { _id: Types.ObjectId; escalaId?: Types.ObjectId })[];
-  profissionaisRelacionados: (Partial<PlantaoProfissional> & { _id: Types.ObjectId; plantaoId: Types.ObjectId })[];
-  pendencias?: unknown[];
-  conflitos?: Mensagem[];
-  avisos?: Mensagem[];
-  cargas?: unknown[];
-}
-
-interface GeracaoEmAndamento {
-  controller: AbortController;
-  estado: 'otimizando' | 'cancelando' | 'salvando';
-}
 
 interface AlteracaoPlantaoPreparada {
   dto: PlantaoAlteracaoDto;
@@ -88,10 +65,6 @@ interface AlteracaoPlantaoPreparada {
   duracaoHoras: number;
 }
 
-function isSnapshotEscala(snapshot: Record<string, unknown>): snapshot is Record<string, unknown> & SnapshotEscala {
-  return Array.isArray(snapshot.plantoes) && Array.isArray(snapshot.profissionaisRelacionados);
-}
-
 /** Restrições já respeitadas pelo otimizador: informam, mas não bloqueiam. Violações reais são revalidadas na publicação. */
 const TIPOS_CONFLITO_INFORMATIVO = new Set([
   'CARGA_ABAIXO_DO_ESPERADO',
@@ -102,16 +75,9 @@ const TIPOS_CONFLITO_INFORMATIVO = new Set([
 
 @Injectable()
 export class EscalasService {
-  private readonly logger = new Logger(EscalasService.name);
-  /** Impede duas gerações simultâneas do mesmo período nesta instância (o índice único cobre o resto). */
-  private readonly emAndamento = new Set<string>();
-  private readonly geracoes = new Map<string, GeracaoEmAndamento>();
-
   constructor(
     @InjectConnection() private readonly connection: Connection,
-    @InjectModel(AuditoriaEscala.name) private readonly auditoria: Model<AuditoriaEscala>,
     @InjectModel(Escala.name) private readonly escalas: Model<Escala>,
-    @InjectModel(NotificacaoEscala.name) private readonly notificacoes: Model<NotificacaoEscala>,
     @InjectModel(VersaoEscala.name) private readonly versoes: Model<VersaoEscala>,
     @InjectModel(Plantao.name) private readonly plantoes: Model<Plantao>,
     @InjectModel(PlantaoProfissional.name) private readonly relacionados: Model<PlantaoProfissional>,
@@ -121,61 +87,20 @@ export class EscalasService {
     @InjectModel(Setor.name) private readonly setores: Model<Setor>,
     @InjectModel(Restricao.name) private readonly restricoes: Model<Restricao>,
     private readonly configuracoes: ConfiguracoesService,
-    private readonly otimizador: OtimizadorEscala,
-    private readonly config: ConfigService<AppConfig, true>,
+    private readonly auditoria: EscalaAuditoriaService,
+    private readonly snapshots: EscalaSnapshotService,
+    private readonly notificacoesEscala: NotificacoesEscalaService,
   ) {}
-
-  /** RF005/US07: gera a escala do mês como RASCUNHO. */
-  async gerar(dto: GerarEscalaDto, usuario: UsuarioAutenticado) {
-    const periodo = `${dto.ano}-${dto.mes}`;
-    if (this.emAndamento.has(periodo)) {
-      throw new ConflictException(`Já existe uma geração em andamento para ${rotuloPeriodo(dto.ano, dto.mes)}.`);
-    }
-    const operacaoId = dto.operacaoId ?? randomUUID();
-    if (this.geracoes.has(operacaoId)) {
-      throw new ConflictException('Já existe uma geração em andamento com esse identificador.');
-    }
-    const geracao: GeracaoEmAndamento = { controller: new AbortController(), estado: 'otimizando' };
-    this.emAndamento.add(periodo);
-    this.geracoes.set(operacaoId, geracao);
-    try {
-      return await this.gerarPeriodo({ ...dto, operacaoId }, usuario, geracao);
-    } catch (erro) {
-      if (geracao.estado === 'cancelando' || geracao.controller.signal.aborted) {
-        throw new ConflictException('Geração cancelada. Nenhuma escala foi salva.');
-      }
-      throw erro;
-    } finally {
-      this.emAndamento.delete(periodo);
-      this.geracoes.delete(operacaoId);
-    }
-  }
-
-  async cancelarGeracao(operacaoId: string) {
-    const geracao = this.geracoes.get(operacaoId);
-    if (!geracao) throw new NotFoundException('Não há geração em andamento com esse identificador.');
-    if (geracao.estado !== 'otimizando') {
-      throw new ConflictException('A geração já está finalizando e não pode mais ser cancelada.');
-    }
-
-    geracao.estado = 'cancelando';
-    try {
-      await this.otimizador.cancelar(operacaoId);
-    } finally {
-      geracao.controller.abort();
-    }
-    return { operacaoId, cancelamentoSolicitado: true };
-  }
 
   async obter(id: string) {
     const escala = await this.escalas.findById(id).lean().exec();
     if (!escala) throw new NotFoundException('Escala não encontrada.');
-    return this.montarResposta(escala);
+    return this.snapshots.montarResposta(escala);
   }
 
   async listarPorPeriodo(ano: number, mes: number) {
     const escala = await this.escalas.findOne({ ano, mes }).lean().exec();
-    return escala ? [await this.montarResposta(escala)] : [];
+    return escala ? [await this.snapshots.montarResposta(escala)] : [];
   }
 
   async listarHistorico(ano: number) {
@@ -327,7 +252,7 @@ export class EscalasService {
         { session },
       );
       if (atualizada.matchedCount !== 1) throw new ConflictException('A escala foi atualizada por outra operação.');
-      await this.auditoria.create(
+      await this.auditoria.registrar(
         [{
           escalaId: escala._id,
           revisao,
@@ -355,37 +280,7 @@ export class EscalasService {
         publicadoEm: versao.publicadoEm,
         pendenciasConfirmadas: versao.pendenciasConfirmadas,
       },
-      snapshot: await this.snapshotComVisualizacao(escala, versao.snapshot),
-    };
-  }
-
-  async obterDadosPdf(id: string): Promise<DadosEscalaPdf> {
-    const oficial = await this.obterVersaoOficial(id);
-    const visualizacao = oficial.snapshot.visualizacao;
-    if (!isVisualizacaoEscalaPdf(visualizacao)) {
-      throw new ConflictException('A versão oficial não contém dados suficientes para exportação.');
-    }
-    return {
-      ...visualizacao,
-      numero: oficial.versao.numero,
-      publicadoEm: new Date(oficial.versao.publicadoEm),
-    };
-  }
-
-  async listarAuditoria(id: string) {
-    const escala = await this.escalas.findById(id, { _id: 1 }).lean().exec();
-    if (!escala) throw new NotFoundException('Escala não encontrada.');
-    const eventos = await this.auditoria.find({ escalaId: escala._id }).sort({ ocorridoEm: -1 }).lean().exec();
-    return {
-      escalaId: id,
-      auditoria: eventos.map((evento) => ({
-        id: String(evento._id),
-        revisao: evento.revisao,
-        acao: evento.acao,
-        usuarioId: String(evento.usuarioId),
-        ocorridoEm: evento.ocorridoEm,
-        detalhes: evento.detalhes ?? null,
-      })),
+      snapshot: await this.snapshots.snapshotComVisualizacao(escala, versao.snapshot),
     };
   }
 
@@ -412,7 +307,7 @@ export class EscalasService {
         { session },
       );
       if (atualizada.matchedCount !== 1) throw new ConflictException('A escala foi atualizada por outra operação.');
-      await this.auditoria.create(
+      await this.auditoria.registrar(
         [{ escalaId: escala._id, revisao, acao: 'escala_validada', usuarioId: new Types.ObjectId(usuario.id), detalhes: { cobertura } }],
         { session },
       );
@@ -492,7 +387,7 @@ export class EscalasService {
         conflitos,
         avisos,
         cargas: geracao['cargas'] ?? [],
-        visualizacao: await this.montarResposta(escalaPublicada, session),
+        visualizacao: await this.snapshots.montarResposta(escalaPublicada, session),
       };
       const versaoAnterior = await this.versoes
         .findOne({ escalaId: escala._id })
@@ -515,7 +410,7 @@ export class EscalasService {
         }],
         { session },
       );
-      await this.registrarNotificacoesPublicacao(
+      await this.notificacoesEscala.registrarPublicacao(
         escala._id,
         numero,
         escala.ano,
@@ -524,7 +419,7 @@ export class EscalasService {
         versaoAnterior?.snapshot,
         session,
       );
-      await this.auditoria.create(
+      await this.auditoria.registrar(
         [{
           escalaId: escala._id,
           revisao,
@@ -611,154 +506,6 @@ export class EscalasService {
         };
       }),
     };
-  }
-
-  async listarNotificacoes(usuarioId: string) {
-    const destinatarioId = new Types.ObjectId(usuarioId);
-    const [notificacoes, naoLidas] = await Promise.all([
-      this.notificacoes
-        .find({ destinatarioId })
-        .sort({ createdAt: -1 })
-        .limit(100)
-        .lean()
-        .exec(),
-      this.notificacoes.countDocuments({ destinatarioId, lidaEm: null }).exec(),
-    ]);
-    return {
-      notificacoes: notificacoes.map((item) => ({
-        id: String(item._id),
-        escalaId: String(item.escalaId),
-        versao: item.versao,
-        eventKey: item.eventKey,
-        titulo: item.titulo,
-        mensagem: item.mensagem,
-        criadoEm: item.createdAt,
-        lidaEm: item.lidaEm ?? null,
-      })),
-      naoLidas,
-    };
-  }
-
-  async marcarNotificacaoLida(id: string, usuarioId: string) {
-    const filtro = { _id: new Types.ObjectId(id), destinatarioId: new Types.ObjectId(usuarioId) };
-    const atualizada = await this.notificacoes
-      .findOneAndUpdate({ ...filtro, lidaEm: null }, { $set: { lidaEm: new Date() } }, { returnDocument: 'after' })
-      .lean()
-      .exec();
-    const notificacao = atualizada ?? (await this.notificacoes.findOne(filtro).lean().exec());
-    if (!notificacao) throw new NotFoundException('Notificação não encontrada.');
-    return {
-      id: String(notificacao._id),
-      lidaEm: notificacao.lidaEm ?? null,
-    };
-  }
-
-  async obterVersaoNotificada(escalaId: string, numero: number, usuarioId: string) {
-    const escala = await this.escalas.findById(escalaId).lean().exec();
-    if (!escala) throw new NotFoundException('Escala não encontrada.');
-    const escalaObjectId = new Types.ObjectId(escalaId);
-    const destinatarioId = new Types.ObjectId(usuarioId);
-    const notificacao = await this.notificacoes
-      .findOne({ escalaId: escalaObjectId, versao: numero, destinatarioId })
-      .lean()
-      .exec();
-    if (!notificacao) throw new NotFoundException('Versão de escala não encontrada para o usuário autenticado.');
-
-    const versao = await this.versoes.findOne({ escalaId: escalaObjectId, numero }).lean().exec();
-    if (!versao) throw new NotFoundException('Versão oficial não encontrada.');
-    return {
-      versao: {
-        numero: versao.numero,
-        ano: versao.ano,
-        mes: versao.mes,
-        publicadoPor: String(versao.publicadoPor),
-        publicadoEm: versao.publicadoEm,
-        pendenciasConfirmadas: versao.pendenciasConfirmadas,
-      },
-      snapshot: await this.snapshotComVisualizacao(escala, versao.snapshot),
-    };
-  }
-
-  private async registrarNotificacoesPublicacao(
-    escalaId: Types.ObjectId,
-    numero: number,
-    ano: number,
-    mes: number,
-    snapshotAtual: SnapshotEscala,
-    snapshotAnterior: Record<string, unknown> | undefined,
-    session: ClientSession,
-  ) {
-    const atuais = this.alocacoesPorProfissional(snapshotAtual);
-    const anteriores = snapshotAnterior && isSnapshotEscala(snapshotAnterior)
-      ? this.alocacoesPorProfissional(snapshotAnterior)
-      : new Map<string, string[]>();
-    const profissionaisAfetados = snapshotAnterior
-      ? [...new Set([...atuais.keys(), ...anteriores.keys()])].filter(
-          (id) => JSON.stringify(atuais.get(id) ?? []) !== JSON.stringify(anteriores.get(id) ?? []),
-        )
-      : [...atuais.keys()];
-    if (profissionaisAfetados.length === 0) return;
-
-    const profissionais = await this.profissionais
-      .find({ _id: { $in: profissionaisAfetados.map((id) => new Types.ObjectId(id)) } }, { usuarioId: 1 })
-      .session(session)
-      .lean()
-      .exec();
-    const idsDestinatarios = [...new Set(profissionais.map((item) => String(item.usuarioId)))];
-    const usuariosNotificados = idsDestinatarios.length
-      ? await this.usuarios
-          .find({
-            _id: { $in: idsDestinatarios.map((id) => new Types.ObjectId(id)) },
-            $or: [
-              { recebeNotificacoesEscala: { $exists: false } },
-              { recebeNotificacoesEscala: true },
-            ],
-          }, { _id: 1 })
-          .session(session)
-          .lean()
-          .exec()
-      : [];
-    const destinatarios = usuariosNotificados.map((item) => String(item._id));
-    if (destinatarios.length === 0) return;
-
-    const eventKey = `escala:${String(escalaId)}:versao:${numero}`;
-    await this.notificacoes.insertMany(
-      destinatarios.map((destinatarioId) => ({
-        escalaId,
-        versao: numero,
-        destinatarioId: new Types.ObjectId(destinatarioId),
-        eventKey,
-        titulo: `Escala ${String(mes).padStart(2, '0')}/${ano} publicada`,
-        mensagem: `A escala de ${String(mes).padStart(2, '0')}/${ano} foi publicada na versão ${numero}.`,
-        lidaEm: null,
-      })),
-      { session },
-    );
-  }
-
-  private alocacoesPorProfissional(snapshot: SnapshotEscala): Map<string, string[]> {
-    const plantoes = new Map(snapshot.plantoes.map((item) => [String(item._id), item]));
-    const alocacoes = new Map<string, Set<string>>();
-    for (const vinculo of snapshot.profissionaisRelacionados) {
-      if (!vinculo.profissionalId) continue;
-      const plantao = plantoes.get(String(vinculo.plantaoId));
-      if (!plantao?.data) continue;
-      const profissionalId = String(vinculo.profissionalId);
-      const assinaturas = alocacoes.get(profissionalId) ?? new Set<string>();
-      assinaturas.add(
-        JSON.stringify([
-          new Date(plantao.data).toISOString(),
-          String(plantao.setorId),
-          plantao.horarioInicio,
-          plantao.horarioFim,
-          plantao.duracaoHoras,
-          plantao.tipo,
-          vinculo.funcao,
-        ]),
-      );
-      alocacoes.set(profissionalId, assinaturas);
-    }
-    return new Map([...alocacoes].map(([id, assinaturas]) => [id, [...assinaturas].sort()]));
   }
 
   private conferirRevisao(atual: number, esperada: number) {
@@ -1340,7 +1087,7 @@ export class EscalasService {
       { session },
     );
     if (atualizada.matchedCount !== 1) throw new ConflictException('A escala foi alterada por outra operação; atualize os dados e tente novamente.');
-    await this.auditoria.create(
+    await this.auditoria.registrar(
       [
         {
           escalaId: escala._id,
@@ -1369,7 +1116,7 @@ export class EscalasService {
     if (atualizada.matchedCount !== 1) {
       throw new ConflictException('A escala foi alterada por outra operação; atualize os dados e tente novamente.');
     }
-    await this.auditoria.create(
+    await this.auditoria.registrar(
       [
         {
           escalaId: escala._id,
@@ -1673,278 +1420,6 @@ export class EscalasService {
     return { cobertura, pendencias };
   }
 
-  private async gerarPeriodo(
-    dto: GerarEscalaDto & { operacaoId: string },
-    usuario: UsuarioAutenticado,
-    operacao: GeracaoEmAndamento,
-  ) {
-    const { ano, mes } = dto;
-    const rotulo = rotuloPeriodo(ano, mes);
-
-    const existente = await this.escalas.findOne({ ano, mes }).lean().exec();
-    const substituivel =
-      existente?.status === StatusEscala.RASCUNHO ||
-      existente?.status === StatusEscala.EM_REVISAO ||
-      existente?.status === StatusEscala.VALIDADA;
-    if (existente && !substituivel) {
-      throw new ConflictException(`Já existe uma escala ${existente.status} para ${rotulo} (id ${existente._id}). Ela não pode ser substituída.`);
-    }
-    if (existente && !dto.substituirRascunho) {
-      throw new ConflictException(
-        `Já existe uma escala em ${existente.status} para ${rotulo} (id ${existente._id}). Envie "substituirRascunho": true para gerar novamente.`,
-      );
-    }
-
-    // Configuração vigente NO MOMENTO da geração (nunca valores fixos nem reaproveitados de escalas antigas).
-    const configuracao = (await this.configuracoes.consultar(ano, mes)) as ConfiguracaoVigente;
-    const inicioMes = utcDate(ano, mes - 1, 1);
-    const fimMes = utcDate(ano, mes - 1, diasDoMes(ano, mes), 23, 59, 59, 999);
-
-    const profissionaisDocs = await this.profissionais.find().lean().exec();
-    const nomes = await this.nomesDosUsuarios(profissionaisDocs.map((p) => p.usuarioId));
-    const profissionais: ProfissionalEntrada[] = profissionaisDocs.map((p) => ({
-      id: String(p._id),
-      nome: nomes.get(String(p.usuarioId)) ?? String(p._id),
-      formacao: p.formacao,
-      tipoVinculo: p.tipoVinculo,
-      status: p.status,
-    }));
-
-    const setoresAtivos = await this.setores.find({ ativo: true }).sort({ nome: 1 }).lean().exec();
-    const idsSetoresSolicitados = dto.setorIds ? new Set(dto.setorIds) : undefined;
-    const setoresDocs = idsSetoresSolicitados
-      ? setoresAtivos.filter((setor) => idsSetoresSolicitados.has(String(setor._id)))
-      : setoresAtivos;
-    if (dto.setorIds && setoresDocs.length !== dto.setorIds.length) {
-      throw new UnprocessableEntityException({
-        message: 'Um ou mais setores selecionados não estão ativos.',
-        erros: ['Selecione somente setores ativos cadastrados.'],
-      });
-    }
-    const turnosSelecionados = dto.turnos ?? ['diurno', 'noturno'];
-    const setores = setoresDocs.map((s) => ({
-      id: String(s._id),
-      nome: s.nome,
-      turnos: {
-        diurno: { enfermeiros: s.turnos.diurno.enfermeiros, tecnicos: s.turnos.diurno.tecnicos },
-        noturno: { enfermeiros: s.turnos.noturno.enfermeiros, tecnicos: s.turnos.noturno.tecnicos },
-      },
-    }));
-
-    const erros = validarEntrada({ ano, mes, profissionais, setores, configuracao, turnosSelecionados });
-    if (erros.length > 0) {
-      throw new UnprocessableEntityException({ message: 'Dados insuficientes para gerar a escala.', erros });
-    }
-
-    const restricoes = (
-      await this.restricoes
-        .find({ profissionalId: { $in: profissionaisDocs.map((p) => p._id) }, inicio: { $lte: fimMes }, fim: { $gte: inicioMes } })
-        .lean()
-        .exec()
-    ).map((r) => ({
-      profissionalId: String(r.profissionalId),
-      tipo: r.tipo,
-      inicio: r.inicio,
-      fim: r.fim,
-      diaSemana: r.diaSemana,
-    }));
-
-    const { problema, conflitos, avisos } = montarProblema({
-      ano,
-      mes,
-      profissionais,
-      setores,
-      restricoes,
-      configuracao,
-      plantoesAnteriores: await this.plantoesDoMesAnterior(ano, mes, inicioMes),
-      tempoLimiteSegundos: this.config.get('otimizador', { infer: true }).tempoLimiteSegundos,
-      turnosSelecionados,
-    });
-
-    problema.operacao_id = dto.operacaoId;
-    this.exigirGeracaoAtiva(operacao);
-    const solucao = await this.otimizador.resolver(problema, operacao.controller.signal);
-    this.exigirGeracaoAtiva(operacao);
-
-    const porId = new Map(profissionais.map((p) => [p.id, p]));
-    const nomeSetor = new Map(setores.map((s) => [s.id, s.nome]));
-
-    const pendencias = solucao.descobertos.map((d) => ({
-      setorId: d.setor_id,
-      setor: nomeSetor.get(d.setor_id) ?? d.setor_id,
-      data: isoDia(utcDate(ano, mes - 1, d.dia)),
-      turno: d.turno,
-      funcao: d.funcao,
-      necessario: d.necessario,
-      alocado: d.alocado,
-      faltam: d.faltam,
-      motivo: 'Quantitativo mínimo não atingido sem violar as restrições obrigatórias.',
-    }));
-    const cobertura = resumirCobertura({ ano, mes, setores, turnos: turnosSelecionados, pendencias });
-
-    const cargas = solucao.estatisticas.cargas.map((c) => {
-      const p = porId.get(c.profissional_id)!;
-      const esperada = problema.profissionais.find((x) => x.id === c.profissional_id)!;
-      if (c.faltam_24h + c.faltam_12h > 0) {
-        conflitos.push({
-          tipo: 'CARGA_ABAIXO_DO_ESPERADO',
-          profissionalId: p.id,
-          profissional: p.nome,
-          motivo: `Faltam ${c.faltam_24h} plantão(ões) de 24h e ${c.faltam_12h} de 12h para a carga esperada do vínculo ${p.tipoVinculo}.`,
-        });
-      }
-      if (c.extras > esperada.max_extras) {
-        avisos.push({
-          tipo: 'EXTRAS_ALOCADOS',
-          profissionalId: p.id,
-          profissional: p.nome,
-          motivo: `${c.extras} plantão(ões) extra(s), acima do limite mensal de ${esperada.max_extras}.`,
-        });
-      }
-      return {
-        profissionalId: p.id,
-        profissional: p.nome,
-        vinculo: p.tipoVinculo,
-        esperada: { plantoes24h: esperada.carga_24h, plantoes12h: esperada.carga_12h },
-        atribuida: { plantoes24h: c.plantoes_24h, plantoes12h: c.plantoes_12h },
-        extras: c.extras,
-      };
-    });
-
-    const geracao = {
-      geradaEm: new Date(),
-      geradaPor: usuario.id,
-      // Retrato da configuração usada: mudanças posteriores não alteram esta escala.
-      configuracao,
-      escopo: { setorIds: setores.map((setor) => setor.id), turnos: turnosSelecionados },
-      resumo: {
-        alocacoes: solucao.estatisticas.total_alocacoes,
-        vagasDescobertas: solucao.estatisticas.total_descobertos,
-        extras: cargas.reduce((total, c) => total + c.extras, 0),
-        cobertura,
-        solver: {
-          status: solucao.estatisticas.status,
-          otimo: solucao.estatisticas.otimo,
-          objetivo: solucao.estatisticas.objetivo,
-          melhorLimite: solucao.estatisticas.melhor_limite,
-          tempoSegundos: solucao.estatisticas.tempo_segundos,
-        },
-      },
-      pendencias,
-      conflitos,
-      avisos,
-      cargas,
-    };
-
-    const administradorId = await this.administradorDe(usuario.id);
-    this.exigirGeracaoAtiva(operacao);
-    operacao.estado = 'salvando';
-    const escalaId = await this.gravar(
-      existente?._id,
-      existente?.revisao,
-      { ano, mes, administradorId, geracao },
-      solucao.alocacoes,
-      porId,
-    );
-    return this.obter(String(escalaId));
-  }
-
-  private exigirGeracaoAtiva(operacao: GeracaoEmAndamento) {
-    if (operacao.estado !== 'otimizando' || operacao.controller.signal.aborted) {
-      throw new ConflictException('Geração cancelada. Nenhuma escala foi salva.');
-    }
-  }
-
-  /** Grava (ou regrava o rascunho/em revisão) escala, plantões e vínculos profissional-plantão. */
-  private async gravar(
-    existenteId: Types.ObjectId | undefined,
-    revisaoExistente: number | undefined,
-    base: { ano: number; mes: number; administradorId: Types.ObjectId; geracao: Record<string, unknown> },
-    alocacoes: { profissional_id: string; setor_id: string; dia: number; opcao: OpcaoPlantao; extra: boolean }[],
-    porId: Map<string, ProfissionalEntrada>,
-  ): Promise<Types.ObjectId> {
-    try {
-      return await executarTransacao(this.connection, async (session) => {
-        const escalaId = existenteId ?? new Types.ObjectId();
-        if (existenteId) {
-          await this.removerConteudo(escalaId, session);
-          const atualizada = await this.escalas.updateOne(
-            {
-              _id: escalaId,
-              status: { $in: [StatusEscala.RASCUNHO, StatusEscala.EM_REVISAO, StatusEscala.VALIDADA] },
-              revisao: revisaoExistente,
-            },
-            {
-              $set: {
-                administradorId: base.administradorId,
-                dataCriacao: new Date(),
-                geracao: base.geracao,
-                status: StatusEscala.RASCUNHO,
-              },
-              $unset: { validacao: 1 },
-              $inc: { revisao: 1 },
-            },
-            { session },
-          );
-          if (atualizada.matchedCount !== 1) {
-            throw new ConflictException('A escala deixou de ser um rascunho, uma escala em revisão ou uma escala validada não publicada e não pode ser substituída.');
-          }
-        } else {
-          await this.escalas.create([{ _id: escalaId, ...base, status: StatusEscala.RASCUNHO }], { session });
-        }
-
-        const agrupados = new Map<string, { doc: Partial<Plantao> & { _id: Types.ObjectId }; opcao: string; profissionais: string[] }>();
-        for (const a of alocacoes) {
-          const chave = `${a.setor_id}|${a.dia}|${a.opcao}|${a.extra}`;
-          let grupo = agrupados.get(chave);
-          if (!grupo) {
-            const h = HORARIOS[a.opcao];
-            grupo = {
-              doc: {
-                _id: new Types.ObjectId(),
-                escalaId,
-                setorId: new Types.ObjectId(a.setor_id),
-                data: utcDate(base.ano, base.mes - 1, a.dia),
-                horarioInicio: h.inicio,
-                horarioFim: h.fim,
-                duracaoHoras: h.horas,
-                tipo: a.extra ? TipoPlantao.EXTRA : TipoPlantao.REGULAR,
-              },
-              opcao: a.opcao,
-              profissionais: [],
-            };
-            agrupados.set(chave, grupo);
-          }
-          grupo.profissionais.push(a.profissional_id);
-        }
-        const docs = [...agrupados.values()];
-        if (docs.length > 0) {
-          await this.plantoes.insertMany(docs.map((g) => g.doc), { session });
-          await this.relacionados.insertMany(
-            docs.flatMap((g) => {
-              // O enfermeiro chefe existe apenas no plantão de 24h; a geração indica o primeiro enfermeiro da equipe.
-              const chefe = g.opcao === '24h' ? g.profissionais.find((pid) => porId.get(pid)!.formacao === Formacao.ENFERMEIRO) : undefined;
-              return g.profissionais.map((pid) => ({
-                plantaoId: g.doc._id,
-                profissionalId: new Types.ObjectId(pid),
-                funcao: porId.get(pid)!.formacao,
-                lideranca: pid === chefe,
-              }));
-            }),
-            { session },
-          );
-        }
-        return escalaId;
-      });
-    } catch (erro) {
-      this.logger.error(`Falha ao gravar a escala ${rotuloPeriodo(base.ano, base.mes)}: ${(erro as Error).message}`);
-      if ((erro as { code?: number }).code === 11000 && !existenteId) {
-        throw new ConflictException(`Já existe uma escala para ${rotuloPeriodo(base.ano, base.mes)}.`);
-      }
-      throw erro;
-    }
-  }
-
   private async removerConteudo(escalaId: Types.ObjectId, session: ClientSession) {
     const ids = (await this.plantoes.find({ escalaId }, { _id: 1 }).session(session).lean().exec()).map((p) => p._id);
     if (ids.length > 0) await this.relacionados.deleteMany({ plantaoId: { $in: ids } }, { session });
@@ -1994,107 +1469,4 @@ export class EscalasService {
     });
   }
 
-  private async snapshotComVisualizacao(
-    escala: Escala & { _id: Types.ObjectId },
-    snapshot: Record<string, unknown>,
-  ): Promise<Record<string, unknown>> {
-    if (isVisualizacaoEscalaPdf(snapshot.visualizacao)) return snapshot;
-    if (!isSnapshotEscala(snapshot)) return snapshot;
-    const dadosEscala =
-      typeof snapshot.escala === 'object' && snapshot.escala !== null
-        ? (snapshot.escala as Partial<Escala>)
-        : {};
-    const escalaSnapshot = { ...escala, ...dadosEscala, _id: escala._id } as Escala & { _id: Types.ObjectId };
-    const visualizacao = await this.montarResposta(escalaSnapshot, undefined, snapshot);
-    if (!isVisualizacaoEscalaPdf(visualizacao)) {
-      throw new ConflictException('O snapshot oficial não pôde ser preparado para consulta.');
-    }
-    return { ...snapshot, visualizacao };
-  }
-
-  private async montarResposta(
-    escala: Escala & { _id: Types.ObjectId },
-    session?: ClientSession,
-    snapshot?: SnapshotEscala,
-  ) {
-    let plantoes: (Plantao & { _id: Types.ObjectId })[];
-    let vinculos: (PlantaoProfissional & { _id: Types.ObjectId })[];
-    if (snapshot) {
-      plantoes = snapshot.plantoes as (Plantao & { _id: Types.ObjectId })[];
-      vinculos = snapshot.profissionaisRelacionados as (PlantaoProfissional & { _id: Types.ObjectId })[];
-    } else {
-      const consultaPlantoes = this.plantoes.find({ escalaId: escala._id }).sort({ data: 1, horarioInicio: 1 });
-      if (session) consultaPlantoes.session(session);
-      plantoes = await consultaPlantoes.lean().exec();
-      const consultaVinculos = this.relacionados.find({ plantaoId: { $in: plantoes.map((p) => p._id) } });
-      if (session) consultaVinculos.session(session);
-      vinculos = await consultaVinculos.lean().exec();
-    }
-    const consultaProfissionais = this.profissionais.find({ _id: { $in: vinculos.map((v) => v.profissionalId) } });
-    if (session) consultaProfissionais.session(session);
-    const profissionaisDocs = await consultaProfissionais.lean().exec();
-    const nomes = await this.nomesDosUsuarios(profissionaisDocs.map((p) => p.usuarioId), session);
-    const profissionalPorId = new Map(
-      profissionaisDocs.map((p) => [String(p._id), { id: String(p._id), nome: nomes.get(String(p.usuarioId)) ?? '', formacao: p.formacao, vinculo: p.tipoVinculo }]),
-    );
-    const consultaSetores = this.setores.find({ _id: { $in: plantoes.map((p) => p.setorId) } }, { nome: 1 });
-    if (session) consultaSetores.session(session);
-    const setoresDocs = await consultaSetores.lean().exec();
-    const nomeSetor = new Map(setoresDocs.map((s) => [String(s._id), s.nome]));
-
-    const geracao = (escala.geracao ?? {}) as {
-      resumo?: unknown;
-      configuracao?: unknown;
-      pendencias?: unknown[];
-      conflitos?: Mensagem[];
-      avisos?: Mensagem[];
-      cargas?: unknown[];
-      escopo?: unknown;
-    };
-
-    return {
-      escala: {
-        id: String(escala._id),
-        ano: escala.ano,
-        mes: escala.mes,
-        status: escala.status,
-        revisao: escala.revisao,
-        versaoPublicada: escala.versaoPublicada,
-        validacao: escala.validacao ?? null,
-        administradorId: String(escala.administradorId),
-        dataCriacao: escala.dataCriacao,
-      },
-      resumo: { plantoes: plantoes.length, ...(geracao.resumo as object) },
-      cobertura: (geracao.resumo as { cobertura?: ResumoCobertura } | undefined)?.cobertura ?? null,
-      configuracaoUtilizada: geracao.configuracao ?? null,
-      escopo: geracao.escopo ?? null,
-      plantoes: plantoes.map((p) => ({
-        id: String(p._id),
-        data: isoDia(p.data),
-        setor: { id: String(p.setorId), nome: nomeSetor.get(String(p.setorId)) ?? '' },
-        horarioInicio: p.horarioInicio,
-        horarioFim: p.horarioFim,
-        duracaoHoras: p.duracaoHoras,
-        tipo: p.tipo,
-        ...(p.motivo ? { motivo: p.motivo } : {}),
-        ...(p.observacao ? { observacao: p.observacao } : {}),
-        profissionais: vinculos
-          .filter((v) => String(v.plantaoId) === String(p._id))
-          .map((v) => {
-            const profissional = profissionalPorId.get(String(v.profissionalId));
-            if (!profissional) return undefined;
-            return {
-              ...profissional,
-              lideranca: v.lideranca ?? false,
-              origemCobertura: v.origemCobertura ?? OrigemCobertura.REGULAR,
-            };
-          })
-          .filter(Boolean),
-      })),
-      pendencias: geracao.pendencias ?? [],
-      conflitos: geracao.conflitos ?? [],
-      avisos: geracao.avisos ?? [],
-      cargas: geracao.cargas ?? [],
-    };
-  }
 }

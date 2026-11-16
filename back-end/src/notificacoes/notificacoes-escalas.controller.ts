@@ -9,19 +9,19 @@ import {
 import type { UsuarioAutenticado } from '../common/auth/usuario-autenticado';
 import { UsuarioAtual } from '../common/decorators';
 import { ParseObjectIdPipe } from '../common/pipes/parse-object-id.pipe';
-import { EscalasService } from './escalas.service';
+import { NotificacoesEscalaService } from './notificacoes-escalas.service';
 
 @ApiTags('Notificações de escala')
 @ApiBearerAuth()
 @Controller('notificacoes/escalas')
 export class NotificacoesEscalaController {
-  constructor(private readonly service: EscalasService) {}
+  constructor(private readonly service: NotificacoesEscalaService) {}
 
   @Get()
   @ApiOperation({ summary: 'Lista as notificações de escala do usuário autenticado' })
   @ApiOkResponse({ description: 'Retorna as notificações recentes e a quantidade não lida.' })
   listar(@UsuarioAtual() usuario: UsuarioAutenticado) {
-    return this.service.listarNotificacoes(usuario.id);
+    return this.service.listar(usuario.id);
   }
 
   @Get(':escalaId/versoes/:numero')
@@ -44,6 +44,6 @@ export class NotificacoesEscalaController {
     @Param('id', ParseObjectIdPipe) id: string,
     @UsuarioAtual() usuario: UsuarioAutenticado,
   ) {
-    return this.service.marcarNotificacaoLida(id, usuario.id);
+    return this.service.marcarLida(id, usuario.id);
   }
 }

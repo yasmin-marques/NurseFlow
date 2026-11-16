@@ -3,6 +3,7 @@ export interface AppConfig {
   port: number;
   corsOrigins: string[];
   mongodbUri: string;
+  rateLimit: { windowMs: number; maxRequests: number; ipMaxRequests: number };
   jwt: { secret: string; expiresInSeconds: number };
   login: { maxAttempts: number; lockMinutes: number };
   passwordResetTtlMinutes: number;
@@ -33,6 +34,9 @@ export function validateEnv(env: Env): Env {
   toInt(env.LOGIN_MAX_ATTEMPTS, 5, 'LOGIN_MAX_ATTEMPTS');
   toInt(env.LOGIN_LOCK_MINUTES, 15, 'LOGIN_LOCK_MINUTES');
   toInt(env.PASSWORD_RESET_TTL_MINUTES, 30, 'PASSWORD_RESET_TTL_MINUTES');
+  toInt(env.RATE_LIMIT_WINDOW_MS, 60000, 'RATE_LIMIT_WINDOW_MS');
+  toInt(env.RATE_LIMIT_MAX_REQUESTS, 120, 'RATE_LIMIT_MAX_REQUESTS');
+  toInt(env.RATE_LIMIT_IP_MAX_REQUESTS, 1200, 'RATE_LIMIT_IP_MAX_REQUESTS');
   toInt(env.OPTIMIZER_TIMEOUT_MS, 120000, 'OPTIMIZER_TIMEOUT_MS');
   toInt(env.OPTIMIZER_TIME_LIMIT_SECONDS, 30, 'OPTIMIZER_TIME_LIMIT_SECONDS');
   return env;
@@ -48,6 +52,11 @@ export default (): AppConfig => {
       .map((origin) => origin.trim())
       .filter(Boolean),
     mongodbUri: env.MONGODB_URI as string,
+    rateLimit: {
+      windowMs: toInt(env.RATE_LIMIT_WINDOW_MS, 60000, 'RATE_LIMIT_WINDOW_MS'),
+      maxRequests: toInt(env.RATE_LIMIT_MAX_REQUESTS, 120, 'RATE_LIMIT_MAX_REQUESTS'),
+      ipMaxRequests: toInt(env.RATE_LIMIT_IP_MAX_REQUESTS, 1200, 'RATE_LIMIT_IP_MAX_REQUESTS'),
+    },
     jwt: {
       secret: env.JWT_SECRET as string,
       expiresInSeconds: toInt(env.JWT_EXPIRES_IN_SECONDS, 28800, 'JWT_EXPIRES_IN_SECONDS'),

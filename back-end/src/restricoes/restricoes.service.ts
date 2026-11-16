@@ -33,6 +33,7 @@ export class RestricoesService {
     });
   }
   async listar(id: string) { await this.profissional(id); return this.model.find({ profissionalId: id }).sort({ inicio: 1 }).lean().exec(); }
+  async listarTodas() { return this.model.find().sort({ inicio: 1 }).lean().exec(); }
   async excluir(id: string, restricaoId: string) {
     await this.profissional(id);
     if (!Types.ObjectId.isValid(restricaoId)) throw new BadRequestException('ID de restrição inválido');

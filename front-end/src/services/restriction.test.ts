@@ -27,7 +27,7 @@ const record = (
 
 describe('services/restriction', () => {
   it('lista restrições de todos os profissionais e separa por categoria', async () => {
-    mockBackend((call: Call) => {
+    const { calls } = mockBackend((call: Call) => {
       if (call.url.includes('/profissionais?')) {
         return {
           body: profissionaisResponse(ANA, {
@@ -38,17 +38,11 @@ describe('services/restriction', () => {
           }),
         }
       }
-      if (call.url.endsWith('/profissionais/p1/restricoes')) {
-        return {
-          body: [
-            { _id: 'r1', tipo: 'indisponivel', inicio: '2026-10-01T00:00:00.000Z', fim: '2026-10-31T23:59:59.999Z', diaSemana: 1, observacao: 'Faculdade' },
-            { _id: 'r2', tipo: 'vinculo_externo', inicio: '2026-10-01T00:00:00.000Z', fim: '2026-12-31T23:59:59.999Z', diaSemana: null },
-          ],
-        }
-      }
       return {
         body: [
-          { _id: 'r3', tipo: 'ferias', inicio: '2026-11-01T00:00:00.000Z', fim: '2026-11-30T23:59:59.999Z', diaSemana: null },
+          { _id: 'r1', profissionalId: 'p1', tipo: 'indisponivel', inicio: '2026-10-01T00:00:00.000Z', fim: '2026-10-31T23:59:59.999Z', diaSemana: 1, observacao: 'Faculdade' },
+          { _id: 'r2', profissionalId: 'p1', tipo: 'vinculo_externo', inicio: '2026-10-01T00:00:00.000Z', fim: '2026-12-31T23:59:59.999Z', diaSemana: null },
+          { _id: 'r3', profissionalId: 'p2', tipo: 'ferias', inicio: '2026-11-01T00:00:00.000Z', fim: '2026-11-30T23:59:59.999Z', diaSemana: null },
         ],
       }
     })
@@ -56,6 +50,10 @@ describe('services/restriction', () => {
     const { records, professionals: options } = await fetchAllRestrictions()
     // Somente profissionais ativos podem receber novos registros.
     expect(options).toEqual([{ id: 'p1', name: 'Ana Souza' }])
+    expect(calls.map((call) => call.url)).toEqual([
+      '/api/profissionais?limit=100&page=1',
+      '/api/restricoes',
+    ])
     expect(records.restrictions).toHaveLength(1)
     expect(records.restrictions[0]).toMatchObject({
       id: 'r1',

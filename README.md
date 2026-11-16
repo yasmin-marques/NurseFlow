@@ -224,7 +224,7 @@ Abra http://localhost:5173. Ao desenvolver localmente, a API aceita essa origem 
 | Profissionais | Listagem/cadastro/atualização por API existente |
 | Setores | Listagem/cadastro/edição de quantitativos por API existente |
 | Configurações | Consulta e gravação por `GET /configuracoes`, `PATCH /configuracoes/limites`, `PUT /configuracoes/cargas` |
-| Disponibilidade | Listagem/criação/exclusão via `/profissionais/:id/restricoes` |
+| Disponibilidade | Consulta em lote pela Coordenação via `GET /restricoes`; criação, consulta individual e exclusão via `/profissionais/:id/restricoes` |
 | Escalas | Fluxo integrado de geração/montagem, revisão, edição, validação, publicação, notificações e exportação PDF/ZIP via `/escalas/*` e `/notificacoes/escalas/*` |
 | Escala do profissional | Enfermeiro/Técnico consultam, somente leitura e sobre a versão publicada, `GET /escala-profissional/meus-plantoes?situacao=proximos\|anteriores&pagina&limite`, `GET /escala-profissional/geral?ano&mes` e `GET /escala-profissional/geral/dia?data=AAAA-MM-DD`. A identidade vem do JWT (403 sem vínculo de profissional) e nenhuma resposta traz CPF, COREN, e-mail, telefone ou restrições. O botão "Google Agenda" aparece desabilitado e a aba "Trocas" do profissional ainda é um placeholder. |
 
@@ -235,6 +235,7 @@ Abra http://localhost:5173. Ao desenvolver localmente, a API aceita essa origem 
 - O backend só expõe criação, consulta e exclusão de restrições, portanto a UI oferece **exclusão e novo cadastro** no lugar de edição.
 - Restrições marcadas como recorrentes sem data utilizam, temporariamente, um período de cinco anos; não há recorrência infinita no modelo atual.
 - O endpoint de restrições está protegido para perfil coordenação no backend. Usuários sem esse perfil podem receber 403 nesta tela até a autorização ser definida.
+- A leitura da disponibilidade usa um único endpoint em lote para evitar uma requisição por profissional durante a carga inicial.
 
 ## 6. Diagnóstico e encerramento
 

@@ -208,6 +208,34 @@ describe('Restrições e Configurações (e2e)', () => {
   });
 
   describe('Restrições / Disponibilidade', () => {
+    it('lista as restrições de todos os profissionais em uma consulta e restringe o endpoint à Coordenação', async () => {
+      const restrictionId = new mongoose.Types.ObjectId();
+      await colecao('restricoes').insertOne({
+        _id: restrictionId,
+        profissionalId: new mongoose.Types.ObjectId(idEnf),
+        tipo: 'indisponivel',
+        inicio: new Date('2030-01-01T00:00:00.000Z'),
+        fim: new Date('2030-01-31T23:59:59.999Z'),
+        diaSemana: null,
+        observacao: 'consulta em lote',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+
+      await http.get('/restricoes').expect(401);
+      for (const token of [tokenEnf, tokenTec]) {
+        await http.get('/restricoes').set(auth(token)).expect(403);
+      }
+
+      const res = await http.get('/restricoes').set(auth(tokenCoord)).expect(200);
+      expect(res.body).toContainEqual(expect.objectContaining({
+        _id: restrictionId.toString(),
+        profissionalId: idEnf,
+        observacao: 'consulta em lote',
+      }));
+      await colecao('restricoes').deleteOne({ _id: restrictionId });
+    });
+
     it('cadastra, persiste com os tipos BSON corretos e lista (inclusive com observação vazia, como o front envia)', async () => {
       const res = await http
         .post(rota(idEnf))

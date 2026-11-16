@@ -84,40 +84,40 @@ export async function fetchAllRestrictions(): Promise<{
     absences: [],
   }
 
-  await Promise.all(
-    allProfessionals.map(async (professional) => {
-      const restrictions = await api<RestrictionApi[]>(
-        `/profissionais/${professional.id}/restricoes`,
-      )
-
-      for (const restriction of restrictions) {
-        const category = getCategory(restriction.tipo)
-        const label = getLabel(restriction.tipo)
-
-        records[category].push({
-          id: restriction._id,
-          professionalId: professional.id,
-          professionalStatus: getStatus(professional),
-          category,
-          name: professional.name,
-          role: professional.formation,
-          rule: restriction.observacao
-            ? `${label} · ${restriction.observacao}`
-            : label,
-          period: `${datePart(restriction.inicio)} a ${datePart(restriction.fim)}${
-            restriction.diaSemana == null
-              ? ''
-              : ` · ${WEEKDAYS[restriction.diaSemana] ?? 'dia inválido'}`
-          }`,
-          details: {
-            note: restriction.observacao,
-            startDate: datePart(restriction.inicio),
-            endDate: datePart(restriction.fim),
-          },
-        })
-      }
-    }),
+  const professionalById = new Map(
+    allProfessionals.map((professional) => [professional.id, professional]),
   )
+  const restrictions = await api<Array<RestrictionApi & { profissionalId: string }>>('/restricoes')
+
+  for (const restriction of restrictions) {
+    const professional = professionalById.get(restriction.profissionalId)
+    if (!professional) continue
+
+    const category = getCategory(restriction.tipo)
+    const label = getLabel(restriction.tipo)
+
+    records[category].push({
+      id: restriction._id,
+      professionalId: professional.id,
+      professionalStatus: getStatus(professional),
+      category,
+      name: professional.name,
+      role: professional.formation,
+      rule: restriction.observacao
+        ? `${label} · ${restriction.observacao}`
+        : label,
+      period: `${datePart(restriction.inicio)} a ${datePart(restriction.fim)}${
+        restriction.diaSemana == null
+          ? ''
+          : ` · ${WEEKDAYS[restriction.diaSemana] ?? 'dia inválido'}`
+      }`,
+      details: {
+        note: restriction.observacao,
+        startDate: datePart(restriction.inicio),
+        endDate: datePart(restriction.fim),
+      },
+    })
+  }
 
   for (const category of Object.keys(records) as AvailabilityCategory[]) {
     records[category].sort((left, right) => left.name.localeCompare(right.name, 'pt-BR'))

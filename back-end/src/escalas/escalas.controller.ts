@@ -25,6 +25,8 @@ import { HistoricoEscalasDto } from './dto/historico-escalas.dto';
 import { LotePlantoesDto, PlantaoDto } from './dto/plantao.dto';
 import { EscalasService } from './escalas.service';
 import { EscalaPdfService } from './escala-pdf.service';
+import { EscalaAuditoriaService } from './escala-auditoria.service';
+import { EscalaGeracaoService } from './escala-geracao.service';
 
 @ApiTags('Escalas') @ApiBearerAuth() @Perfis(Perfil.COORDENACAO)
 @Controller('escalas')
@@ -32,6 +34,8 @@ export class EscalasController {
   constructor(
     private readonly service: EscalasService,
     private readonly pdfService: EscalaPdfService,
+    private readonly auditoriaService: EscalaAuditoriaService,
+    private readonly geracaoService: EscalaGeracaoService,
   ) {}
 
   @Get()
@@ -66,7 +70,7 @@ export class EscalasController {
       'Salva como rascunho e devolve a escala, as vagas descobertas (pendências) e os conflitos. Pode substituir explicitamente um rascunho ou uma escala em revisão; versões validadas, publicadas ou finalizadas são preservadas.',
   })
   gerar(@Body() dto: GerarEscalaDto, @UsuarioAtual() usuario: UsuarioAutenticado) {
-    return this.service.gerar(dto, usuario);
+    return this.geracaoService.gerar(dto, usuario);
   }
 
   @Delete('gerar/:operacaoId')
@@ -76,7 +80,7 @@ export class EscalasController {
   @ApiConflictResponse({ description: 'A geração já está sendo salva ou não pode ser cancelada.' })
   @ApiNotFoundResponse({ description: 'Não há geração em andamento com esse identificador.' })
   cancelarGeracao(@Param('operacaoId', new ParseUUIDPipe({ version: '4' })) operacaoId: string) {
-    return this.service.cancelarGeracao(operacaoId);
+    return this.geracaoService.cancelar(operacaoId);
   }
 
   @Post(':id/plantoes')
@@ -198,7 +202,7 @@ export class EscalasController {
       throw new BadRequestException('Escolha um setor específico ou a exportação separada por todos os setores.');
     }
 
-    const dados = await this.service.obterDadosPdf(id);
+    const dados = await this.pdfService.obterDados(id);
     if (query.separarPorSetor === 'true') {
       const buffer = await this.pdfService.porTodosSetores(dados);
       return response
@@ -232,7 +236,7 @@ export class EscalasController {
   @ApiOkResponse({ description: 'Retorna os eventos de auditoria mais recentes primeiro.' })
   @ApiNotFoundResponse({ description: 'Escala não encontrada' })
   listarAuditoria(@Param('id', ParseObjectIdPipe) id: string) {
-    return this.service.listarAuditoria(id);
+    return this.auditoriaService.listar(id);
   }
 
   @Get(':id')

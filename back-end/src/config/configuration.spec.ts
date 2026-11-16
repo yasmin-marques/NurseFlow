@@ -27,6 +27,9 @@ describe('validateEnv', () => {
     'LOGIN_MAX_ATTEMPTS',
     'LOGIN_LOCK_MINUTES',
     'PASSWORD_RESET_TTL_MINUTES',
+    'RATE_LIMIT_WINDOW_MS',
+    'RATE_LIMIT_MAX_REQUESTS',
+    'RATE_LIMIT_IP_MAX_REQUESTS',
     'OPTIMIZER_TIMEOUT_MS',
     'OPTIMIZER_TIME_LIMIT_SECONDS',
   ])('rejeita valor não positivo ou não inteiro em %s', (nomeVariavel) => {
