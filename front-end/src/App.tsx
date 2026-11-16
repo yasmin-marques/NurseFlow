@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { AppLayout } from './components/layout/AppLayout'
 import { NAV_ITEMS, type NavItemId } from './components/layout/navItems'
 import { OverviewPage } from './pages/Overview/OverviewPage'
+import { CoordinationOverviewPage } from './pages/Overview/CoordinationOverviewPage'
+import { ProfessionalOverviewPage } from './pages/Overview/ProfessionalOverviewPage'
 import { SettingsPage } from './pages/Settings/SettingsPage'
 import { LoginPage } from './pages/Login/LoginPage'
 import { currentUser, logout, type SessionUser } from './services/auth'
@@ -12,8 +14,13 @@ import { SectorsPage } from './pages/Sectors/SectorsPage';
 import { ScalePage } from './pages/Scale/ScalePage'
 import { ProfilePage } from './pages/Profile/ProfilePage'
 import { ExchangesPage } from './pages/Exchanges/ExchangesPage'
+import { ProfessionalLayout } from './components/layout/ProfessionalLayout'
+import type { ProfessionalTabId } from './components/layout/professionalTabs'
+import { MyShiftsPage } from './pages/MyShifts/MyShiftsPage'
+import { GeneralSchedulePage } from './pages/GeneralSchedule/GeneralSchedulePage'
 import { api } from './services/api'
 import { ExtrasPage } from './pages/Extras/ExtrasPage'
+import { HistoryPage } from './pages/History/HistoryPage'
 
 function App() {
   const [user, setUser] = useState<SessionUser | null>(null)
@@ -23,6 +30,7 @@ function App() {
   )
   const [searchQuery, setSearchQuery] = useState('')
   const [exchangeCount, setExchangeCount] = useState<number | null>(null)
+  const [professionalTab, setProfessionalTab] = useState<ProfessionalTabId>('inicio')
   const lastNonProfileItem = useRef<NavItemId>('visao-geral')
   const activePage = NAV_ITEMS.find((item) => item.id === activeItem)
 
@@ -56,6 +64,7 @@ function App() {
     logout()
     setUser(null)
     setActiveItem('visao-geral')
+    setProfessionalTab('inicio')
   }
 
   if (checkingSession) return null
@@ -82,6 +91,32 @@ function App() {
     )
   }
 
+  if (!isCoordination) {
+    return (
+      <ProfessionalLayout
+        activeTab={professionalTab}
+        onNavigate={setProfessionalTab}
+        onProfileClick={() => navigate('perfil')}
+        user={{ name: user.nome, role, initials }}
+      >
+        {professionalTab === 'meus-plantoes' ? (
+          <MyShiftsPage />
+        ) : professionalTab === 'escala-geral' ? (
+          <GeneralSchedulePage />
+        ) : professionalTab === 'trocas' ? (
+          <section className="mx-auto w-full max-w-5xl px-5 py-10 sm:px-8">
+            <h1 className="text-3xl font-bold tracking-tight text-text">Trocas</h1>
+            <p className="mt-3 max-w-xl text-base leading-relaxed text-text-muted">
+              Esta área ainda está sendo preparada. Em breve você poderá solicitar e acompanhar trocas de plantão por aqui.
+            </p>
+          </section>
+        ) : (
+          <OverviewPage />
+        )}
+      </ProfessionalLayout>
+    )
+  }
+
   return (
     <AppLayout
       title={activePage?.label ?? 'NurseFlow'}
@@ -95,6 +130,10 @@ function App() {
     >
       {activeItem === 'configuracoes' && isCoordination ? (
         <SettingsPage searchQuery={searchQuery} />
+      ) : activeItem === 'visao-geral' && ['enfermeiro', 'tecnico'].includes(user.perfil) ? (
+        <ProfessionalOverviewPage userName={user.nome.split(/\s+/)[0]} onNavigate={navigate} />
+      ) : activeItem === 'visao-geral' && isCoordination ? (
+        <CoordinationOverviewPage userName={user.nome.split(/\s+/)[0]} onNavigate={navigate} />
       ) : activeItem === 'visao-geral' ? (
         <OverviewPage />
       ) : activeItem === 'disponibilidade' && isCoordination ? (
@@ -109,6 +148,8 @@ function App() {
         <ExchangesPage onCountChange={setExchangeCount} />
       ) : activeItem === 'extras' && isCoordination ? (
         <ExtrasPage />
+      ) : activeItem === 'historico' && isCoordination ? (
+        <HistoryPage />
       ) : (
         <section className="mx-auto flex min-h-full w-full max-w-5xl items-center px-5 py-10 sm:px-8">
           <div className="w-full rounded-3xl border border-border bg-white p-8 shadow-(--shadow-soft) sm:p-12">

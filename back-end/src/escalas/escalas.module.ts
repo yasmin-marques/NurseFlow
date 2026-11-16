@@ -8,7 +8,10 @@ import { UsuariosModule } from '../usuarios/usuarios.module';
 import { EscalasController } from './escalas.controller';
 import { EscalasService } from './escalas.service';
 import { EscalaPdfService } from './escala-pdf.service';
+import { EscalaProfissionalController } from './escala-profissional.controller';
+import { EscalaProfissionalService } from './escala-profissional.service';
 import { NotificacoesEscalaController } from './notificacoes-escalas.controller';
+import { MinhaEscalaController } from './minha-escala.controller';
 import { OtimizadorEscala, OtimizadorHttp } from './otimizador/otimizador';
 import {
   AuditoriaEscala,
@@ -41,7 +44,7 @@ import {
       { name: ExtraProgramado.name, schema: ExtraProgramadoSchema },
     ]),
   ],
-  controllers: [EscalasController, NotificacoesEscalaController],
-  providers: [EscalasService, EscalaPdfService, { provide: OtimizadorEscala, useClass: OtimizadorHttp }],
+  controllers: [EscalasController, NotificacoesEscalaController, EscalaProfissionalController],
+  providers: [EscalasService, EscalaProfissionalService, EscalaPdfService, { provide: OtimizadorEscala, useClass: OtimizadorHttp }],
 })
 export class EscalasModule {}

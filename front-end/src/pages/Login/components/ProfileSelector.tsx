@@ -2,9 +2,9 @@ import { Building2, Check, Users } from '../../../components/icons'
 import type { LoginProfile, ProfileOption } from '../types'
 
 const profiles: ProfileOption[] = [
-  { id: 'coordenação', title: 'Coordenação', description: 'Gerenciar equipe e escalas', building: true },
+  { id: 'coordenacao', title: 'Coordenação', description: 'Gerenciar equipe e escalas', building: true },
   { id: 'enfermeiro', title: 'Enfermeiro', description: 'Consultar plantões e trocas' },
-  { id: 'técnico', title: 'Técnico', description: 'Ver escala, setor e equipe' },
+  { id: 'tecnico', title: 'Técnico', description: 'Ver escala, setor e equipe' },
 ]
 
 type ProfileSelectorProps = {
