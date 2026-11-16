@@ -46,7 +46,8 @@ async function request(
       },
     )
   } catch (cause) {
-    if (cause instanceof Error && (cause.name === 'TimeoutError' || cause.name === 'AbortError')) {
+    const errorName = cause && typeof cause === 'object' && 'name' in cause ? String((cause as { name?: unknown }).name) : ''
+    if (errorName === 'TimeoutError' || errorName === 'AbortError') {
       throw new ApiError(0, 'A solicitação expirou. Tente novamente.')
     }
     throw new ApiError(0, 'Não foi possível conectar ao servidor.')

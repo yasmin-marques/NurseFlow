@@ -95,18 +95,22 @@ export function ExchangesPage({ onCountChange }: { onCountChange?: (count: numbe
   useEffect(() => {
     if (!dialog) return
     dialogRef.current?.querySelector<HTMLElement>('button,textarea')?.focus()
-    const onKey = (event: KeyboardEvent) => {
+    const onKey = (event: KeyboardEvent | React.KeyboardEvent) => {
       if (event.key === 'Escape') closeDialog()
       if (event.key === 'Tab' && dialogRef.current) {
-        const focusable = [...dialogRef.current.querySelectorAll<HTMLElement>('button:not(:disabled),textarea:not(:disabled),input:not(:disabled)')]
+        const focusable = [
+          ...dialogRef.current.querySelectorAll<HTMLElement>(
+            'button:not(:disabled),textarea:not(:disabled),input:not(:disabled)',
+          ),
+        ].sort((a, b) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1))
         if (!focusable.length) return
         const first = focusable[0]; const last = focusable[focusable.length - 1]
         if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus() }
         else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus() }
       }
     }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
   }, [dialog, saving, closeDialog])
 
   const decide = async () => {

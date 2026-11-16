@@ -1,12 +1,12 @@
 import { ConflictException, Injectable, NotFoundException, ServiceUnavailableException, UnprocessableEntityException } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
-import { ClientSession, Connection, Model, Types } from 'mongoose';
+import { type ClientSession, type Connection, Model, Types } from 'mongoose';
 import { Configuracao } from '../configuracoes/configuracao.schema';
 import { utcDate } from '../common/utils/date';
 import { executarTransacao } from '../common/utils/mongo-transaction';
 import { validarAlocacoesPlantao, calcularPendenciasCobertura, type AlocacaoPlantaoValidacao } from '../escalas/regras-plantao';
 import { diasDoMes } from '../escalas/montar-problema';
-import { AuditoriaTroca, AuditoriaEscala, Escala, NotificacaoTroca, Plantao, PlantaoProfissional, SolicitacaoTroca, StatusEscala, StatusTroca, TipoPlantao, VersaoEscala } from '../escalas/schemas';
+import { AuditoriaTroca, AuditoriaEscala, Escala, NotificacaoTroca, Plantao, PlantaoProfissional, SolicitacaoTroca, StatusEscala, StatusTroca, VersaoEscala } from '../escalas/schemas';
 import { Formacao, StatusProfissional } from '../profissionais/profissionais.enums';
 import { Profissional } from '../profissionais/schemas/profissional.schema';
 import { Restricao } from '../restricoes/restricao.schema';
@@ -371,7 +371,8 @@ export class TrocasService {
     const setores = await qSetores.lean().exec();
     const qRestricoes = this.restricoes.find({ profissionalId: { $in: profissionaisIds }, inicio: { $lte: utcDate(escala.ano, escala.mes - 1, diasDoMes(escala.ano, escala.mes), 23, 59, 59, 999) }, fim: { $gte: utcDate(escala.ano, escala.mes - 1, 1) } }); if (session) qRestricoes.session(session);
     const restricoes = await qRestricoes.lean().exec();
-    const qConfiguracao = this.configuracoes.findOne({ chave: 'global' }); if (session) qConfiguracao.session(session);
+    const chaveConfiguracao = `${String(escala.ano).padStart(4, '0')}-${String(escala.mes).padStart(2, '0')}`;
+    const qConfiguracao = this.configuracoes.findOne({ chave: chaveConfiguracao }); if (session) qConfiguracao.session(session);
     const docConfiguracao = await qConfiguracao.lean().exec();
     const configuracao = docConfiguracao ? {
       periodo: docConfiguracao.chave,
@@ -397,7 +398,6 @@ export class TrocasService {
       return [{ profissional: profEntrada(profissionalId), funcao: v.funcao as Formacao, data: new Date(p.data), horarioInicio: p.horarioInicio, duracaoHoras: p.duracaoHoras, tipo: p.tipo, setorId: String(p.setorId) }];
     });
     const idsAfetados = [String(troca.solicitanteProfissionalId), String(troca.profissionalSolicitadoId)];
-    const inicioMes = utcDate(escala.ano, escala.mes - 1, 1);
     const periodosAdjacentes = [
       { ano: escala.mes === 1 ? escala.ano - 1 : escala.ano, mes: escala.mes === 1 ? 12 : escala.mes - 1 },
       { ano: escala.mes === 12 ? escala.ano + 1 : escala.ano, mes: escala.mes === 12 ? 1 : escala.mes + 1 },

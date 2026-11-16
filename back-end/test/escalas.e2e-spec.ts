@@ -16,13 +16,20 @@ class OtimizadorFalso extends OtimizadorEscala {
   problemas: ProblemaOtimizacao[] = [];
   falhar = false;
   duplicarVinculo = false;
+  respeitarFixas = false;
+  respostaIncompativel = false;
   bloquear = false;
+  private liberar?: () => void;
   cancelamentos: string[] = [];
   private sinalInicio?: () => void;
 
-  aguardarInicio() {
-    return new Promise<void>((resolve) => {
-      this.sinalInicio = resolve;
+  aguardarInicio(timeoutMs = 10000) {
+    return new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('O otimizador simulado não iniciou dentro do limite esperado.')), timeoutMs);
+      this.sinalInicio = () => {
+        clearTimeout(timer);
+        resolve();
+      };
     });
   }
 
@@ -31,11 +38,16 @@ class OtimizadorFalso extends OtimizadorEscala {
     this.sinalInicio?.();
     this.sinalInicio = undefined;
     if (this.bloquear) {
-      await new Promise<never>((_resolve, reject) => {
+      await new Promise<void>((resolve, reject) => {
+        this.liberar = resolve;
         const cancelar = () => reject(new Error('Geração interrompida pelo teste.'));
         if (signal?.aborted) cancelar();
         else signal?.addEventListener('abort', cancelar, { once: true });
       });
+      this.liberar = undefined;
+    }
+    if (this.respostaIncompativel) {
+      return { versao_contrato: 1, capacidades: [], alocacoes: [], descobertos: [], estatisticas: {} } as unknown as SolucaoOtimizacao;
     }
     const enf = problema.profissionais.find((p) => p.formacao === 'enfermeiro')!;
     const alocacoes = problema.setores.map((s) => ({
@@ -47,7 +59,21 @@ class OtimizadorFalso extends OtimizadorEscala {
     }));
     if (this.duplicarVinculo) alocacoes.push({ ...alocacoes[0] });
     alocacoes.push({ ...alocacoes[0], dia: 21, extra: true });
+    if (this.respeitarFixas) {
+      for (const fixa of problema.alocacoes_fixas) {
+        alocacoes.push({
+          profissional_id: fixa.profissional_id,
+          setor_id: fixa.setor_id,
+          dia: fixa.dia,
+          opcao: fixa.opcao,
+          extra: true,
+          extra_id: fixa.extra_id,
+        });
+      }
+    }
     return Promise.resolve({
+      versao_contrato: 2,
+      capacidades: ['alocacoes_fixas'],
       alocacoes,
       descobertos: [{ setor_id: problema.setores[0].id, dia: 2, turno: 'noturno', funcao: 'tecnicos', necessario: 1, alocado: 0, faltam: 1 }],
       estatisticas: {
@@ -68,6 +94,10 @@ class OtimizadorFalso extends OtimizadorEscala {
         })),
       },
     });
+  }
+
+  liberarSolver() {
+    this.liberar?.();
   }
 
   async cancelar(operacaoId: string) {
@@ -306,6 +336,43 @@ describe('Geração automática de escalas (e2e)', () => {
 
       await gerar({ ano: 2026, mes: 8, setorIds: ['64b7f0f0f0f0f0f0f0f0f0f0'], turnos: ['diurno'] }).expect(422);
       expect(await colecao('escalas').countDocuments({ ano: 2026, mes: 8 })).toBe(0);
+    });
+
+    it('reserva extra ativo fora do escopo sem materializá-lo como alocação fixa', async () => {
+      await configurarCargas(2028, 2, 4, 29).expect(200);
+      const extra = await http.post('/extras').set(auth(tokenCoord)).send({
+        data: '2028-02-01', opcao: '12d', setorId: setorB, funcao: 'enfermeiro', substitutoId: idEnf, motivo: 'reforco',
+      }).expect(201);
+
+      await gerar({ ano: 2028, mes: 2, setorIds: [setorA], turnos: ['diurno'] }).expect(201);
+      const problema = otimizador.problemas.at(-1)!;
+      expect(problema.alocacoes_fixas).toEqual([]);
+      expect(problema.profissionais.find((p) => p.id === idEnf)?.turnos_bloqueados).toContainEqual({ dia: 1, turno: 'diurno' });
+      expect(extra.body._id).toBeDefined();
+    });
+
+    it('reconcilia o mesmo extra em duas gerações sem duplicar vínculo nem trocar seu ID', async () => {
+      otimizador.respeitarFixas = true;
+      try {
+        await configurarCargas(2028, 3, 4, 31).expect(200);
+        const extra = await http.post('/extras').set(auth(tokenCoord)).send({
+          data: '2028-03-30', opcao: '12d', setorId: setorA, funcao: 'enfermeiro', substitutoId: idEnf, motivo: 'reforco',
+        }).expect(201);
+        const extraId = extra.body._id as string;
+
+        const primeira = await gerar({ ano: 2028, mes: 3 }).expect(201);
+        const primeiraExtra = await colecao('extrasProgramados').findOne({ _id: new mongoose.Types.ObjectId(extraId) });
+        expect(primeiraExtra?.escalaId?.toString()).toBe(primeira.body.escala.id);
+        expect(await colecao('profissionaisRelacionados').countDocuments({ extraProgramadoId: new mongoose.Types.ObjectId(extraId) })).toBe(1);
+
+        await gerar({ ano: 2028, mes: 3, substituirRascunho: true }).expect(201);
+        const segundaExtra = await colecao('extrasProgramados').findOne({ _id: new mongoose.Types.ObjectId(extraId) });
+        expect(segundaExtra?._id.toString()).toBe(extraId);
+        expect(await colecao('profissionaisRelacionados').countDocuments({ extraProgramadoId: new mongoose.Types.ObjectId(extraId) })).toBe(1);
+        expect(await colecao('extrasProgramados').countDocuments({ _id: new mongoose.Types.ObjectId(extraId) })).toBe(1);
+      } finally {
+        otimizador.respeitarFixas = false;
+      }
     });
 
     it('gera escalas em anos além de 2100 e aplica datas do calendário corretamente', async () => {
@@ -1232,6 +1299,60 @@ describe('Geração automática de escalas (e2e)', () => {
   });
 
   describe('falhas do otimizador', () => {
+    it('recusa resultado de contrato incompatível sem criar escala parcial', async () => {
+      await configurarCargas(2031, 1, 7).expect(200);
+      const setor = await http
+        .post('/setores')
+        .set(auth(tokenCoord))
+        .send({ nome: 'Setor de contrato incompatível', turnos: { diurno: { enfermeiros: 1, tecnicos: 0 }, noturno: { enfermeiros: 1, tecnicos: 0 } } })
+        .expect(201);
+      otimizador.respostaIncompativel = true;
+      try {
+        await gerar({ mes: 1, ano: 2031, setorIds: [setor.body.id] }).expect(409);
+      } finally {
+        otimizador.respostaIncompativel = false;
+        await http.patch(`/setores/${setor.body.id}/inativar`).set(auth(tokenCoord)).expect(200);
+      }
+      expect(await colecao('escalas').countDocuments({ ano: 2031, mes: 1 })).toBe(0);
+    });
+
+    it('rejeita resultado obsoleto quando uma programação muda durante o solver', async () => {
+      await configurarCargas(2031, 2, 7).expect(200);
+      const setor = await http
+        .post('/setores')
+        .set(auth(tokenCoord))
+        .send({ nome: 'Setor de fingerprint', turnos: { diurno: { enfermeiros: 1, tecnicos: 0 }, noturno: { enfermeiros: 1, tecnicos: 0 } } })
+        .expect(201);
+      const extra = await http
+        .post('/extras')
+        .set(auth(tokenCoord))
+        .send({ data: '2031-02-15', opcao: '12d', setorId: setor.body.id, funcao: 'enfermeiro', substitutoId: idEnf, motivo: 'reforco' })
+        .expect(201);
+
+      otimizador.bloquear = true;
+      const iniciou = otimizador.aguardarInicio();
+      const geracao = gerar({ mes: 2, ano: 2031, setorIds: [setor.body.id] });
+      const geracaoPendente = geracao.then((resposta) => resposta);
+      try {
+        await iniciou;
+        await colecao('extrasProgramados').updateOne(
+          { _id: new mongoose.Types.ObjectId(extra.body._id) },
+          { $inc: { revisao: 1 } },
+        );
+        otimizador.liberarSolver();
+        const resposta = await geracaoPendente;
+        expect(resposta.status).toBe(409);
+      } finally {
+        otimizador.bloquear = false;
+        otimizador.liberarSolver();
+        await http.patch(`/setores/${setor.body.id}/inativar`).set(auth(tokenCoord)).expect(200);
+      }
+      expect(await colecao('escalas').countDocuments({ ano: 2031, mes: 2 })).toBe(0);
+      const extraDepois = await colecao('extrasProgramados').findOne({ _id: new mongoose.Types.ObjectId(extra.body._id) });
+      expect(extraDepois?.escalaId ?? null).toBeNull();
+      expect(extraDepois?.plantaoProfissionalId ?? null).toBeNull();
+    });
+
     it('interrompe a geração solicitada e não persiste escala parcial', async () => {
       await configurarCargas(2026, 12, 7).expect(200);
       const setor = await http

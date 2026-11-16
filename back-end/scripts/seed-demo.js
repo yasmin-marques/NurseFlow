@@ -1,5 +1,4 @@
 ﻿/** Dados fictÃ­cios e idempotentes. Uso EXCLUSIVO em ambiente de desenvolvimento. */
-require('dotenv').config();
 const { MongoClient, ObjectId } = require('mongodb');
 const bcrypt = require('bcryptjs');
 
@@ -710,6 +709,7 @@ async function seedTrocasDemo() {
 module.exports = { PEOPLE, cpf, seed };
 
 if (require.main === module) {
+  require('dotenv').config();
   const seedAllDemoData = async () => {
     await seed();
     if (process.env.DEMO_SEED_ENABLED !== 'true') return;

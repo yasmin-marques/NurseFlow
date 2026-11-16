@@ -1,5 +1,6 @@
 import { UnauthorizedException, type ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
+import { jest } from '@jest/globals';
 import { Perfil } from '../common/enums/perfil.enum';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './jwt-auth.guard';

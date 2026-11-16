@@ -1,4 +1,5 @@
 import { Formacao, StatusProfissional, TipoVinculo } from '../profissionais/profissionais.enums';
+import { TipoRestricao } from '../restricoes/restricao.schema';
 import { type ConfiguracaoVigente, type ProfissionalEntrada } from './montar-problema';
 import { calcularPendenciasCobertura, resumirCobertura, validarAlocacoesPlantao } from './regras-plantao';
 import { TipoPlantao } from './schemas';
@@ -43,6 +44,128 @@ describe('regras de plantões manuais', () => {
         candidatas: [alocacao('07:00', 12), alocacao('19:00', 12)],
       }),
     ).toEqual([]);
+  });
+
+  it('respeita disponibilidade recorrente com diasSemana e turno restrito', () => {
+    // Profissional disponível apenas às quartas-feiras (dia da semana 3) no turno noturno
+    const restricoes = [
+      {
+        profissionalId: profissional.id,
+        tipo: TipoRestricao.DISPONIVEL,
+        inicio: new Date('2026-10-01T00:00:00.000Z'),
+        fim: new Date('2026-10-31T23:59:59.999Z'),
+        diasSemana: [3], // Quartas
+        turno: 'noturno' as const,
+      },
+    ];
+    // 2026-10-14 é uma quarta-feira
+    // Noturno em 2026-10-14: permitido
+    const errosQuartaNoturno = validarAlocacoesPlantao({
+      ano: 2026,
+      mes: 10,
+      configuracao,
+      restricoes,
+      anteriores: [],
+      existentes: [],
+      candidatas: [{ ...alocacao('19:00', 12), data: new Date('2026-10-14T00:00:00.000Z') }],
+    });
+    expect(errosQuartaNoturno).toEqual([]);
+
+    // Diurno em 2026-10-14: bloqueado por não atender ao turno disponível
+    const errosQuartaDiurno = validarAlocacoesPlantao({
+      ano: 2026,
+      mes: 10,
+      configuracao,
+      restricoes,
+      anteriores: [],
+      existentes: [],
+      candidatas: [{ ...alocacao('07:00', 12), data: new Date('2026-10-14T00:00:00.000Z') }],
+    });
+    expect(errosQuartaDiurno.join(' ')).toMatch(/indisponível no turno diurno/);
+
+    // 2026-10-15 é uma quinta-feira (fora dos dias fixos): bloqueado
+    const errosQuinta = validarAlocacoesPlantao({
+      ano: 2026,
+      mes: 10,
+      configuracao,
+      restricoes,
+      anteriores: [],
+      existentes: [],
+      candidatas: [{ ...alocacao('19:00', 12), data: new Date('2026-10-15T00:00:00.000Z') }],
+    });
+    expect(errosQuinta.join(' ')).toMatch(/indisponível na data selecionada/);
+  });
+
+  it('permite plantão noturno quando apenas o turno diurno está bloqueado', () => {
+    const restricoes = [
+      {
+        profissionalId: profissional.id,
+        tipo: TipoRestricao.VINCULO_EXTERNO,
+        inicio: new Date('2026-10-01T00:00:00.000Z'),
+        fim: new Date('2026-10-31T23:59:59.999Z'),
+        diasSemana: [1], // Segundas
+        turno: 'diurno' as const,
+        motivo: 'Hospital São Lucas',
+      },
+    ];
+    // 2026-10-12 é uma segunda-feira
+    // Diurno de 12h deve ser bloqueado
+    const errosDiurno = validarAlocacoesPlantao({
+      ano: 2026,
+      mes: 10,
+      configuracao,
+      restricoes,
+      anteriores: [],
+      existentes: [],
+      candidatas: [alocacao('07:00', 12)],
+    });
+    expect(errosDiurno.join(' ')).toMatch(/indisponível no turno diurno/);
+
+    // Plantão de 24h também deve ser bloqueado (pois cobre diurno)
+    const erros24h = validarAlocacoesPlantao({
+      ano: 2026,
+      mes: 10,
+      configuracao: { ...configuracao, cargas: { clt_31: { plantoes24h: 2, plantoes12h: 0 } } },
+      restricoes,
+      anteriores: [],
+      existentes: [],
+      candidatas: [alocacao('07:00', 24)],
+    });
+    expect(erros24h.join(' ')).toMatch(/indisponível no turno diurno/);
+
+    // Noturno de 12h deve ser liberado com sucesso
+    const errosNoturno = validarAlocacoesPlantao({
+      ano: 2026,
+      mes: 10,
+      configuracao,
+      restricoes,
+      anteriores: [],
+      existentes: [],
+      candidatas: [alocacao('19:00', 12)],
+    });
+    expect(errosNoturno).toEqual([]);
+  });
+
+  it('bloqueia alocação em dia integralmente indisponível (férias ou ausência)', () => {
+    const restricoes = [
+      {
+        profissionalId: profissional.id,
+        tipo: TipoRestricao.FERIAS,
+        inicio: new Date('2026-10-10T00:00:00.000Z'),
+        fim: new Date('2026-10-20T23:59:59.999Z'),
+        motivo: 'Férias anuais',
+      },
+    ];
+    const erros = validarAlocacoesPlantao({
+      ano: 2026,
+      mes: 10,
+      configuracao,
+      restricoes,
+      anteriores: [],
+      existentes: [],
+      candidatas: [alocacao('19:00', 12)],
+    });
+    expect(erros.join(' ')).toMatch(/indisponível na data selecionada/);
   });
 
   it('detecta conflito de descanso entre plantões de 24h', () => {

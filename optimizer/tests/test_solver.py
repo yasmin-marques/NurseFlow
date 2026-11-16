@@ -3,6 +3,7 @@ from collections import Counter
 from threading import Event, Thread
 from types import SimpleNamespace
 
+import pytest
 from app.schemas import Parametros, Problema
 import app.solver as solver_module
 from app.solver import janela, resolver
@@ -25,12 +26,15 @@ def prof(pid, formacao="enfermeiro", c24=6, c12=1, extras=0, **kw):
     return {"id": pid, "formacao": formacao, "carga_24h": c24, "carga_12h": c12, "max_extras": extras, **kw}
 
 
-def problema(profs, setores, dias=DIAS, tempo=20):
+def problema(profs, setores, dias=DIAS, tempo=20, alocacoes_fixas=None):
     return Problema.model_validate(
         {
             "ano": 2026,
             "mes": 9,
             "dias_mes": dias,
+            "versao_contrato": 2,
+            "capacidades": ["alocacoes_fixas"],
+            "alocacoes_fixas": alocacoes_fixas or [],
             "profissionais": profs,
             "setores": setores,
             "parametros": Parametros(tempo_limite_segundos=tempo).model_dump(),
@@ -49,6 +53,71 @@ def test_schema_aceita_anos_civis_de_quatro_digitos():
     base = problema([], [], dias=31).model_dump()
     for ano in (1, 9999):
         assert Problema.model_validate({**base, "ano": ano}).ano == ano
+
+
+def test_alocacao_fixa_preserva_profissional_setor_turno_e_identidade():
+    sol = resolver(
+        problema(
+            [prof("e1", c24=0, c12=0, extras=1)],
+            [setor("s1", dia=(0, 0), noite=(0, 0)), setor("s2", dia=(1, 0), noite=(0, 0))],
+            alocacoes_fixas=[{
+                "extra_id": "extra-1",
+                "profissional_id": "e1",
+                "setor_id": "s1",
+                "dia": 3,
+                "opcao": "12d",
+                "tipo": "extra",
+            }],
+        )
+    )
+    fixas = [a for a in sol.alocacoes if a.extra_id == "extra-1"]
+    assert [(a.profissional_id, a.setor_id, a.dia, a.opcao, a.extra) for a in fixas] == [("e1", "s1", 3, "12d", True)]
+    assert not any(a.profissional_id == "e1" and a.setor_id == "s2" and a.dia == 3 for a in sol.alocacoes)
+
+
+def test_alocacao_fixa_bloqueada_retorna_inviabilidade_sem_trocar_profissional():
+    with pytest.raises(RuntimeError, match="Alocação fixa inviável"):
+        resolver(
+            problema(
+                [prof("e1", c24=0, c12=0, extras=1, dias_bloqueados=[3])],
+                [setor("s1", dia=(0, 0), noite=(0, 0))],
+                alocacoes_fixas=[{
+                    "extra_id": "extra-bloqueado",
+                    "profissional_id": "e1",
+                    "setor_id": "s1",
+                    "dia": 3,
+                    "opcao": "12d",
+                    "tipo": "extra",
+                }],
+            )
+        )
+
+
+@pytest.mark.parametrize("vinculo", ["rpa", "clt", "concursado"])
+def test_extra_fixo_nao_satisfaz_carga_regular_nem_e_contado_duas_vezes(vinculo):
+    sol = resolver(
+        problema(
+            [prof(f"{vinculo}-1", c24=0, c12=1, extras=1, vinculo=vinculo)],
+            [setor("s1", dia=(0, 0), noite=(0, 0))],
+            alocacoes_fixas=[{
+                "extra_id": f"extra-{vinculo}",
+                "profissional_id": f"{vinculo}-1",
+                "setor_id": "s1",
+                "dia": 4,
+                "opcao": "12d",
+                "tipo": "extra",
+            }],
+        )
+    )
+    assert len(sol.alocacoes) == 2
+    fixa = next(a for a in sol.alocacoes if a.extra_id == f"extra-{vinculo}")
+    regular = next(a for a in sol.alocacoes if a.extra_id is None)
+    assert fixa.extra is True
+    assert regular.extra is False
+    carga = sol.estatisticas.cargas[0]
+    assert carga.plantoes_12h == 2
+    assert carga.extras == 1
+    assert carga.faltam_12h == 0
 
 
 # ---------- 24x72 ----------

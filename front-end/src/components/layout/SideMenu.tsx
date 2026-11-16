@@ -21,7 +21,7 @@ type SideMenuProps = {
 }
 
 /** Páginas de gestão restritas à Coordenação (o back-end também bloqueia o acesso). */
-const COORDINATION_ONLY: NavItemId[] = ['profissionais', 'setores', 'disponibilidade', 'configuracoes', 'trocas']
+const COORDINATION_ONLY: NavItemId[] = ['profissionais', 'setores', 'disponibilidade', 'extras', 'configuracoes', 'trocas']
 
 const DEFAULT_USER: SideMenuUser = {
   name: 'Paloma Ferreira',
