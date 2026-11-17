@@ -303,12 +303,10 @@ O Enfermeiro acessa as solicitações de troca recebidas. O sistema consulta no 
 
 O Enfermeiro seleciona uma solicitação, visualiza seus detalhes e decide entre aceitar ou recusar a troca.
 
-- Se a solicitação for recusada, o sistema atualiza seu status para **Recusada** e confirma a operação.
-- Se a solicitação for aceita, o sistema verifica se a troca continua válida conforme as condições atuais da escala, disponibilidade e restrições dos profissionais.
+- Se recusar troca, define status como **recusada**. 
+- Se aceitar troca, sistema verifica se a solicitação continua válida. Caso esteja: sistema registra o aceite e salva o status como **aceita**. Caso contrário, sistema informa que a solicitação não está mais disponível e enfermeiro visualiza o aviso.
 
-Caso a troca não seja mais válida, o sistema informa o impedimento ao Enfermeiro.
-
-Quando a solicitação permanece válida, seu status é atualizado para **Aceita / Aguardando Coordenação**, ficando disponível para a validação final da Coordenação.
+Salva o status definido no banco de dados, sistema exibe a confirmação e o enfermeiro visualiza a confirmação.
 
 ---
 
