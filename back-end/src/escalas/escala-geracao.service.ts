@@ -33,7 +33,6 @@ import {
   TipoPlantao,
 } from './schemas';
 import { EscalaSnapshotService } from './escala-snapshot.service';
-import { errosSetorFixo } from './setor-fixo';
 
 const MS_DIA = 86_400_000;
 const HORARIOS: Record<OpcaoPlantao, { inicio: string; fim: string; horas: number }> = {
@@ -146,7 +145,6 @@ export class EscalaGeracaoService {
       formacao: profissional.formacao,
       tipoVinculo: profissional.tipoVinculo,
       status: profissional.status,
-      setorId: profissional.setorId ? String(profissional.setorId) : null,
     }));
 
     const setoresAtivos = await this.setores.find({ ativo: true }).sort({ nome: 1 }).lean().exec();
@@ -282,7 +280,6 @@ export class EscalaGeracaoService {
       { ano, mes, administradorId, geracao },
       solucao.alocacoes,
       porId,
-      new Map(setores.map((setor) => [setor.id, setor.nome])),
     );
     const escala = await this.escalas.findById(escalaId).lean().exec();
     if (!escala) throw new NotFoundException('Escala não encontrada após a geração.');
@@ -301,24 +298,7 @@ export class EscalaGeracaoService {
     base: { ano: number; mes: number; administradorId: Types.ObjectId; geracao: Record<string, unknown> },
     alocacoes: { profissional_id: string; setor_id: string; dia: number; opcao: OpcaoPlantao; extra: boolean }[],
     porId: Map<string, ProfissionalEntrada>,
-    nomesSetor: Map<string, string>,
   ): Promise<Types.ObjectId> {
-    // Última barreira antes de gravar: nenhuma alocação pode contrariar o setor fixo do cadastro.
-    const errosSetor = errosSetorFixo(
-      alocacoes.map((alocacao) => ({
-        profissionalId: alocacao.profissional_id,
-        profissional: porId.get(alocacao.profissional_id)?.nome,
-        setorId: alocacao.setor_id,
-      })),
-      new Map([...porId].map(([id, profissional]) => [id, profissional.setorId])),
-      nomesSetor,
-    );
-    if (errosSetor.length > 0) {
-      throw new UnprocessableEntityException({
-        message: 'A escala gerada contém alocações fora do setor fixo dos profissionais. Nada foi salvo.',
-        erros: errosSetor,
-      });
-    }
     try {
       return await executarTransacao(this.connection, async (session) => {
         const escalaId = existenteId ?? new Types.ObjectId();

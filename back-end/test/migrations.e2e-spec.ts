@@ -66,10 +66,9 @@ describe("Migrations", () => {
   });
 
   it("há migrations nomeadas com timestamp", () => {
-    expect(listarMigrations()).toHaveLength(11);
+    expect(listarMigrations()).toHaveLength(10);
     expect(listarMigrations()).toContain("20261101000009-restricoes-campos-estruturados.js");
     expect(listarMigrations()).toContain("20261101000010-trocas.js");
-    expect(listarMigrations()).toContain("20261119000011-profissionais-setor-fixo.js");
   });
 
   it('up: converte setores para quantitativo por turno e "desligado" para "desativado"', async () => {
@@ -141,33 +140,12 @@ describe("Migrations", () => {
     expect(solicitacaoId).toBeInstanceOf(mongoose.Types.ObjectId);
   });
 
-  it('00011: setor fixo opcional na etapa 1 (sem inferir setor de legados), com validator e índice', async () => {
-    const legado = await db.collection('profissionaisDaSaude').findOne({ coren: 'COREN-CE 1' });
-    expect(legado).not.toHaveProperty('setorId'); // nenhum setor é inventado para cadastros existentes
-    const base = { coren: 'COREN-SF', tipoVinculo: 'clt', status: 'ativo', formacao: 'tecnico', sincronizaAgenda: false };
-    await expect(db.collection('profissionaisDaSaude').insertOne({
-      ...base, usuarioId: new mongoose.Types.ObjectId(), coren: 'COREN-SF-1', setorId: null })).resolves.toBeDefined();
-    await expect(db.collection('profissionaisDaSaude').insertOne({
-      ...base, usuarioId: new mongoose.Types.ObjectId(), coren: 'COREN-SF-2', setorId: new mongoose.Types.ObjectId() })).resolves.toBeDefined();
-    await expect(db.collection('profissionaisDaSaude').insertOne({
-      ...base, usuarioId: new mongoose.Types.ObjectId(), coren: 'COREN-SF-3', setorId: 'texto' })).rejects.toThrow(/validation/i);
-    expect((await db.collection('profissionaisDaSaude').indexes()).map((i) => i.name)).toContain('setorId_1');
-  });
-
-  it('down da 00011 preserva os setores já atribuídos e remove apenas índice e validator do campo', async () => {
-    await aplicarMigrations(banco.uri, 'down');
-    expect(await db.collection('profissionaisDaSaude').countDocuments({ setorId: { $type: 'objectId' } })).toBe(1);
-    expect((await db.collection('profissionaisDaSaude').indexes()).map((i) => i.name)).not.toContain('setorId_1');
-    await aplicarMigrations(banco.uri); // volta ao estado atual para os demais testes
-  });
-
   it('down da migration de trocas preserva solicitações e auditorias já registradas', async () => {
     const solicId = new mongoose.Types.ObjectId();
     await db.collection('solicitacoesTroca').insertOne({ _id: solicId, status: 'aguardando_coordenacao', ano: 2026, mes: 11,
       solicitanteProfissionalId: new mongoose.Types.ObjectId(), profissionalSolicitadoId: new mongoose.Types.ObjectId(),
       vinculoSolicitanteId: new mongoose.Types.ObjectId(), vinculoSolicitadoId: new mongoose.Types.ObjectId(), criadaEm: new Date() });
-    await aplicarMigrations(banco.uri, 'down'); // 00011 (setor fixo)
-    await aplicarMigrations(banco.uri, 'down'); // 00010 (trocas)
+    await aplicarMigrations(banco.uri, 'down');
     expect(await db.collection('solicitacoesTroca').countDocuments({ _id: solicId })).toBe(1);
     expect((await db.listCollections({ name: 'auditoriaTrocas' }).toArray())).toHaveLength(1);
   });

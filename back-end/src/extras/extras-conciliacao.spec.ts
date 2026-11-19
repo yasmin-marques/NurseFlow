@@ -87,9 +87,6 @@ describe('ExtrasService — Conciliação de Extras Programados com Escalas (Eta
     await mongoose.connection.collection('profissionaisRelacionados').deleteMany({});
   });
 
-  /** Setor fixo padrão das fixtures: profissionais e o setor padrão compartilham este id. */
-  const SETOR_PADRAO_ID = new Types.ObjectId();
-
   async function criarProfissionalFixture(dados: Partial<Profissional> = {}) {
     const [p] = await profissionalModel.create([
       {
@@ -98,7 +95,6 @@ describe('ExtrasService — Conciliação de Extras Programados com Escalas (Eta
         formacao: dados.formacao ?? Formacao.ENFERMEIRO,
         tipoVinculo: dados.tipoVinculo ?? TipoVinculo.CLT,
         status: dados.status ?? StatusProfissional.ATIVO,
-        setorId: dados.setorId ?? SETOR_PADRAO_ID,
       },
     ]);
     return p;
@@ -107,7 +103,6 @@ describe('ExtrasService — Conciliação de Extras Programados com Escalas (Eta
   async function criarSetorFixture(dados: Partial<Setor> = {}) {
     const [s] = await setorModel.create([
       {
-        _id: dados._id ?? SETOR_PADRAO_ID,
         nome: dados.nome ?? 'UTI Geral',
         ativo: dados.ativo ?? true,
         turnos: dados.turnos ?? {

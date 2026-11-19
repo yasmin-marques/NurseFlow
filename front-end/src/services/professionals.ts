@@ -10,8 +10,6 @@ type ApiProfessional = {
   formacao: 'enfermeiro' | 'tecnico'
   tipoVinculo: 'concursado' | 'clt' | 'rpa'
   status: 'ativo' | 'desativado' | 'afastado' | 'ferias'
-  setorId?: string | null
-  setorNome?: string | null
   createdAt?: string
   updatedAt?: string
 }
@@ -28,8 +26,6 @@ const fromApi = (p: ApiProfessional): Professional => ({
   bond: BOND_FROM_API[p.tipoVinculo],
   status: p.status === 'ativo',
   apiStatus: p.status,
-  sectorId: p.setorId ?? null,
-  sectorName: p.setorNome ?? null,
   createdAt: p.createdAt,
   updatedAt: p.updatedAt,
   formation: p.formacao === 'enfermeiro' ? 'Enfemeiro' : 'Técnico',
@@ -43,8 +39,6 @@ const toApi = (p: Professional) => {
     coren: p.coren,
     formacao: p.formation === 'Enfemeiro' ? 'enfermeiro' : 'tecnico',
     tipoVinculo: BOND_TO_API[p.bond],
-    // Setor fixo obrigatório: o backend valida (400/422); aqui só omitimos o vazio.
-    setorId: p.sectorId || undefined,
   }
   // Férias/afastamento não são editáveis aqui: só envia o status se o toggle mudou.
   if (!p.id || p.status !== (p.apiStatus === 'ativo')) body.status = p.status ? 'ativo' : 'desativado'

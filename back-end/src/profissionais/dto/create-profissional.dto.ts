@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsEmail, IsEnum, IsMongoId, IsOptional, IsString, Length, MaxLength, MinLength } from 'class-validator';
+import { IsEmail, IsEnum, IsOptional, IsString, Length, MaxLength, MinLength } from 'class-validator';
 import { somenteDigitos } from '../../common/utils/cpf';
 import { normalizarEspacos } from '../../common/utils/text';
 import { IsCpf } from '../../common/validators/is-cpf.validator';
@@ -36,10 +36,6 @@ export class CreateProfissionalDto {
   @ApiProperty({ enum: TipoVinculo })
   @IsEnum(TipoVinculo, { message: 'Tipo de vínculo inválido' })
   tipoVinculo: TipoVinculo;
-
-  @ApiProperty({ description: 'Setor fixo do profissional (id de um setor ativo). Ele só poderá ser escalado neste setor.' })
-  @IsMongoId({ message: 'Setor inválido' })
-  setorId: string;
 
   @ApiPropertyOptional({ enum: StatusProfissional, default: StatusProfissional.ATIVO })
   @IsOptional()

@@ -90,9 +90,8 @@ Swagger/OpenAPI: **http://localhost:3000/docs** (use *Authorize* com o `accessTo
 
 ## Contrato e implantação do otimizador
 
-O backend e o serviço Python usam o contrato versionado **v3** (v3 acrescenta `profissionais[].setor_id`, o setor fixo
-obrigatório; um otimizador v2 ignoraria a regra e por isso é recusado). Toda requisição de geração
-envia `versao_contrato: 3`, `capacidades: ["alocacoes_fixas"]` e `alocacoes_fixas`.
+O backend e o serviço Python usam o contrato versionado **v2**. Toda requisição de geração
+envia `versao_contrato: 2`, `capacidades: ["alocacoes_fixas"]` e `alocacoes_fixas`.
 Cada alocação fixa contém `extra_id`, `profissional_id`, `setor_id`, `dia`, `opcao` (`12d`,
 `12n` ou `24h`) e `tipo: "extra"`. A resposta mantém a versão/capacidade e identifica a
 alocação efetiva por `extra_id` quando ela é um extra programado.
@@ -101,8 +100,8 @@ O rollout compatível é:
 
 1. Aplicar migrations e índices do backend.
 2. Publicar o optimizer v2 em uma instância não roteada e verificar `GET /saude`.
-3. Verificar o contrato v3 em uma chamada de integração, incluindo `alocacoes_fixas`.
-4. Publicar o backend que envia e valida o contrato v3 e só então direcionar tráfego para
+3. Verificar o contrato v2 em uma chamada de integração, incluindo `alocacoes_fixas`.
+4. Publicar o backend que envia e valida o contrato v2 e só então direcionar tráfego para
    as instâncias novas.
 5. Publicar a interface depois de backend e optimizer estarem compatíveis.
 
