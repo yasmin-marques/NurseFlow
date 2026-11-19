@@ -6,7 +6,7 @@ import type { AppConfig } from '../../config/configuration';
 export type OpcaoPlantao = '24h' | '12d' | '12n';
 
 /** Versão do contrato que precisa ser implantada junto com o optimizer. */
-export const VERSAO_CONTRATO_OTIMIZADOR = 2;
+export const VERSAO_CONTRATO_OTIMIZADOR = 3;
 export const CAPACIDADE_ALOCACOES_FIXAS = 'alocacoes_fixas' as const;
 
 export interface TurnoBloqueadoOtimizacao {
@@ -16,6 +16,8 @@ export interface TurnoBloqueadoOtimizacao {
 
 export interface ProfissionalOtimizacao {
   id: string;
+  /** Setor fixo (cadastro). O profissional só pode ser alocado em vagas deste setor. */
+  setor_id: string;
   formacao: 'enfermeiro' | 'tecnico';
   vinculo: string;
   carga_24h: number;

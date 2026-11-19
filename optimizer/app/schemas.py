@@ -8,7 +8,7 @@ Opcao = Literal["24h", "12d", "12n"]
 Turno = Literal["diurno", "noturno"]
 Funcao = Literal["enfermeiros", "tecnicos"]
 CAPACIDADE_ALOCACOES_FIXAS = "alocacoes_fixas"
-VERSAO_CONTRATO = 2
+VERSAO_CONTRATO = 3
 
 
 class Quantitativo(BaseModel):
@@ -34,6 +34,9 @@ class TurnoBloqueado(BaseModel):
 
 class Profissional(BaseModel):
     id: str
+    # Setor fixo do cadastro: restrição obrigatória. O profissional só pode ser alocado em vagas deste
+    # setor; sem setor (ou com setor fora do problema) ele não é elegível a nenhuma alocação.
+    setor_id: str | None = None
     formacao: Formacao
     vinculo: str = ""
     # Carga regular esperada no mês (vinda das configurações). O que exceder vira "extra".
@@ -100,6 +103,11 @@ class Problema(BaseModel):
                 raise ValueError(f"profissional inexistente em alocacao_fixa: {alocacao.profissional_id}")
             if alocacao.setor_id not in ids_setores:
                 raise ValueError(f"setor inexistente em alocacao_fixa: {alocacao.setor_id}")
+            setor_fixo = next(p.setor_id for p in self.profissionais if p.id == alocacao.profissional_id)
+            if setor_fixo != alocacao.setor_id:
+                raise ValueError(
+                    f"alocacao_fixa {alocacao.extra_id} fora do setor fixo do profissional {alocacao.profissional_id}"
+                )
         for p in self.profissionais:
             if any(d < 1 or d > self.dias_mes for d in p.dias_bloqueados):
                 raise ValueError(f"dias_bloqueados fora do mês para o profissional {p.id}")

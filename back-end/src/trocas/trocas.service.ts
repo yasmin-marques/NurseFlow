@@ -14,6 +14,7 @@ import { Administrador } from '../usuarios/schemas/administrador.schema';
 import type { UsuarioAutenticado } from '../common/auth/usuario-autenticado';
 import type { AprovarTrocaDto, RecusarTrocaDto } from './dto/decidir-troca.dto';
 import { Setor } from '../setores/schemas/setor.schema';
+import { errosSetorFixo } from '../escalas/setor-fixo';
 import { Usuario } from '../usuarios/schemas/usuario.schema';
 import { ListarHistoricoTrocasDto } from './dto/listar-historico-trocas.dto';
 import { FiltroTroca, ListarTrocasDto } from './dto/listar-trocas.dto';
@@ -397,6 +398,24 @@ export class TrocasService {
       else if (String(v._id) === String(vinculoB._id)) profissionalId = String(vinculoA.profissionalId);
       return [{ profissional: profEntrada(profissionalId), funcao: v.funcao as Formacao, data: new Date(p.data), horarioInicio: p.horarioInicio, duracaoHoras: p.duracaoHoras, tipo: p.tipo, setorId: String(p.setorId) }];
     });
+    // Setor fixo: após a permuta cada profissional passa a ocupar o plantão do outro, que precisa ser do seu setor.
+    const setorDoPlantao = (vinculoId: string) => {
+      const vinculo = vinculosMes.find((v) => String(v._id) === vinculoId);
+      const plantao = vinculo && plantoesMes.find((x) => String(x._id) === String(vinculo.plantaoId));
+      return plantao ? String(plantao.setorId) : undefined;
+    };
+    const setorA = setorDoPlantao(String(vinculoA._id));
+    const setorB = setorDoPlantao(String(vinculoB._id));
+    if (setorA && setorB) {
+      errosSetorFixo(
+        [
+          { profissionalId: String(vinculoA.profissionalId), profissional: nomePorUsuario.get(String(profPorId.get(String(vinculoA.profissionalId))?.usuarioId)), setorId: setorB },
+          { profissionalId: String(vinculoB.profissionalId), profissional: nomePorUsuario.get(String(profPorId.get(String(vinculoB.profissionalId))?.usuarioId)), setorId: setorA },
+        ],
+        new Map(profissionaisDocs.map((p) => [String(p._id), p.setorId ? String(p.setorId) : null])),
+        new Map(setores.map((s) => [String(s._id), s.nome])),
+      ).forEach((mensagem) => impedimentos.push({ codigo: 'SETOR_FIXO', mensagem }));
+    }
     const idsAfetados = [String(troca.solicitanteProfissionalId), String(troca.profissionalSolicitadoId)];
     const periodosAdjacentes = [
       { ano: escala.mes === 1 ? escala.ano - 1 : escala.ano, mes: escala.mes === 1 ? 12 : escala.mes - 1 },

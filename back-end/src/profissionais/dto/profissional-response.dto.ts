@@ -10,6 +10,8 @@ export class ProfissionalResponseDto {
   @ApiProperty({ enum: Formacao }) formacao: Formacao;
   @ApiProperty({ enum: TipoVinculo }) tipoVinculo: TipoVinculo;
   @ApiProperty({ enum: StatusProfissional }) status: StatusProfissional;
+  @ApiProperty({ nullable: true, type: String, description: 'Setor fixo; nulo em cadastros legados pendentes.' }) setorId: string | null;
+  @ApiProperty({ nullable: true, type: String }) setorNome: string | null;
   @ApiProperty() createdAt: Date;
   @ApiProperty() updatedAt: Date;
 }

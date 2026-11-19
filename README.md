@@ -121,6 +121,26 @@ Os seeds são **idempotentes**: só criam o que não existe, nunca sobrescrevem 
 O cenário de trocas é executado junto com a seed demo geral, apenas em `NODE_ENV=development` e com MongoDB local. Ele usa a competência 2027-01, IDs determinísticos identificáveis como demo, e não altera escala ou profissional preexistente. Cria uma escala publicada e 7 solicitações; as duas aprovações atualizam vínculos, snapshots versionados, auditoria e notificações. Se 2027-01 já estiver ocupada, o comando aborta sem escrever.
 
 
+### Seed de 40 profissionais fictícios (sem dados demo)
+
+```bash
+npm run db:setup:profissionais   # migrations + Coordenação + seed de 40 profissionais (NÃO roda a seed demo)
+```
+
+- **Pré-requisitos:** MongoDB no ar (`npm run db:up`), `back-end/.env` com `SEED_COORDENACAO_*` e **setores ativos já cadastrados** (pela tela de Setores, ou por `npm run db:setup`, que cria os setores demo). Sem setores a seed aborta com mensagem clara e não grava nada.
+- **Resultado esperado:** exatamente 40 profissionais (16 enfermeiros e 24 técnicos, concursado/CLT, todos ativos), cada um com **um único setor fixo**, distribuídos entre os setores ativos proporcionalmente ao quantitativo exigido por categoria. Não cria setores, escalas, plantões, restrições, trocas nem extras. Identificadores estáveis (`prof.seed.NN@nurseflow.test`, COREN `CE-200NN`) e idempotente: a 2ª execução não altera nada, e cadastros que não são da seed nunca são tocados. Conflito de CPF/COREN/e-mail com cadastro alheio aborta tudo-ou-nada.
+- `npm run db:setup` segue igual (`db:prepare` + seed demo); `db:prepare` = `db:migrate` + Coordenação.
+
+### Setor fixo do profissional
+
+Cada profissional tem **um único setor fixo** (`profissionaisDaSaude.setorId`, obrigatório no cadastro/edição, validado no backend e no formulário). O otimizador (contrato **v3**) só aloca o profissional em vagas do seu setor — restrição dura, nunca preferência — e a persistência (geração, plantões manuais, extras e trocas) recusa qualquer alocação fora do setor. Profissional sem setor não entra na geração.
+
+**Migração em etapas para cadastros já existentes** (nenhum setor é inferido, pois não havia vínculo cadastral prévio):
+
+1. `npm run db:migrate` aplica `20261119000011-profissionais-setor-fixo` (campo opcional + índice). Os legados ficam com `setorId: null` e fora da geração.
+2. `npm run db:setor-fixo:pendencias` lista quem está sem setor; defina o setor de cada um na tela de Profissionais (ou `PATCH /profissionais/:id` com `{ "setorId": "..." }`; `GET /profissionais?semSetor=true` filtra as pendências).
+3. Com zero pendências, `npm run db:setor-fixo:exigir` torna `setorId` obrigatório no validator do banco (recusa se ainda houver pendência).
+
 ## Execução (desenvolvimento local)
 
 Com o `.env` configurado, o MongoDB no ar, as migrations aplicadas e o seed executado, inicie a aplicação na raiz:

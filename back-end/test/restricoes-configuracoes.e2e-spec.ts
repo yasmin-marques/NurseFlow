@@ -67,6 +67,7 @@ describe("Restrições e Configurações (e2e)", () => {
     await usuarios.criarAdministrador(coord._id);
     tokenCoord = await login("coordenacao@nurseflow.com", "coordenacao");
 
+    const setorFixoId = (await http.post('/setores').set(auth(tokenCoord)).send({ nome: 'Setor fixo de teste', turnos: { diurno: { enfermeiros: 0, tecnicos: 0 }, noturno: { enfermeiros: 0, tecnicos: 0 } } }).expect(201)).body.id as string;
     const criar = async (
       nome: string,
       cpf: string,
@@ -86,6 +87,7 @@ describe("Restrições e Configurações (e2e)", () => {
             tipoVinculo: "clt",
             email,
             senha: SENHA,
+            setorId: setorFixoId,
           })
           .expect(201)
       ).body.id as string;

@@ -46,8 +46,10 @@ describe('Escala do profissional (e2e)', () => {
     const coord = await usuarios.criar({ nome: 'Coordenação', email: 'coord-ep@nurseflow.com', cpf: '11144477735', senha: await AuthService.gerarHashSenha(SENHA), tipoUsuario: TipoUsuario.ADMINISTRADOR });
     await usuarios.criarAdministrador(coord._id);
     tokenCoord = await login('coord-ep@nurseflow.com', 'coordenacao');
+    const setor = await http.post('/setores').set(auth(tokenCoord)).send({ nome: 'Setor A', turnos: { diurno: { enfermeiros: 0, tecnicos: 0 }, noturno: { enfermeiros: 0, tecnicos: 0 } } }).expect(201);
+    const setorId = new ObjectId(setor.body.id);
     const criar = async (nome: string, cpf: string, coren: string, formacao: string, email: string) =>
-      new ObjectId((await http.post('/profissionais').set(auth(tokenCoord)).send({ nome, cpf, coren, formacao, tipoVinculo: 'clt', email, senha: SENHA }).expect(201)).body.id);
+      new ObjectId((await http.post('/profissionais').set(auth(tokenCoord)).send({ nome, cpf, coren, formacao, tipoVinculo: 'clt', email, senha: SENHA, setorId: setor.body.id }).expect(201)).body.id);
     const ana = await criar('Ana Ribeiro', '529.982.247-25', 'COREN-CE 710001', 'enfermeiro', 'ana-ep@nurseflow.com');
     const camila = await criar('Camila Souza', '390.533.447-05', 'COREN-CE 710002', 'tecnico', 'camila-ep@nurseflow.com');
     const bruno = await criar('Bruno Lima', '168.995.350-09', 'COREN-CE 710003', 'tecnico', 'bruno-ep@nurseflow.com');
@@ -57,8 +59,6 @@ describe('Escala do profissional (e2e)', () => {
     const db = mongo.db();
     const admin = await db.collection('administradores').findOne({ usuarioId: new ObjectId(coord.id) });
     const administradorId = admin!._id as mongoose.Types.ObjectId;
-    const setor = await http.post('/setores').set(auth(tokenCoord)).send({ nome: 'Setor A', turnos: { diurno: { enfermeiros: 0, tecnicos: 0 }, noturno: { enfermeiros: 0, tecnicos: 0 } } }).expect(201);
-    const setorId = new ObjectId(setor.body.id);
 
     const publicar = async (periodo: { ano: number; mes: number }, status: string, numero: number | null, plantoes: Record<string, unknown>[], vinculos: Record<string, unknown>[]) => {
       const escalaId = new ObjectId();

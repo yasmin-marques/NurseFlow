@@ -3,10 +3,13 @@ from app.schemas import Parametros, Problema
 from app.solver import resolver
 
 
+SETORES = ("uti", "emergencia", "clinica-medica")
+
+
 def profissionais(dias_mes: int) -> list[dict]:
     carga_concursado = 7 if dias_mes == 31 else 6
     carga_clt = 5 if dias_mes == 31 else 6
-    return [
+    lista = [
         {
             "id": f"{formacao}-{vinculo}-{i}",
             "formacao": formacao,
@@ -23,6 +26,12 @@ def profissionais(dias_mes: int) -> list[dict]:
         )
         for i in range(quantidade)
     ]
+    # Setor fixo: cada profissional pertence a um único setor (5 enfermeiros e 5 técnicos por setor).
+    contadores = {"enfermeiro": 0, "tecnico": 0}
+    for p in lista:
+        p["setor_id"] = SETORES[contadores[p["formacao"]] % len(SETORES)]
+        contadores[p["formacao"]] += 1
+    return lista
 
 
 def problema_demo(ano: int, mes: int, dias_mes: int) -> Problema:
@@ -31,7 +40,7 @@ def problema_demo(ano: int, mes: int, dias_mes: int) -> Problema:
             "ano": ano,
             "mes": mes,
             "dias_mes": dias_mes,
-            "versao_contrato": 2,
+            "versao_contrato": 3,
             "capacidades": ["alocacoes_fixas"],
             "alocacoes_fixas": [],
             "profissionais": profissionais(dias_mes),
@@ -44,7 +53,7 @@ def problema_demo(ano: int, mes: int, dias_mes: int) -> Problema:
                         "noturno": {"enfermeiros": 1, "tecnicos": 1},
                     },
                 }
-                for setor in ("uti", "emergencia", "clinica-medica")
+                for setor in SETORES
             ],
             "parametros": Parametros(tempo_limite_segundos=30).model_dump(),
         }
@@ -69,3 +78,12 @@ def test_seed_demo_gera_novembro_com_cobertura_completa_e_sem_extras():
     assert all(c.faltam_24h == 0 and c.faltam_12h == 0 and c.extras == 0 for c in solucao.estatisticas.cargas)
     assert all(alocacao.opcao == "24h" and not alocacao.extra for alocacao in solucao.alocacoes)
     assert len(solucao.alocacoes) == 30 * 3 * 2
+
+
+def test_seed_demo_respeita_o_setor_fixo_em_todas_as_alocacoes():
+    problema = problema_demo(2026, 10, 31)
+    setor_fixo = {p.id: p.setor_id for p in problema.profissionais}
+    solucao = resolver(problema)
+
+    assert solucao.alocacoes
+    assert all(setor_fixo[a.profissional_id] == a.setor_id for a in solucao.alocacoes)

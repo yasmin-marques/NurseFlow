@@ -1,7 +1,7 @@
 import type { INestApplication } from '@nestjs/common';
 import { getModelToken } from '@nestjs/mongoose';
 import { Test } from '@nestjs/testing';
-import type { Model } from 'mongoose';
+import mongoose, { type Model } from 'mongoose';
 import request from 'supertest';
 import { configurarApp } from '../src/app.setup';
 import { AuthService } from '../src/auth/auth.service';
@@ -28,6 +28,9 @@ describe('NurseFlow API (e2e)', () => {
   const login = (email: string, senha: string, perfil?: string) =>
     request(app.getHttpServer()).post('/auth/login').send({ email, senha, perfil });
 
+  let setorId: string;
+  let setorInativoId: string;
+
   const novoProfissional = (sobrescrever: Record<string, unknown> = {}) => ({
     nome: 'Ana Clara Souza',
     cpf: '529.982.247-25',
@@ -35,6 +38,7 @@ describe('NurseFlow API (e2e)', () => {
     coren: 'COREN-CE 123456',
     formacao: 'enfermeiro',
     tipoVinculo: 'clt',
+    setorId,
     senha: SENHA_PROFISSIONAL,
     ...sobrescrever,
   });
@@ -80,6 +84,12 @@ describe('NurseFlow API (e2e)', () => {
     await usuarios.criarAdministrador(coordenacao._id);
 
     tokenCoordenacao = (await login('coordenacao@nurseflow.com', SENHA_COORDENACAO, 'coordenação')).body.accessToken;
+
+    // Setor fixo é obrigatório no cadastro do profissional (estes setores auxiliares saem antes do bloco de Setores).
+    const turnos = { diurno: { enfermeiros: 1, tecnicos: 1 }, noturno: { enfermeiros: 1, tecnicos: 1 } };
+    setorId = (await http.post('/setores').set(auth(tokenCoordenacao)).send({ nome: 'UTI', turnos })).body.id;
+    setorInativoId = (await http.post('/setores').set(auth(tokenCoordenacao)).send({ nome: 'Setor inativo', turnos })).body.id;
+    await http.patch(`/setores/${setorInativoId}/inativar`).set(auth(tokenCoordenacao)).expect(200);
   });
 
   afterAll(async () => {
@@ -171,6 +181,25 @@ describe('NurseFlow API (e2e)', () => {
         status: 'ativo',
       });
       expect(JSON.stringify(res.body)).not.toMatch(/senha|hash/i);
+    });
+
+    it('exige setor fixo válido e ativo no cadastro e na edição (validação no backend)', async () => {
+      const base = { nome: 'Sem Setor Teste', cpf: '98765432029', email: 'sem.setor@nurseflow.com', coren: 'COREN-CE 999001' };
+      await http.post('/profissionais').set(auth(tokenCoordenacao)).send(novoProfissional({ ...base, setorId: undefined })).expect(400);
+      await http.post('/profissionais').set(auth(tokenCoordenacao)).send(novoProfissional({ ...base, setorId: 'nao-e-id' })).expect(400);
+      await http.post('/profissionais').set(auth(tokenCoordenacao)).send(novoProfissional({ ...base, setorId: '64b7f0c2a1b2c3d4e5f60718' })).expect(422);
+      await http.post('/profissionais').set(auth(tokenCoordenacao)).send(novoProfissional({ ...base, setorId: setorInativoId })).expect(422);
+      // Nada foi gravado pelas tentativas rejeitadas (nem o usuário de acesso).
+      expect((await http.get('/profissionais?busca=Sem Setor Teste').set(auth(tokenCoordenacao)).expect(200)).body.meta.total).toBe(0);
+      await http.patch(`/profissionais/${anaId}`).set(auth(tokenCoordenacao)).send({ setorId: setorInativoId }).expect(422);
+      await http.patch(`/profissionais/${anaId}`).set(auth(tokenCoordenacao)).send({ setorId: '64b7f0c2a1b2c3d4e5f60718' }).expect(422);
+    });
+
+    it('devolve o setor fixo e permite filtrar por setor e por pendências sem setor', async () => {
+      const ana = (await http.get(`/profissionais/${anaId}`).set(auth(tokenCoordenacao)).expect(200)).body;
+      expect(ana).toMatchObject({ setorId, setorNome: 'UTI' });
+      expect((await http.get(`/profissionais?setorId=${setorId}`).set(auth(tokenCoordenacao)).expect(200)).body.meta.total).toBeGreaterThan(0);
+      expect((await http.get('/profissionais?semSetor=true').set(auth(tokenCoordenacao)).expect(200)).body.meta.total).toBe(0);
     });
 
     it('o profissional cadastrado consegue autenticar com o perfil da sua formação', async () => {
@@ -309,6 +338,16 @@ describe('NurseFlow API (e2e)', () => {
   });
 
   describe('Setores (DA07, DA08)', () => {
+    // Remove os setores auxiliares usados no cadastro de profissionais para este bloco partir do zero.
+    beforeAll(async () => {
+      const client = new mongoose.mongo.MongoClient(banco.uri);
+      try {
+        await client.db().collection('setores').deleteMany({ nome: { $in: ['UTI', 'Setor inativo'] } });
+      } finally {
+        await client.close();
+      }
+    });
+
     let setorId: string;
     const novoSetor = (sobrescrever: Record<string, unknown> = {}) => ({
       nome: 'Emergência',

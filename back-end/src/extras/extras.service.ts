@@ -532,6 +532,16 @@ export class ExtrasService {
         erros: [{ regra: 'setor_inativo', campo: 'setorId', mensagem: msg }],
       });
     }
+    // Setor fixo: o substituto só pode ser escalado no setor do seu cadastro.
+    if (!substituto.setorId || !setor._id.equals(substituto.setorId)) {
+      const msg = substituto.setorId
+        ? 'O substituto pertence a outro setor e não pode ser escalado neste setor (setor fixo).'
+        : 'O substituto não possui setor fixo cadastrado e não pode ser escalado.';
+      throw new UnprocessableEntityException({
+        message: msg,
+        erros: [{ regra: 'setor_fixo', campo: 'setorId', mensagem: msg }],
+      });
+    }
 
     const motivoNorm = (dto.motivo ?? '').trim().toLowerCase();
     const motivosAfastamento = ['ferias', 'ausencia', 'atestado'];
