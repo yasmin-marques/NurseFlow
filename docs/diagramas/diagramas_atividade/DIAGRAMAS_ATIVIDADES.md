@@ -1,387 +1,232 @@
 # NurseFlow - Diagramas de Atividade
 
-## DA01 - Autenticação e Controle de Acesso
+## DA01 - Autenticação e controle de acesso
 
-Descreve o processo de login. O usuário seleciona o perfil entre Coordenação, Enfermeiro ou Técnico, informa o e-mail profissional e a senha e clica em Entrar.
+Para entrar, o usuário seleciona o perfil de Coordenação, Enfermeiro ou Técnico, informa o e-mail profissional e a senha e clica em **Entrar**.
 
-O sistema consulta os dados do usuário e verifica se as credenciais e o perfil são válidos. Se forem inválidos, registra a tentativa de acesso e, após tentativas sucessivas, pode bloquear temporariamente novos acessos.
+- Se as credenciais e o perfil forem válidos, o sistema identifica o perfil, libera as funcionalidades correspondentes e redireciona o usuário.
+- Se a validação falhar, o sistema registra a tentativa. Após falhas sucessivas, pode bloquear temporariamente novas tentativas de acesso.
 
-O usuário também pode solicitar a recuperação de senha. Quando os dados são válidos, o sistema identifica o perfil, libera as funcionalidades correspondentes e redireciona o usuário.
-
----
-
-## DA02 - Cadastro de Profissional
-
-A Coordenação cadastra um enfermeiro ou técnico informando:
-
-- Nome completo
-- CPF
-- COREN
-- Formação
-- Tipo de vínculo
-- Status
-
-O sistema valida os campos e verifica se o CPF ou o COREN já estão cadastrados.
-
-Caso o profissional já exista, exibe uma mensagem informando a duplicidade. Caso contrário, salva o cadastro, confirma a operação e disponibiliza o profissional para as escalas ainda não publicadas.
+O usuário também pode solicitar a recuperação da senha.
 
 ---
 
-## DA03 - Consulta e Edição de Profissional
+## DA02 - Cadastro de profissional
 
-A Coordenação busca um profissional por:
+A Coordenação cadastra um enfermeiro ou técnico com nome completo, CPF, COREN, formação, tipo de vínculo e status.
 
-- Nome
-- CPF
-- COREN
-
-Também podem ser aplicados filtros por:
-
-- Formação
-- Status
-- Vínculo
-- Ordenação
-
-Se nenhum profissional for encontrado, o sistema informa o resultado.
-
-Quando encontrado, seus dados são exibidos e a Coordenação pode optar por editá-los.
-
-Após a edição, o sistema valida as informações, salva as alterações, registra a modificação no histórico e aplica a mudança às escalas ainda não publicadas.
+O sistema valida os campos e verifica se o CPF ou o COREN já está em uso. Se houver duplicidade, exibe um aviso e não conclui o cadastro. Caso contrário, salva os dados, confirma a operação e disponibiliza o profissional para escalas ainda não publicadas.
 
 ---
 
-## DA04 - Desativação de Profissional
+## DA03 - Consulta e edição de profissional
 
-A Coordenação seleciona um profissional, altera seu status para **Desativado** e salva.
+A Coordenação pesquisa um profissional por nome, CPF ou COREN. Pode filtrar por formação, status e vínculo, além de ordenar os resultados.
 
-Antes de concluir a operação, o sistema verifica se existem plantões futuros já publicados.
+Se a busca não retornar registros, o sistema informa que nenhum profissional foi encontrado. Se encontrar o profissional, exibe seus dados e permite que a Coordenação os edite.
 
-Se existirem, a desativação é impedida e são apresentados os plantões que precisam de cobertura.
-
-Caso não existam, o profissional é desativado, seu histórico é preservado, ele deixa de participar das novas escalas e permanece registrado nas escalas já publicadas.
+Quando há edição, o sistema valida as informações, salva os novos dados, registra a alteração no histórico e a aplica às escalas ainda não publicadas.
 
 ---
 
-## DA05 - Disponibilidade e Restrições
+## DA04 - Desativação de profissional
 
-A Coordenação cria uma restrição para um profissional, informando:
+A Coordenação seleciona um profissional, muda seu status para **Desativado** e solicita o salvamento. Antes de confirmar, o sistema verifica se ele está alocado a algum plantão futuro já publicado.
 
-- Tipo de regra
-- Validade
-- Turno permitido, quando aplicável
-
-Caso a regra seja **"Não escalar nos dias marcados"**, também são informados os dias da semana em que o profissional está indisponível.
-
-O sistema valida e salva a restrição.
-
-Após o registro, a regra passa a ser considerada nos próximos rascunhos de escala.
+- **Com plantões futuros publicados.** O sistema bloqueia a desativação e mostra quais plantões precisam de cobertura.
+- **Sem plantões futuros publicados.** O sistema desativa o profissional e deixa de incluí-lo em novas escalas. O histórico e os registros nas escalas já publicadas são preservados.
 
 ---
 
-## DA06 - Férias e Ausências
+## DA05 - Disponibilidade e restrições
 
-A Coordenação registra um período de ausência para um profissional, informando:
+A Coordenação seleciona um profissional e informa o tipo de restrição, a validade e, quando for o caso, o turno permitido. Se escolher a regra **Não escalar nos dias marcados**, também indica os dias da semana em que o profissional está indisponível.
 
-- Motivo
-- Data de início
-- Data de retorno
-
-Os motivos podem incluir:
-
-- Férias
-- Licença médica
-- Atestado médico
-- Outro
-
-O sistema valida e salva o período, impede a alocação do profissional durante a ausência e consulta os plantões afetados.
-
-Em seguida, calcula possíveis plantões descobertos por setor.
-
-Quando houver cobertura insuficiente, esses plantões são indicados.
-
-O período também é exibido na escala como ausência.
+O sistema valida e salva a restrição, que passa a ser considerada nos próximos rascunhos de escala.
 
 ---
 
-## DA07 - Cadastro de Setores Hospitalares
+## DA06 - Férias e ausências
 
-A Coordenação cadastra um setor informando:
+A Coordenação registra a ausência do profissional com data de início, data de retorno e motivo, como férias, licença médica, atestado médico ou outro.
 
-- Nome
-- Descrição
-- Quantitativo inicial de enfermeiros
-- Quantitativo inicial de técnicos
-- Quantitativo por turno diurno e noturno
-
-O sistema valida os dados e verifica se já existe outro setor com o mesmo nome.
-
-Caso exista, exibe uma mensagem informando a duplicidade.
-
-Caso contrário, salva o setor e confirma o cadastro.
+Depois de validar e salvar o período, o sistema bloqueia a alocação do profissional enquanto ele estiver ausente. Também consulta os plantões afetados, calcula a cobertura por setor e sinaliza aqueles que ficarem com equipe insuficiente. Na escala, o período aparece como ausência.
 
 ---
 
-## DA08 - Quantitativo Mínimo por Setor
+## DA07 - Cadastro de setores hospitalares
 
-A Coordenação seleciona um setor e o turno:
+A Coordenação informa o nome e a descrição do setor, assim como o quantitativo inicial de enfermeiros e técnicos para cada turno, diurno e noturno.
 
-- Diurno
-- Noturno
-
-Em seguida, informa a quantidade mínima necessária de:
-
-- Enfermeiros
-- Técnicos
-
-O chefe do plantão é contabilizado entre os enfermeiros.
-
-O sistema valida as informações, salva o quantitativo mínimo e confirma a configuração.
-
-Esse valor é utilizado posteriormente para verificar se a escala possui cobertura suficiente no setor.
+O sistema valida os dados e verifica se já existe outro setor com o mesmo nome. Se houver duplicidade, apresenta um aviso. Se o nome estiver disponível e os dados forem válidos, salva o setor e confirma o cadastro.
 
 ---
 
-## DA09 - Carga de Plantões por Vínculo
+## DA08 - Quantitativo mínimo por setor
 
-A Coordenação seleciona o tipo de vínculo:
+A Coordenação escolhe o setor e o turno (diurno ou noturno) e define o mínimo de enfermeiros e o mínimo de técnicos. O chefe do plantão entra na contagem de enfermeiros.
 
-- Concursado
-- CLT
-- RPA
-
-Em seguida, informa:
-
-- Carga de plantões de 24 horas
-- Carga de plantões de 12 horas
-- Quantidade máxima de extras por profissional no mês
-
-O vínculo **RPA não possui carga fixa**.
-
-O sistema valida as informações, salva a configuração da carga de plantões e confirma a operação.
+O sistema valida os valores, salva a configuração e confirma a operação. Esses mínimos são usados para verificar se a escala oferece cobertura suficiente no setor.
 
 ---
 
-## DA10 - Limite de Trocas
+## DA09 - Carga de plantões por vínculo
 
-A Coordenação informa a quantidade máxima de trocas de plantão permitidas por profissional em determinado período.
+A Coordenação escolhe o tipo de vínculo (Concursado, CLT ou RPA) e configura a carga de plantões de 24 e de 12 horas, além do máximo mensal de plantões extras por profissional. O vínculo RPA não tem carga fixa.
 
-O sistema valida o valor, salva a configuração e confirma a operação.
-
-Essa configuração limita novas solicitações de troca, enquanto a aprovação final das trocas continua sob responsabilidade da Coordenação.
+O sistema valida os dados, salva a configuração e confirma a operação.
 
 ---
 
-## DA11 - Geração Automática da Escala
+## DA10 - Limite de trocas
 
-O Administrador acessa a funcionalidade de geração automática, informa o setor e o período desejados e solicita a geração da escala.
+A Coordenação define o número máximo de trocas de plantão permitido para cada profissional em um determinado período. O sistema valida o limite, salva a configuração e confirma a operação.
 
-O sistema recebe os parâmetros e valida as informações inseridas. Caso os dados sejam inválidos, exibe uma mensagem de erro indicando o campo incorreto para correção pelo usuário.
-
-Quando os dados são válidos, o sistema consulta no banco de dados os profissionais disponíveis, suas restrições e vínculos. Em seguida, o sistema processa e considera as restrições dos profissionais, aplica as regras específicas de cada vínculo e gera a escala em rascunho.
-
-A escala em rascunho é salva no banco de dados, o salvamento é confirmado e o sistema permite que o Administrador visualize a escala gerada.
+A regra restringe novas solicitações de troca. A aprovação final continua sendo responsabilidade da Coordenação.
 
 ---
 
-## DA12 - Criação Manual da Escala
+## DA11 - Geração automática de escala
 
-O Administrador acessa a criação manual da escala, seleciona o profissional e define o setor, o turno e a função no plantão, confirmando e enviando os dados.
+O Administrador seleciona o mês, os setores e os turnos e solicita a geração da escala. Se algum parâmetro for inválido, o sistema indica o campo que precisa de correção.
 
-O sistema recebe as informações e verifica se os dados inseridos são válidos. Se houver inconsistência nos campos, exibe uma mensagem de erro indicando o campo inválido.
-
-Estando os dados válidos, o sistema consulta a disponibilidade e os plantões do profissional no banco de dados para verificar se existe conflito de alocação.
-
-Se for identificado um conflito, a alocação é impedida, um alerta é emitido e o Administrador visualiza o conflito. Caso não haja conflito, o plantão é incluído na escala em rascunho e salvo no banco de dados. O sistema confirma a inclusão e exibe a confirmação do plantão para o Administrador.
+Com os parâmetros válidos, o sistema consulta os profissionais disponíveis, suas restrições e seus vínculos. Ao montar a escala, considera as restrições de cada profissional e as regras do vínculo correspondente. O resultado é salvo no banco de dados como **rascunho** e fica disponível para o Administrador visualizar após a confirmação do salvamento.
 
 ---
 
-## DA13 - Validação de Conflitos da Escala
+## DA12 - Criação manual de escala
 
-O Administrador acessa a validação de conflitos, seleciona a escala desejada e solicita a verificação.
+O Administrador seleciona o profissional, define o setor, o turno e a função no plantão e confirma a inclusão. Se os dados não forem válidos, o sistema indica o campo incorreto.
 
-O sistema recebe a solicitação e consulta no banco de dados as informações de plantões, disponibilidades e folgas.
+Com os dados válidos, o sistema consulta a disponibilidade e os plantões do profissional para verificar se a alocação é possível.
 
-Com os dados retornados, o sistema executa uma sequência de verificações: choque de horários, indisponibilidades cadastrais, concessão de folgas e o cumprimento do quantitativo mínimo.
-
-Caso sejam encontrados conflitos, o sistema os indica na escala e exibe os problemas para o Administrador. Caso não existam conflitos, a escala é marcada como validada, seu status é atualizado no banco de dados e a confirmação da validação é apresentada ao Administrador.
-
----
-
-## DA14 - Edição da Escala
-
-O Administrador acessa a edição da escala, seleciona os plantões que deseja alterar, realiza as modificações necessárias e confirma o envio.
-
-O sistema recebe as alterações e valida as informações fornecidas. Se algum campo estiver incorreto, exibe uma mensagem de erro indicando o problema.
-
-Se os dados forem válidos, os plantões alterados são salvos no banco de dados. Em seguida, o sistema cria e salva uma nova versão da escala, registra a alteração no histórico e confirma a edição para o Administrador.
+- **Se houver conflito**, o sistema bloqueia a inclusão e mostra ao Administrador o motivo do alerta.
+- **Se não houver conflito**, o plantão é incluído no rascunho da escala e salvo no banco de dados. O sistema então confirma a inclusão ao Administrador.
 
 ---
 
-## DA15 - Visualização da Escala Geral
+## DA13 - Validação de conflitos da escala
 
-O Administrador acessa a escala geral. O sistema recebe a solicitação, busca a escala completa no banco de dados, monta a visualização e exibe a escala geral.
+O Administrador seleciona a escala e solicita a validação. O sistema consulta os plantões, as disponibilidades e as folgas para verificar choques de horários, indisponibilidades cadastradas, concessão de folgas e cumprimento do quantitativo mínimo.
 
-O Administrador pode optar por aplicar filtros. Caso opte por não filtrar, o fluxo é encerrado na visualização completa.
-
-Caso deseje filtrar, o Administrador informa o setor e/ou o profissional e solicita a aplicação dos filtros. O sistema recebe os parâmetros, consulta os plantões correspondentes no banco de dados, monta a escala filtrada e a exibe ao Administrador.
+Se encontrar conflitos, o sistema os sinaliza na escala e mostra os problemas ao Administrador. Se não encontrar conflitos, atualiza o status da escala para **validada** no banco de dados e confirma a validação.
 
 ---
 
-## DA16 - Visualização da Escala Individual
+## DA14 - Edição de escala
 
-O Enfermeiro acessa a escala individual. O sistema recebe a consulta, identifica o enfermeiro autenticado e busca no banco de dados os seus plantões.
+O Administrador seleciona os plantões que deseja editar, faz as mudanças e envia os dados. Se algum campo estiver incorreto, o sistema informa qual é o problema. Se os dados forem válidos, salva os plantões alterados, registra a edição no histórico e confirma a operação.
 
-O sistema verifica se existem plantões escalados para o profissional no período.
-
-Se houver plantões, o sistema os exibe para o Enfermeiro. Caso contrário, apresenta uma mensagem informativa comunicando a ausência de plantões escalados.
+Se a escala já estiver publicada, a edição ocorre em uma **revisão**. Uma nova versão oficial só é gerada quando essa revisão é publicada.
 
 ---
 
-## DA17 - Visualização dos Detalhes do Plantão
+## DA15 - Visualização da escala geral
 
-O Usuário acessa a escala e seleciona um plantão específico. O sistema recebe o pedido e consulta as informações detalhadas no banco de dados.
+Ao abrir a escala geral, o Administrador vê a escala completa que o sistema carrega do banco de dados.
 
-O sistema verifica se o plantão foi encontrado.
-
-Se o plantão for localizado, exibe os detalhes contendo data, horário, setor, função e observações. Se o plantão não for encontrado, exibe uma mensagem informativa notificando o Usuário.
+Se quiser restringir a visualização, pode aplicar um filtro por setor, por profissional ou pelos dois. O sistema busca os plantões que correspondem aos filtros e exibe a escala filtrada. Sem filtros, o fluxo termina na visualização completa.
 
 ---
 
-## DA18 - Publicação da Escala
+## DA16 - Visualização da escala individual
 
-O Administrador acessa a publicação, seleciona a escala desejada e solicita a operação.
+O Profissional abre a escala individual. O sistema identifica o profissional autenticado e consulta os plantões dele no período.
 
-O sistema recebe o pedido, consulta os plantões e pendências da escala no banco de dados e realiza a conferência geral.
-
-Se existirem pendências, a publicação é impedida e os alertas de pendência são exibidos ao Administrador.
-
-Se não houver pendências, a escala é tornada oficial, seu status é atualizado no banco de dados como publicada, o salvamento é confirmado e o Administrador visualiza a mensagem de confirmação da publicação.
+Se houver plantões, eles são exibidos. Se não houver, o sistema informa que não existem plantões escalados para o período.
 
 ---
 
-## DA19 - Notificação de Publicações e Alterações
+## DA17 - Visualização dos detalhes do plantão
 
-O Sistema NurseFlow detecta automaticamente quando uma escala é publicada ou alterada.
-
-O sistema consulta no banco de dados os enfermeiros afetados pelas mudanças.
-
-Em seguida, o sistema verifica o tipo do evento:
-- Se for uma nova **publicação de escala**, o sistema envia um aviso de publicação e o Enfermeiro recebe a notificação.
-- Se for uma **alteração na escala**, o sistema envia um aviso informando as mudanças nos plantões e o Enfermeiro recebe a notificação de alteração.
+O usuário abre a escala e seleciona um plantão. O sistema busca o registro no banco de dados e, se o encontrar, exibe data, horário, setor, função e observações. Se não encontrar o plantão, informa isso ao usuário.
 
 ---
 
-## DA20 - Exportação da Escala em PDF
+## DA18 - Publicação de escala
 
-O Administrador acessa a funcionalidade de exportação, seleciona a escala pretendida e solicita a exportação em PDF.
+O Administrador seleciona a escala e solicita a publicação. Antes de oficializá-la, o sistema consulta os plantões e confere se existem pendências.
 
-O sistema recebe a solicitação e consulta os dados da escala no banco de dados.
-
-Em seguida, verifica se a escala está pendente de publicação:
-- Se a escala ainda não tiver sido publicada, a exportação é impedida e um alerta é emitido para o Administrador.
-- Se a escala já estiver publicada, o sistema gera o documento oficial em PDF, prepara a versão para impressão e envio ao RH e à diretoria, e disponibiliza o arquivo para download, permitindo que o Administrador visualize e baixe o PDF.
+- **Com pendências.** O sistema mostra um resumo e exige confirmação explícita da Coordenação para permitir a publicação.
+- **Sem pendências.** O sistema oficializa a escala, salva o status **publicada** no banco de dados e confirma a publicação ao Administrador.
 
 ---
 
-## DA21 - Solicitação de Troca de Plantão
+## DA19 - Notificação de publicação e alteração
 
-O Enfermeiro acessa a funcionalidade de troca de plantão, seleciona um de seus próprios plantões e solicita a consulta de profissionais disponíveis para realizar a troca.
+O NurseFlow detecta automaticamente a publicação ou a alteração de uma escala e consulta quais profissionais foram afetados.
 
-O sistema consulta no banco de dados as informações do plantão, os profissionais cadastrados e aptos, suas disponibilidades e restrições, além do limite de trocas configurado para o período.
-
-Caso a troca não atenda às regras definidas, o sistema informa o motivo do impedimento ao Enfermeiro.
-
-Quando a troca é permitida, o sistema apresenta os profissionais aptos. O Enfermeiro seleciona o profissional desejado e confirma a solicitação.
-
-A solicitação é então registrada no banco de dados com status de **Pendente de resposta**, e o sistema confirma sua criação ao Enfermeiro.
+- **Nova publicação.** Os profissionais afetados recebem um aviso de que a escala foi publicada.
+- **Alteração na escala.** Os profissionais afetados recebem um aviso com as mudanças em seus plantões.
 
 ---
 
-## DA22 - Aceitação ou Recusa da Troca
+## DA20 - Exportação de escala em PDF
 
-O Enfermeiro acessa as solicitações de troca recebidas. O sistema consulta no banco de dados as solicitações pendentes destinadas ao profissional e as apresenta para análise.
+O Administrador seleciona uma escala e solicita a exportação. O sistema consulta os dados e verifica o status da publicação.
 
-O Enfermeiro seleciona uma solicitação, visualiza seus detalhes e decide entre aceitar ou recusar a troca.
-
-- Se recusar troca, define status como **recusada**. 
-- Se aceitar troca, sistema verifica se a solicitação continua válida. Caso esteja: sistema registra o aceite e salva o status como **aceita**. Caso contrário, sistema informa que a solicitação não está mais disponível e enfermeiro visualiza o aviso.
-
-Salva o status definido no banco de dados, sistema exibe a confirmação e o enfermeiro visualiza a confirmação.
+- **Escala ainda não publicada.** O sistema bloqueia a exportação e avisa o Administrador.
+- **Escala publicada.** O sistema gera o PDF oficial para impressão e envio ao RH e à diretoria. O Administrador pode visualizar e baixar o arquivo.
 
 ---
 
-## DA23 - Validação da Troca pela Coordenação
+## DA21 - Solicitação de troca de plantão
 
-A Coordenação acessa as solicitações de troca que foram aceitas pelos profissionais e aguardam validação.
+O Profissional seleciona um de seus próprios plantões e pede para consultar quem pode realizar a troca. O sistema verifica os dados do plantão, os profissionais cadastrados e aptos, suas disponibilidades e restrições e o limite de trocas no período.
 
-O sistema consulta no banco de dados as informações da solicitação, os plantões envolvidos, os profissionais, suas disponibilidades e restrições e os dados atuais da escala.
-
-Após a consulta, o sistema verifica se existem impedimentos para a realização da troca.
-
-- Se houver impedimentos, eles são apresentados à Coordenação, que pode rejeitar a solicitação. Nesse caso, o status é atualizado para **Rejeitada pela Coordenação**.
-- Se não houver impedimentos, a Coordenação pode aprovar a troca.
-
-Quando aprovada, o sistema efetiva a alteração dos plantões, atualiza a escala, registra a modificação no histórico e altera o status da solicitação para **Aprovada**.
+Se a troca não atender a alguma regra, o sistema informa o motivo do impedimento. Se for permitida, o sistema mostra os profissionais aptos. O solicitante escolhe um deles e confirma o envio. A solicitação é registrada como **Pendente de resposta**, e o sistema confirma sua criação.
 
 ---
 
-## DA24 - Registro Manual de Troca de Plantão
+## DA22 - Aceitação ou recusa de troca
 
-A Coordenação acessa a funcionalidade de registro manual de troca para cadastrar uma troca realizada fora do fluxo normal de solicitações do sistema.
+O Profissional abre uma solicitação de troca recebida, confere os detalhes e decide se aceita ou recusa.
 
-São selecionados os profissionais e os plantões envolvidos, e os dados da troca são informados para validação.
-
-O sistema consulta no banco de dados os profissionais, os plantões, as disponibilidades, as restrições e o limite de trocas aplicável.
-
-Caso a troca não seja válida, o sistema apresenta os impedimentos encontrados e não realiza a alteração.
-
-Se a troca for válida, o sistema registra a operação como uma **troca realizada manualmente**, atualiza a escala oficial e registra a modificação no histórico.
+- **Se recusar**, o sistema muda o status para **Recusada** e confirma a operação.
+- **Se aceitar**, o sistema revalida a troca considerando a situação atual da escala, a disponibilidade e as restrições dos envolvidos. Se encontrar um impedimento, informa o motivo. Se a troca continuar válida, atualiza o status da solicitação para **Aceita / Aguardando Coordenação**, deixando-a disponível para a validação final.
 
 ---
 
-## DA25 - Consulta do Histórico de Escalas e Trocas
+## DA23 - Validação da troca pela Coordenação
 
-A Coordenação acessa o histórico de escalas e trocas e pode informar filtros para localizar os registros desejados, como período, profissional ou tipo de registro.
+A Coordenação analisa as solicitações que já foram aceitas pelos profissionais e estão aguardando validação. O sistema consulta os dados da solicitação, os plantões, os profissionais envolvidos, suas disponibilidades e restrições e a situação atual da escala.
 
-O sistema consulta no banco de dados o histórico de versões das escalas, alterações realizadas e trocas de plantão.
-
-Caso nenhum registro seja encontrado, uma mensagem informativa é apresentada.
-
-Quando existem resultados, o sistema exibe os registros encontrados. A Coordenação pode selecionar um item específico para visualizar seus detalhes, permitindo o acompanhamento das alterações e a auditoria do histórico do sistema.
+Se houver impedimentos, o sistema os apresenta à Coordenação, que pode rejeitar a solicitação. Se não houver impedimentos, a Coordenação pode aprová-la. Após a aprovação, o sistema efetiva a troca, atualiza a escala, registra a mudança no histórico e altera o status da solicitação para **Aprovada**.
 
 ---
 
-## DA26 - Gerenciamento de Plantões Extras
+## DA24 - Registro manual de troca de plantão
 
-A Coordenação acessa o gerenciamento de plantões extras. O sistema consulta no banco de dados os extras já cadastrados e os plantões que apresentam necessidade de cobertura, como aqueles afetados por férias ou ausências.
+A Coordenação pode registrar uma troca que ocorreu fora do fluxo de solicitações. Para isso, seleciona os profissionais e plantões envolvidos e preenche os dados necessários.
 
-A Coordenação pode selecionar um plantão descoberto ou criar um novo plantão extra programado, informando data, horário e setor.
-
-O sistema consulta os profissionais aptos e disponíveis, considerando suas restrições e as regras de alocação.
-
-Após a seleção de um profissional, o sistema valida a atribuição:
-
-- Se existir conflito ou restrição, a operação é impedida e o motivo é apresentado.
-- Se a atribuição for válida, o plantão é registrado como **Extra**, associado ao profissional e incluído na escala.
-
-A alteração também é registrada no histórico, e o sistema confirma o plantão extra para a Coordenação.
+O sistema consulta os dados dos profissionais e dos plantões, verifica as disponibilidades e restrições e considera o limite de trocas aplicável. Se a operação for inválida, apresenta os impedimentos e não altera a escala. Se for válida, registra a troca manual, atualiza a escala oficial e guarda a alteração no histórico.
 
 ---
 
-## DA27 - Sincronização com Calendário Externo
+## DA25 - Consulta ao histórico de escalas e trocas
 
-O Enfermeiro acessa a funcionalidade de sincronização com calendário externo e solicita o envio de seus plantões para o calendário pessoal.
+A Coordenação consulta as versões das escalas, as alterações e as trocas de plantão. Pode filtrar os registros por critérios como período, profissional ou tipo de registro.
 
-O sistema identifica o Enfermeiro autenticado e consulta no banco de dados os seus plantões.
+Se a busca não retornar registros, o sistema informa que não encontrou resultados. Caso contrário, exibe os registros e permite abrir cada um para consultar seus detalhes e acompanhar ou auditar as mudanças.
 
-Em seguida, prepara as informações e envia os dados para o serviço de calendário externo.
+---
 
-Para cada plantão:
+## DA26 - Gerenciamento de plantões extras
 
-- Se ainda não existir um evento correspondente, um novo evento é criado.
-- Se o evento já existir, suas informações são atualizadas.
+O sistema mostra à Coordenação os plantões extras já cadastrados e os plantões que precisam de cobertura, inclusive os afetados por férias ou ausências. A Coordenação pode escolher um plantão descoberto ou programar um novo extra com data, horário e setor.
 
-Ao final, o serviço externo retorna o resultado da sincronização.
+O sistema consulta os profissionais aptos e disponíveis, considerando as restrições e as regras de alocação. Depois que a Coordenação seleciona um profissional, o sistema valida a atribuição.
 
-Caso ocorra alguma falha, o sistema informa o erro ao Enfermeiro. Se a sincronização for concluída com sucesso, o sistema apresenta a confirmação da operação.
+- **Com conflito ou restrição.** O sistema impede a atribuição e mostra o motivo.
+- **Com atribuição válida.** O sistema registra o plantão como **Extra**, associa o profissional, inclui o plantão na escala e registra a operação no histórico.
 
+---
+
+## DA27 - Sincronização com calendário externo
+
+O Profissional solicita o envio dos seus plantões para o calendário pessoal. O NurseFlow identifica o profissional autenticado, consulta seus plantões e prepara os dados para enviar ao serviço externo.
+
+- Se não houver um evento para o plantão, é criado um novo evento.
+- Se já houver um evento correspondente, suas informações são atualizadas.
+
+Ao receber o resultado do serviço externo, o sistema confirma a sincronização ou informa o erro ao Profissional.
