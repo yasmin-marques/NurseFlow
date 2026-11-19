@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
-import { IsBoolean, IsEnum, IsInt, IsMongoId, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+import { IsEnum, IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 import { Formacao, StatusProfissional, TipoVinculo } from '../profissionais.enums';
 
 export enum Ordem {
@@ -30,17 +30,6 @@ export class ListProfissionaisQueryDto {
   @IsOptional()
   @IsEnum(TipoVinculo)
   tipoVinculo?: TipoVinculo;
-
-  @ApiPropertyOptional({ description: 'Filtra pelo setor fixo.' })
-  @IsOptional()
-  @IsMongoId()
-  setorId?: string;
-
-  @ApiPropertyOptional({ description: 'true: apenas cadastros legados ainda sem setor fixo (pendências da migração).' })
-  @IsOptional()
-  @Transform(({ value }: { value: unknown }) => (value === 'true' ? true : value === 'false' ? false : value))
-  @IsBoolean()
-  semSetor?: boolean;
 
   @ApiPropertyOptional({ enum: Ordem, default: Ordem.ASC, description: 'Ordenação por nome.' })
   @IsOptional()

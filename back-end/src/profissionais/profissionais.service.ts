@@ -1,7 +1,7 @@
-import { ConflictException, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { randomBytes } from 'crypto';
-import { type Model, type PipelineStage, Types } from 'mongoose';
+import { type Model, type PipelineStage, type Types } from 'mongoose';
 import { AuthService } from '../auth/auth.service';
 import { formatarCpf, somenteDigitos } from '../common/utils/cpf';
 import { COLLATION_PT, escaparRegex, regexSemAcentos } from '../common/utils/text';
@@ -13,7 +13,6 @@ import type { ProfissionalListaDto, ProfissionalResponseDto } from './dto/profis
 import type { UpdateProfissionalDto } from './dto/update-profissional.dto';
 import { PlantoesFuturosChecker } from './plantoes-futuros.checker';
 import { StatusProfissional } from './profissionais.enums';
-import { Setor } from '../setores/schemas/setor.schema';
 import { Profissional, type ProfissionalDocument } from './schemas/profissional.schema';
 
 /** Remove chaves `undefined` (em `doc.set`, undefined apagaria o campo). */
@@ -22,13 +21,12 @@ function semUndefined<T extends object>(obj: T): Partial<T> {
 }
 
 type UsuarioPublico = Pick<Usuario, 'nome' | 'cpf' | 'email'>;
-type ProfissionalAgregado = Omit<Profissional, 'usuarioId'> & { _id: Types.ObjectId; usuario: UsuarioPublico; setor?: { nome: string } };
+type ProfissionalAgregado = Omit<Profissional, 'usuarioId'> & { _id: Types.ObjectId; usuario: UsuarioPublico };
 
 @Injectable()
 export class ProfissionaisService {
   constructor(
     @InjectModel(Profissional.name) private readonly profissionalModel: Model<Profissional>,
-    @InjectModel(Setor.name) private readonly setorModel: Model<Setor>,
     private readonly usuariosService: UsuariosService,
     private readonly plantoesFuturos: PlantoesFuturosChecker,
   ) {}
@@ -36,7 +34,6 @@ export class ProfissionaisService {
   /** DA02: cadastra o profissional (usuário de acesso + dados profissionais). */
   async criar(dto: CreateProfissionalDto): Promise<ProfissionalResponseDto> {
     await this.garantirNaoCadastrado({ cpf: dto.cpf, coren: dto.coren, email: dto.email });
-    const setor = await this.exigirSetorAtivo(dto.setorId);
 
     const senhaTemporaria = !dto.senha;
     const senha = await AuthService.gerarHashSenha(dto.senha ?? randomBytes(24).toString('base64url'));
@@ -56,11 +53,10 @@ export class ProfissionaisService {
         coren: dto.coren,
         formacao: dto.formacao,
         tipoVinculo: dto.tipoVinculo,
-        setorId: setor._id,
         status,
         desativadoEm: status === StatusProfissional.DESATIVADO ? new Date() : null,
       });
-      return this.paraResposta(profissional, usuario, setor.nome);
+      return this.paraResposta(profissional, usuario);
     } catch (erro) {
       // Mongo standalone não tem transações: desfaz o usuário criado na primeira etapa.
       await this.usuariosService.removerCriacaoParcial(usuario._id);
@@ -74,8 +70,6 @@ export class ProfissionaisService {
     if (query.formacao) filtro.formacao = query.formacao;
     if (query.status) filtro.status = query.status;
     if (query.tipoVinculo) filtro.tipoVinculo = query.tipoVinculo;
-    if (query.setorId) filtro.setorId = new Types.ObjectId(query.setorId);
-    if (query.semSetor === true) filtro.setorId = null;
 
     const pipeline: PipelineStage[] = [
       { $match: filtro },
@@ -90,16 +84,6 @@ export class ProfissionaisService {
         },
       },
       { $unwind: '$usuario' },
-      {
-        $lookup: {
-          from: 'setores',
-          localField: 'setorId',
-          foreignField: '_id',
-          as: 'setor',
-          pipeline: [{ $project: { nome: 1 } }],
-        },
-      },
-      { $unwind: { path: '$setor', preserveNullAndEmptyArrays: true } },
     ];
 
     if (query.busca) {
@@ -142,7 +126,7 @@ export class ProfissionaisService {
 
   async obter(id: string): Promise<ProfissionalResponseDto> {
     const { profissional, usuario } = await this.carregar(id);
-    return this.paraResposta(profissional, usuario, await this.nomeDoSetor(profissional.setorId));
+    return this.paraResposta(profissional, usuario);
   }
 
   /** DA03: edição. Se o status passar para "desativado", aplica a regra do DA04. */
@@ -153,12 +137,6 @@ export class ProfissionaisService {
       { usuarioId: usuario._id, profissionalId: profissional._id },
     );
 
-    if (dto.setorId !== undefined) {
-      const setor = await this.exigirSetorAtivo(dto.setorId);
-      if (!setor._id.equals(profissional.setorId ?? undefined)) await this.exigirSemPlantoesFuturosAoMudarSetor(profissional);
-      profissional.setorId = setor._id;
-    }
-
     if (dto.status && dto.status !== profissional.status) {
       await this.aplicarStatus(profissional, dto.status);
     }
@@ -167,7 +145,7 @@ export class ProfissionaisService {
     profissional.set(semUndefined({ coren: dto.coren, formacao: dto.formacao, tipoVinculo: dto.tipoVinculo }));
     await usuario.save();
     await profissional.save();
-    return this.paraResposta(profissional, usuario, await this.nomeDoSetor(profissional.setorId));
+    return this.paraResposta(profissional, usuario);
   }
 
   /** DA04: desativação lógica. O registro é preservado e nenhum DELETE físico é feito. */
@@ -177,7 +155,7 @@ export class ProfissionaisService {
       await this.aplicarStatus(profissional, StatusProfissional.DESATIVADO);
       await profissional.save();
     }
-    return this.paraResposta(profissional, usuario, await this.nomeDoSetor(profissional.setorId));
+    return this.paraResposta(profissional, usuario);
   }
 
   /** Atualiza o status em memória, validando a regra de plantões futuros ao desativar. */
@@ -193,35 +171,6 @@ export class ProfissionaisService {
     }
     profissional.status = status;
     profissional.desativadoEm = status === StatusProfissional.DESATIVADO ? new Date() : null;
-  }
-
-  /** O setor fixo precisa existir e estar ativo (validação no backend, independente do formulário). */
-  private async exigirSetorAtivo(setorId: string) {
-    const setor = Types.ObjectId.isValid(setorId) ? await this.setorModel.findById(setorId).lean().exec() : null;
-    if (!setor) {
-      throw new UnprocessableEntityException({ message: 'Setor não encontrado.', erros: ['Selecione um setor cadastrado.'] });
-    }
-    if (!setor.ativo) {
-      throw new UnprocessableEntityException({ message: 'Setor inativo.', erros: ['Selecione um setor ativo.'] });
-    }
-    return setor;
-  }
-
-  /** Trocar o setor com plantões publicados futuros deixaria a escala vigente fora da regra do setor fixo. */
-  private async exigirSemPlantoesFuturosAoMudarSetor(profissional: ProfissionalDocument): Promise<void> {
-    if (!profissional.setorId) return; // atribuição inicial de um cadastro legado
-    const pendentes = await this.plantoesFuturos.buscarPublicadosFuturos(profissional._id.toString());
-    if (pendentes.length > 0) {
-      throw new ConflictException({
-        message: 'Não é possível trocar o setor: o profissional possui plantões futuros em escalas publicadas no setor atual.',
-        plantoes: pendentes,
-      });
-    }
-  }
-
-  private async nomeDoSetor(setorId: Types.ObjectId | null | undefined): Promise<string | null> {
-    if (!setorId) return null;
-    return (await this.setorModel.findById(setorId, { nome: 1 }).lean().exec())?.nome ?? null;
   }
 
   private async carregar(id: string): Promise<{ profissional: ProfissionalDocument; usuario: UsuarioDocument }> {
@@ -253,7 +202,7 @@ export class ProfissionaisService {
     }
   }
 
-  private paraResposta(profissional: ProfissionalDocument, usuario: UsuarioPublico, setorNome: string | null): ProfissionalResponseDto {
+  private paraResposta(profissional: ProfissionalDocument, usuario: UsuarioPublico): ProfissionalResponseDto {
     return {
       id: profissional._id.toString(),
       nome: usuario.nome,
@@ -263,8 +212,6 @@ export class ProfissionaisService {
       formacao: profissional.formacao,
       tipoVinculo: profissional.tipoVinculo,
       status: profissional.status,
-      setorId: profissional.setorId ? String(profissional.setorId) : null,
-      setorNome,
       createdAt: profissional.createdAt,
       updatedAt: profissional.updatedAt,
     };
@@ -280,8 +227,6 @@ export class ProfissionaisService {
       formacao: item.formacao,
       tipoVinculo: item.tipoVinculo,
       status: item.status,
-      setorId: item.setorId ? String(item.setorId) : null,
-      setorNome: item.setor?.nome ?? null,
       createdAt: item.createdAt,
       updatedAt: item.updatedAt,
     };

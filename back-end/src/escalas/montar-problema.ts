@@ -27,8 +27,6 @@ export interface ProfissionalEntrada {
   formacao: Formacao;
   tipoVinculo: TipoVinculo;
   status: StatusProfissional;
-  /** Setor fixo do cadastro. Sem setor, o profissional não participa da geração. */
-  setorId?: string | null;
 }
 
 export interface SetorEntrada {
@@ -117,9 +115,6 @@ export function validarEntrada(
   }
   const ativos = e.profissionais.filter((p) => p.status === StatusProfissional.ATIVO);
   if (ativos.length === 0) erros.push('Não há profissionais ativos para compor a escala.');
-  else if (!ativos.some((p) => p.setorId)) {
-    erros.push('Nenhum profissional ativo possui setor fixo cadastrado; defina o setor no cadastro dos profissionais.');
-  }
   for (const vinculo of [TipoVinculo.CONCURSADO, TipoVinculo.CLT]) {
     const carga = e.configuracao.cargas[chaveCarga(vinculo, dias)];
     const quantos = ativos.filter((p) => p.tipoVinculo === vinculo).length;
@@ -334,22 +329,10 @@ export function montarProblema(e: EntradaGeracao): ProblemaMontado {
   const conflitos: Mensagem[] = [];
   const avisos: Mensagem[] = [];
 
-  const idsSetores = new Set(e.setores.map((s) => s.id));
   const ativos: ProfissionalEntrada[] = [];
   for (const p of e.profissionais) {
-    if (p.status === StatusProfissional.ATIVO) {
-      if (!p.setorId) {
-        conflitos.push({
-          tipo: 'PROFISSIONAL_SEM_SETOR',
-          profissionalId: p.id,
-          profissional: p.nome,
-          motivo: 'Sem setor fixo cadastrado: não participa desta geração até que o setor seja definido no cadastro.',
-        });
-      } else if (idsSetores.has(p.setorId)) {
-        // Setor fora do escopo (inativo ou não selecionado): não há vaga em que possa ser escalado.
-        ativos.push(p);
-      }
-    } else if (p.status !== StatusProfissional.DESATIVADO) {
+    if (p.status === StatusProfissional.ATIVO) ativos.push(p);
+    else if (p.status !== StatusProfissional.DESATIVADO) {
       conflitos.push({
         tipo: 'PROFISSIONAL_INDISPONIVEL',
         profissionalId: p.id,
@@ -417,7 +400,6 @@ export function montarProblema(e: EntradaGeracao): ProblemaMontado {
 
     return {
       id: p.id,
-      setor_id: p.setorId!,
       formacao: p.formacao,
       vinculo: p.tipoVinculo,
       carga_24h: carga?.plantoes24h ?? 0,
@@ -433,13 +415,13 @@ export function montarProblema(e: EntradaGeracao): ProblemaMontado {
   for (const s of e.setores) {
     for (const [turno, quant] of Object.entries(s.turnos) as [string, { enfermeiros: number; tecnicos: number }][]) {
       for (const [funcao, formacao] of [['enfermeiros', Formacao.ENFERMEIRO], ['tecnicos', Formacao.TECNICO]] as const) {
-        const disponiveis = ativos.filter((p) => p.formacao === formacao && p.setorId === s.id).length;
+        const disponiveis = ativos.filter((p) => p.formacao === formacao).length;
         if (quant[funcao] > disponiveis) {
           avisos.push({
             tipo: 'EFETIVO_INSUFICIENTE',
             setorId: s.id,
             setor: s.nome,
-            motivo: `Turno ${turno} exige ${quant[funcao]} ${funcao}, mas há ${disponiveis} ativo(s) com setor fixo neste setor.`,
+            motivo: `Turno ${turno} exige ${quant[funcao]} ${funcao}, mas há ${disponiveis} ativo(s) cadastrado(s).`,
           });
         }
       }

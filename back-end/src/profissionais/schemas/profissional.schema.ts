@@ -20,13 +20,6 @@ export class Profissional {
   @Prop({ required: true, enum: StatusProfissional, default: StatusProfissional.ATIVO })
   status: StatusProfissional;
 
-  /**
-   * Setor fixo do profissional: só pode ser escalado nele. Nulo apenas em cadastros legados ainda
-   * sem setor definido (migração em etapas); enquanto nulo, o profissional não entra na geração.
-   */
-  @Prop({ type: Types.ObjectId, ref: 'Setor', default: null })
-  setorId: Types.ObjectId | null;
-
   @Prop({ required: true, default: false })
   sincronizaAgenda: boolean;
 

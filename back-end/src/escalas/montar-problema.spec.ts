@@ -32,7 +32,6 @@ const prof = (id: string, tipoVinculo: TipoVinculo, extra: Partial<ProfissionalE
   formacao: Formacao.ENFERMEIRO,
   tipoVinculo,
   status: StatusProfissional.ATIVO,
-  setorId: 's1',
   ...extra,
 });
 
@@ -226,43 +225,5 @@ describe('validação prévia', () => {
   it('avisa quando o efetivo cadastrado é menor que o quantitativo mínimo (RN006)', () => {
     const { avisos } = montarProblema(entrada([prof('c', TipoVinculo.CLT)]));
     expect(avisos.some((a) => a.tipo === 'EFETIVO_INSUFICIENTE')).toBe(true);
-  });
-});
-
-describe('setor fixo do profissional', () => {
-  const setorB = { ...setor, id: 's2', nome: 'Emergência' };
-
-  it('envia ao otimizador o setor fixo de cada profissional', () => {
-    const { problema } = montarProblema({
-      ...entrada([prof('a', TipoVinculo.CLT), prof('b', TipoVinculo.CLT, { setorId: 's2' })]),
-      setores: [setor, setorB],
-    });
-    expect(problema.profissionais.map((p) => [p.id, p.setor_id])).toEqual([['a', 's1'], ['b', 's2']]);
-  });
-
-  it('profissional sem setor não entra na geração e vira conflito informativo', () => {
-    const { problema, conflitos } = montarProblema(entrada([prof('a', TipoVinculo.CLT), prof('b', TipoVinculo.CLT, { setorId: null })]));
-    expect(problema.profissionais.map((p) => p.id)).toEqual(['a']);
-    expect(conflitos).toContainEqual(expect.objectContaining({ tipo: 'PROFISSIONAL_SEM_SETOR', profissionalId: 'b' }));
-  });
-
-  it('profissional cujo setor está fora do escopo da geração não participa', () => {
-    const { problema } = montarProblema(entrada([prof('a', TipoVinculo.CLT), prof('b', TipoVinculo.CLT, { setorId: 's9' })]));
-    expect(problema.profissionais.map((p) => p.id)).toEqual(['a']);
-  });
-
-  it('o aviso de efetivo insuficiente conta apenas profissionais do próprio setor', () => {
-    const { avisos } = montarProblema({
-      ...entrada([prof('a', TipoVinculo.CLT), prof('b', TipoVinculo.CLT), prof('c', TipoVinculo.CLT, { setorId: 's2' })]),
-      setores: [setor, setorB],
-    });
-    const doS2 = avisos.filter((aviso) => aviso.setorId === 's2' && aviso.motivo.includes('enfermeiros'));
-    expect(doS2.length).toBeGreaterThan(0);
-    expect(doS2[0].motivo).toContain('há 1 ativo(s)');
-  });
-
-  it('a validação prévia exige ao menos um profissional ativo com setor', () => {
-    const erros = validarEntrada({ ...entrada([prof('a', TipoVinculo.CLT, { setorId: null })]) });
-    expect(erros).toContainEqual(expect.stringContaining('setor fixo'));
   });
 });

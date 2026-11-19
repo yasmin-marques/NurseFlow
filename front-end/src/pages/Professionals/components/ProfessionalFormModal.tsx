@@ -1,7 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Check, ChevronRight, LockKeyhole, X } from "../../../components/icons";
-import { listSectors } from "../../../services/sectors";
-import type { Sector } from "../../Sectors/types";
 import type { FormationType, Professional, bondType } from "../types";
 
 type ProfessionalFormModalProps = {
@@ -44,16 +42,6 @@ const inputClassName = "mt-1.5 h-11 w-full rounded-xl border border-border bg-[#
 export function ProfessionalFormModal({ professional, isCreating = false, onClose, onSave }: ProfessionalFormModalProps) {
     const [form, setForm] = useState(professional);
     const [bondOpen, setBondOpen] = useState(false);
-    const [sectors, setSectors] = useState<Sector[]>([]);
-    const [sectorsError, setSectorsError] = useState("");
-
-    useEffect(() => {
-        let active = true;
-        listSectors()
-            .then((list) => { if (active) setSectors(list); })
-            .catch(() => { if (active) setSectorsError("Não foi possível carregar os setores."); });
-        return () => { active = false; };
-    }, []);
 
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
@@ -158,31 +146,6 @@ export function ProfessionalFormModal({ professional, isCreating = false, onClos
                                 </span>
                             </div>
                         </div>
-
-                        <label className="block text-[11px] font-semibold text-text">
-                            Setor fixo <span className="text-danger">*</span>
-                            <select
-                                required
-                                value={form.sectorId ?? ""}
-                                onChange={(event) => update("sectorId", event.target.value)}
-                                className={inputClassName}
-                            >
-                                <option value="" disabled>Selecione um setor</option>
-                                {sectors
-                                    .filter((sector) => sector.active || sector.id === form.sectorId)
-                                    .map((sector) => (
-                                        <option key={sector.id} value={sector.id} disabled={!sector.active}>
-                                            {sector.name}{sector.active ? "" : " (inativo)"}
-                                        </option>
-                                    ))}
-                                {form.sectorId && !sectors.some((sector) => sector.id === form.sectorId) ? (
-                                    <option value={form.sectorId}>{form.sectorName ?? "Setor atual"}</option>
-                                ) : null}
-                            </select>
-                            <span className="mt-1 block text-[10px] font-normal leading-tight text-text-muted">
-                                {sectorsError || "O profissional só pode ser escalado neste setor."}
-                            </span>
-                        </label>
 
                         <section>
                             <h3 className="text-[11px] font-semibold text-text">Status do profissional <span className="text-danger">*</span></h3>
