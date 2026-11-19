@@ -5,8 +5,22 @@ import type { AppConfig } from '../../config/configuration';
 /** Contrato com o serviço Python (optimizer/app/schemas.py). */
 export type OpcaoPlantao = '24h' | '12d' | '12n';
 
+<<<<<<< HEAD
+=======
+/** Versão do contrato que precisa ser implantada junto com o optimizer. */
+export const VERSAO_CONTRATO_OTIMIZADOR = 3;
+export const CAPACIDADE_ALOCACOES_FIXAS = 'alocacoes_fixas' as const;
+
+export interface TurnoBloqueadoOtimizacao {
+  dia: number;
+  turno: 'diurno' | 'noturno';
+}
+
+>>>>>>> 386fcec (feat: reúne todas as alterações do NurseFlow)
 export interface ProfissionalOtimizacao {
   id: string;
+  /** Setor fixo (cadastro). O profissional só pode ser alocado em vagas deste setor. */
+  setor_id: string;
   formacao: 'enfermeiro' | 'tecnico';
   vinculo: string;
   carga_24h: number;

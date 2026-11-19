@@ -14,4 +14,7 @@ export type Professional = {
     bond: bondType,
     status: boolean,
     formation: FormationType,
+    /** Setor fixo: o profissional só pode ser escalado neste setor. Vazio apenas em cadastros legados pendentes. */
+    sectorId?: string | null,
+    sectorName?: string | null,
 }

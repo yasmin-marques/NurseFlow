@@ -7,6 +7,8 @@ Unidade de decisão: o profissional `p` inicia, no dia `d`, um plantão do tipo 
   12n  19:00 -> 07:00 (dia seguinte)  cobre o turno noturno de `d`
 
 Restrições obrigatórias (duras):
+  * setor fixo: o profissional só é alocado no setor do seu cadastro (`setor_id`) — as variáveis de
+    outros setores nem chegam a ser criadas, então nunca há alocação cruzada para cobrir vaga;
   * cada plantão ocupa um único setor e o profissional não faz dois plantões ao mesmo tempo;
   * descanso mínimo após cada plantão: 72 h após 24h (regime 24x72) e 36 h após 12h;
   * dia de início bloqueado (férias, ausência, indisponibilidade, vínculo externo...) não é alocado;
@@ -125,7 +127,10 @@ def resolver(problema: Problema) -> Solucao:
     y: dict[tuple[int, int, str], cp_model.IntVar] = {}  # (p, d, o): inicia plantão em algum setor
     turnos_selecionados = set(problema.turnos_selecionados)
 
+    setor_por_id = {s.id: si for si, s in enumerate(setores)}
     for pi, p in enumerate(profs):
+        # Setor fixo (restrição dura): sem setor válido no problema, o profissional não é elegível.
+        setores_elegiveis = [setor_por_id[p.setor_id]] if p.setor_id in setor_por_id else []
         bloqueados = set(p.dias_bloqueados)
         for d in range(n):
             if (d + 1) in bloqueados:
@@ -137,7 +142,7 @@ def resolver(problema: Problema) -> Solucao:
                 if janela(d, o)[0] < p.livre_a_partir_horas:
                     continue
                 por_setor = []
-                for si in range(len(setores)):
+                for si in setores_elegiveis:
                     v = modelo.NewBoolVar(f"x_{pi}_{si}_{d}_{o}")
                     x[(pi, si, d, o)] = v
                     por_setor.append(v)
@@ -146,6 +151,22 @@ def resolver(problema: Problema) -> Solucao:
                     modelo.Add(sum(por_setor) == yv)
                     y[(pi, d, o)] = yv
 
+<<<<<<< HEAD
+=======
+    prof_por_id = {p.id: pi for pi, p in enumerate(profs)}
+    fixas_por_chave: dict[tuple[int, int, int, str], str] = {}
+    for fixa in problema.alocacoes_fixas:
+        chave = (prof_por_id[fixa.profissional_id], setor_por_id[fixa.setor_id], fixa.dia - 1, fixa.opcao)
+        if chave in fixas_por_chave:
+            raise RuntimeError(f"Alocações fixas incompatíveis para o extra {fixa.extra_id}.")
+        if chave not in x:
+            raise RuntimeError(
+                f"Alocação fixa inviável: {fixa.extra_id} não pode iniciar no dia/turno informado."
+            )
+        fixas_por_chave[chave] = fixa.extra_id
+        modelo.Add(x[chave] == 1)
+
+>>>>>>> 386fcec (feat: reúne todas as alterações do NurseFlow)
     conflitos = pares_em_conflito(n, par.descanso_apos_24h, par.descanso_apos_12h)
     for pi in range(len(profs)):
         for a, b in conflitos:

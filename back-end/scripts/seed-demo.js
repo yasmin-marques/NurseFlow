@@ -65,6 +65,17 @@ for (const [lista, formacao, nConcursado] of [[EXTRA_ENFERMEIROS, 'enfermeiro', 
 }
 const DEMO_CONFIGURATIONS = ['2026-10', '2026-11'];
 
+/** Maior resto: reparte `total` itens proporcionalmente aos pesos (desempate pela ordem). */
+function repartir(total, pesos) {
+  const soma = pesos.reduce((a, b) => a + b, 0);
+  const quotas = pesos.map((p) => (p * total) / soma);
+  const cotas = quotas.map(Math.floor);
+  let faltam = total - cotas.reduce((a, b) => a + b, 0);
+  const ordem = quotas.map((q, idx) => ({ idx, resto: q - Math.floor(q) })).sort((a, b) => b.resto - a.resto || a.idx - b.idx);
+  for (let k = 0; faltam > 0; k = (k + 1) % ordem.length, faltam--) cotas[ordem[k].idx] += 1;
+  return cotas;
+}
+
 function defaultLoads() {
   return Object.fromEntries(
     [28, 29, 30, 31].flatMap((days) => [
@@ -157,6 +168,25 @@ async function seed() {
           noturno: { enfermeiros: noite[0], tecnicos: noite[1] },
         }, ativo: true, createdAt: ts, updatedAt: ts,
       } }, { upsert: true });
+    }
+
+    // Setor fixo: cada profissional demo recebe um unico setor, proporcional a demanda de sua categoria.
+    // So preenche quem ainda nao tem setor (nunca sobrescreve um setor ja definido no cadastro).
+    const setorDocs = await db.collection('setores').find({ nome: { $in: setores.map(([nome]) => nome) } }).toArray();
+    const setorPorNome = new Map(setorDocs.map((s) => [s.nome, s._id]));
+    for (const [formacaoDemo, indiceFuncao] of [['enfermeiro', 0], ['tecnico', 1]]) {
+      const grupo = PEOPLE.filter((pessoa) => pessoa[2] === formacaoDemo);
+      const pesos = setores.map(([, , dia, noite]) => dia[indiceFuncao] + noite[indiceFuncao]);
+      const cotas = repartir(grupo.length, pesos);
+      let cursor = 0;
+      for (let s = 0; s < setores.length; s++) {
+        for (let k = 0; k < cotas[s]; k++, cursor++) {
+          await profs.updateOne(
+            { _id: identities[grupo[cursor][0]], setorId: { $in: [null] } },
+            { $set: { setorId: setorPorNome.get(setores[s][0]), updatedAt: ts } },
+          );
+        }
+      }
     }
 
     for (const chave of DEMO_CONFIGURATIONS) {
@@ -369,7 +399,7 @@ async function seedTrocasDemo() {
       'eduardo@nurseflow.test',
       'isabela@nurseflow.test',
     ];
-    const [users, professionals, admin, sector, configTemplate] = await Promise.all([
+    const [users, professionals, admin, anySector, configTemplate] = await Promise.all([
       db.collection('usuarios').find({ email: { $in: emails } }).toArray(),
       db.collection('profissionaisDaSaude').find({}).toArray(),
       db.collection('administradores').findOne({}),
@@ -389,6 +419,14 @@ async function seedTrocasDemo() {
       eduardo: personByEmail.get('eduardo@nurseflow.test'),
       isabela: personByEmail.get('isabela@nurseflow.test'),
     };
+    // Setor fixo: as permutas do cenario so sao validas entre profissionais do mesmo setor.
+    const sector = people.ana?.setorId ? await db.collection('setores').findOne({ _id: people.ana.setorId, ativo: true }) : anySector;
+    if (
+      sector &&
+      Object.values(people).some((person) => person && String(person.setorId) !== String(sector._id))
+    ) {
+      throw new Error('Os profissionais do cenario de Trocas demo precisam estar no mesmo setor fixo. Rode o seed demo geral antes.');
+    }
     if (
       !admin ||
       !sector ||

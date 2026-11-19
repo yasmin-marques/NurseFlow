@@ -59,12 +59,36 @@ describe('Restrições e Configurações (e2e)', () => {
     await usuarios.criarAdministrador(coord._id);
     tokenCoord = await login('coordenacao@nurseflow.com', 'coordenacao');
 
+<<<<<<< HEAD
     const criar = async (nome: string, cpf: string, coren: string, formacao: string, email: string) =>
+=======
+    const setorFixoId = (await http.post('/setores').set(auth(tokenCoord)).send({ nome: 'Setor fixo de teste', turnos: { diurno: { enfermeiros: 0, tecnicos: 0 }, noturno: { enfermeiros: 0, tecnicos: 0 } } }).expect(201)).body.id as string;
+    const criar = async (
+      nome: string,
+      cpf: string,
+      coren: string,
+      formacao: string,
+      email: string,
+    ) =>
+>>>>>>> 386fcec (feat: reúne todas as alterações do NurseFlow)
       (
         await http
           .post('/profissionais')
           .set(auth(tokenCoord))
+<<<<<<< HEAD
           .send({ nome, cpf, coren, formacao, tipoVinculo: 'clt', email, senha: SENHA })
+=======
+          .send({
+            nome,
+            cpf,
+            coren,
+            formacao,
+            tipoVinculo: "clt",
+            email,
+            senha: SENHA,
+            setorId: setorFixoId,
+          })
+>>>>>>> 386fcec (feat: reúne todas as alterações do NurseFlow)
           .expect(201)
       ).body.id as string;
     idEnf = await criar('Ana Souza', '529.982.247-25', 'COREN-CE 111111', 'enfermeiro', 'ana@nurseflow.com');

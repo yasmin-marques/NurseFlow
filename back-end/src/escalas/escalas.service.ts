@@ -48,6 +48,13 @@ import {
   TipoPlantao,
   VersaoEscala,
 } from './schemas';
+<<<<<<< HEAD
+=======
+import { EscalaAuditoriaService } from './escala-auditoria.service';
+import { errosSetorFixo } from './setor-fixo';
+import { EscalaSnapshotService, isSnapshotEscala } from './escala-snapshot.service';
+import { NotificacoesEscalaService } from '../notificacoes/notificacoes-escalas.service';
+>>>>>>> 386fcec (feat: reúne todas as alterações do NurseFlow)
 
 const MS_DIA = 86_400_000;
 
@@ -673,10 +680,20 @@ export class EscalasService {
           formacao: item.formacao,
           tipoVinculo: item.tipoVinculo,
           status: item.status,
+          setorId: item.setorId ? String(item.setorId) : null,
         },
       ]),
     );
     const plantaoPorId = new Map(plantoes.map((item) => [String(item._id), item]));
+    const errosSetor = errosSetorFixo(
+      vinculos.flatMap((vinculo) => {
+        const plantao = plantaoPorId.get(String(vinculo.plantaoId));
+        const profissional = profissionais.get(String(vinculo.profissionalId));
+        return plantao && profissional ? [{ profissionalId: profissional.id, profissional: profissional.nome, setorId: String(plantao.setorId) }] : [];
+      }),
+      new Map([...profissionais].map(([id, perfil]) => [id, perfil.setorId])),
+    );
+    if (errosSetor.length > 0) throw new UnprocessableEntityException({ message: 'A escala contém alocações fora do setor fixo dos profissionais.', erros: errosSetor });
     const alocacoes: AlocacaoPlantaoValidacao[] = vinculos.flatMap((vinculo) => {
       const plantao = plantaoPorId.get(String(vinculo.plantaoId));
       const profissional = profissionais.get(String(vinculo.profissionalId));
@@ -954,9 +971,25 @@ export class EscalasService {
           formacao: p.formacao,
           tipoVinculo: p.tipoVinculo,
           status: p.status,
+          setorId: p.setorId ? String(p.setorId) : null,
         },
       ]),
     );
+    const errosSetor = errosSetorFixo(
+      dto.equipe.map((item) => ({ profissionalId: item.profissionalId, profissional: profissionais.get(item.profissionalId)?.nome, setorId: dto.setorId })),
+      new Map([...profissionais].map(([id, perfil]) => [id, perfil.setorId])),
+      new Map([
+        [String(setor._id), setor.nome],
+        ...(
+          await this.setores
+            .find({ _id: { $in: profissionaisDocs.flatMap((p) => (p.setorId ? [p.setorId] : [])) } }, { nome: 1 })
+            .session(session)
+            .lean()
+            .exec()
+        ).map((outro): [string, string] => [String(outro._id), outro.nome]),
+      ]),
+    );
+    if (errosSetor.length > 0) throw new UnprocessableEntityException({ message: 'O plantão viola o setor fixo dos profissionais.', erros: errosSetor });
 
     const idsPlantoes = await this.plantoes
       .find({ escalaId: escala._id, ...(ignorarPlantaoId ? { _id: { $ne: ignorarPlantaoId } } : {}) }, { _id: 1 })
@@ -1108,9 +1141,25 @@ export class EscalasService {
           formacao: item.formacao,
           tipoVinculo: item.tipoVinculo,
           status: item.status,
+          setorId: item.setorId ? String(item.setorId) : null,
         },
       ]),
     );
+    const idsSetoresNomeados = [
+      ...preparadas.map((item) => item.setorId),
+      ...profissionaisDocs.flatMap((item) => (item.setorId ? [item.setorId] : [])),
+    ];
+    const setoresDoLote = await this.setores.find({ _id: { $in: idsSetoresNomeados } }, { nome: 1 }).session(session).lean().exec();
+    const errosSetor = errosSetorFixo(
+      preparadas.flatMap((item) => item.dto.equipe.map((membro) => ({
+        profissionalId: membro.profissionalId,
+        profissional: profissionalPorId.get(membro.profissionalId)?.nome,
+        setorId: String(item.setorId),
+      }))),
+      new Map([...profissionalPorId].map(([id, perfil]) => [id, perfil.setorId])),
+      new Map(setoresDoLote.map((setor) => [String(setor._id), setor.nome])),
+    );
+    if (errosSetor.length > 0) return errosSetor;
     const inicioMes = utcDate(escala.ano, escala.mes - 1, 1);
     const fimMes = utcDate(escala.ano, escala.mes - 1, diasDoMes(escala.ano, escala.mes), 23, 59, 59, 999);
     const restricoes = idsProfissionais.length

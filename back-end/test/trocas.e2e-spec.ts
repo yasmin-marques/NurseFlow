@@ -40,15 +40,16 @@ describe('Trocas administrativas (e2e)', () => {
     const coord = await usuarios.criar({ nome: 'Coordenação', email: 'coord-trocas@nurseflow.com', cpf: '11144477735', senha: await AuthService.gerarHashSenha(SENHA), tipoUsuario: TipoUsuario.ADMINISTRADOR });
     await usuarios.criarAdministrador(coord._id);
     tokenCoord = await login('coord-trocas@nurseflow.com', 'coordenacao');
-    const profissional = await http.post('/profissionais').set(auth(tokenCoord)).send({ nome: 'Ana Souza', cpf: '529.982.247-25', coren: 'COREN-CE 700001', formacao: 'enfermeiro', tipoVinculo: 'clt', email: 'ana-trocas@nurseflow.com', senha: SENHA }).expect(201);
+    const setorTrocas = await http.post('/setores').set(auth(tokenCoord)).send({ nome: 'Unidade de teste de trocas', turnos: { diurno: { enfermeiros: 0, tecnicos: 0 }, noturno: { enfermeiros: 0, tecnicos: 0 } } }).expect(201);
+    const profissional = await http.post('/profissionais').set(auth(tokenCoord)).send({ nome: 'Ana Souza', cpf: '529.982.247-25', coren: 'COREN-CE 700001', formacao: 'enfermeiro', tipoVinculo: 'clt', email: 'ana-trocas@nurseflow.com', senha: SENHA, setorId: setorTrocas.body.id }).expect(201);
     tokenEnfermeiro = await login('ana-trocas@nurseflow.com');
-    const profissionalBResponse = await http.post('/profissionais').set(auth(tokenCoord)).send({ nome: 'Beatriz Lima', cpf: '390.533.447-05', coren: 'COREN-CE 700002', formacao: 'enfermeiro', tipoVinculo: 'clt', email: 'bia-trocas@nurseflow.com', senha: SENHA }).expect(201);
+    const profissionalBResponse = await http.post('/profissionais').set(auth(tokenCoord)).send({ nome: 'Beatriz Lima', cpf: '390.533.447-05', coren: 'COREN-CE 700002', formacao: 'enfermeiro', tipoVinculo: 'clt', email: 'bia-trocas@nurseflow.com', senha: SENHA, setorId: setorTrocas.body.id }).expect(201);
     const idA = new mongoose.Types.ObjectId(); const idB = new mongoose.Types.ObjectId();
     ids = { profissionalA: new mongoose.Types.ObjectId(profissional.body.id), profissionalB: new mongoose.Types.ObjectId(profissionalBResponse.body.id), vinculoA: idA, vinculoB: idB };
     const admin = await mongo.db().collection('administradores').findOne({ usuarioId: new mongoose.Types.ObjectId(coord.id) });
     administradorId = admin!._id as mongoose.Types.ObjectId;
     escalaId = new mongoose.Types.ObjectId();
-    const setor = await http.post('/setores').set(auth(tokenCoord)).send({ nome: 'Unidade de teste de trocas', turnos: { diurno: { enfermeiros: 0, tecnicos: 0 }, noturno: { enfermeiros: 0, tecnicos: 0 } } }).expect(201);
+    const setor = setorTrocas;
     const plantaoA = new mongoose.Types.ObjectId(); const plantaoB = new mongoose.Types.ObjectId();
     const db = mongo.db();
     await db.collection('escalas').insertOne({ _id: escalaId, administradorId, mes: 11, ano: 2026, status: 'publicada', revisao: 1, versaoPublicada: 1, dataCriacao: new Date(), geracao: {} });
@@ -158,6 +159,15 @@ describe('Trocas administrativas (e2e)', () => {
     let result = await http.get(`/trocas/${troca.id}/validacao`).set(auth(tokenCoord)).expect(200);
     expect(result.body.impedimentos.some((item: { mensagem: string }) => item.mensagem.includes('não está ativo'))).toBe(true);
     await db.collection('profissionaisDaSaude').updateOne({ _id: ids.profissionalB }, { $set: { status: 'ativo' } });
+
+    // Setor fixo: a permuta levaria o profissional B para o setor do plantão de A (e vice-versa).
+    const setorOriginalB = (await db.collection('profissionaisDaSaude').findOne({ _id: ids.profissionalB }))!.setorId;
+    await db.collection('profissionaisDaSaude').updateOne({ _id: ids.profissionalB }, { $set: { setorId: new mongoose.Types.ObjectId() } });
+    result = await http.get(`/trocas/${troca.id}/validacao`).set(auth(tokenCoord)).expect(200);
+    expect(result.body.impedimentos.some((item: { codigo: string }) => item.codigo === 'SETOR_FIXO')).toBe(true);
+    await db.collection('profissionaisDaSaude').updateOne({ _id: ids.profissionalB }, { $set: { setorId: setorOriginalB } });
+    result = await http.get(`/trocas/${troca.id}/validacao`).set(auth(tokenCoord)).expect(200);
+    expect(result.body.impedimentos.some((item: { codigo: string }) => item.codigo === 'SETOR_FIXO')).toBe(false);
 
     await db.collection('profissionaisRelacionados').updateOne({ _id: ids.vinculoB }, { $set: { funcao: 'tecnico' } });
     result = await http.get(`/trocas/${troca.id}/validacao`).set(auth(tokenCoord)).expect(200);
