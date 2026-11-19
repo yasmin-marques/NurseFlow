@@ -8,7 +8,7 @@ Opcao = Literal["24h", "12d", "12n"]
 Turno = Literal["diurno", "noturno"]
 Funcao = Literal["enfermeiros", "tecnicos"]
 CAPACIDADE_ALOCACOES_FIXAS = "alocacoes_fixas"
-VERSAO_CONTRATO = 3
+VERSAO_CONTRATO = 4
 
 
 class Quantitativo(BaseModel):
@@ -16,15 +16,10 @@ class Quantitativo(BaseModel):
     tecnicos: int = Field(ge=0)
 
 
-class TurnosSetor(BaseModel):
-    diurno: Quantitativo
-    noturno: Quantitativo
-
-
 class Setor(BaseModel):
     id: str
     nome: str = ""
-    turnos: TurnosSetor
+    plantao24h: Quantitativo
 
 
 class TurnoBloqueado(BaseModel):
@@ -71,7 +66,6 @@ class Problema(BaseModel):
     dias_mes: int = Field(ge=28, le=31)
     profissionais: list[Profissional]
     setores: list[Setor]
-    turnos_selecionados: list[Turno] = Field(default_factory=lambda: ["diurno", "noturno"], min_length=1)
     parametros: Parametros = Field(default_factory=Parametros)
     alocacoes_fixas: list["AlocacaoFixa"] = Field(default_factory=list)
 
@@ -144,7 +138,7 @@ class Alocacao(BaseModel):
 class Descoberto(BaseModel):
     setor_id: str
     dia: int
-    turno: Turno
+    turno: Literal["24h"]
     funcao: Funcao
     necessario: int
     alocado: int

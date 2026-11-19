@@ -66,23 +66,32 @@ describe("Migrations", () => {
   });
 
   it("há migrations nomeadas com timestamp", () => {
-    expect(listarMigrations()).toHaveLength(11);
+    expect(listarMigrations()).toHaveLength(12);
     expect(listarMigrations()).toContain("20261101000009-restricoes-campos-estruturados.js");
     expect(listarMigrations()).toContain("20261101000010-trocas.js");
     expect(listarMigrations()).toContain("20261119000011-profissionais-setor-fixo.js");
+    expect(listarMigrations()).toContain("20261119000012-setores-minimo-plantao-24h.js");
   });
 
-  it('up: converte setores para quantitativo por turno e "desligado" para "desativado"', async () => {
-    await aplicarMigrations(banco.uri, "up");
+  it('up: consolida os quantitativos antigos no mínimo por plantão de 24h', async () => {
+    await aplicarMigrationsAte(banco.uri, "20261119000011-profissionais-setor-fixo.js");
+    await db.collection("setores").updateOne(
+      { nome: "Bloco A" },
+      {
+        $set: {
+          "turnos.diurno": { enfermeiros: 4, tecnicos: 2 },
+          "turnos.noturno": { enfermeiros: 2, tecnicos: 5 },
+        },
+      },
+    );
+    await aplicarMigrations(banco.uri, "up", "20261119000012-setores-minimo-plantao-24h.js");
 
     const setor = await db.collection("setores").findOne({ nome: "Bloco A" });
     expect(setor).toMatchObject({
       ativo: true,
-      turnos: {
-        diurno: { enfermeiros: 2, tecnicos: 3 },
-        noturno: { enfermeiros: 2, tecnicos: 3 },
-      },
+      plantao24h: { enfermeiros: 4, tecnicos: 5 },
     });
+    expect(setor).not.toHaveProperty("turnos");
     expect(setor).not.toHaveProperty("quantMinEnf");
     expect(setor).not.toHaveProperty("quantMinTec");
 
@@ -94,7 +103,7 @@ describe("Migrations", () => {
 
   it("up: aplica os validators e índices únicos", async () => {
     await expect(
-      db.collection("setores").insertOne({ nome: "Sem turnos", ativo: true }),
+      db.collection("setores").insertOne({ nome: "Sem quantitativo", ativo: true }),
     ).rejects.toThrow(/validation/i);
     await expect(
       db.collection("profissionaisDaSaude").insertOne({
@@ -110,10 +119,7 @@ describe("Migrations", () => {
       db.collection("setores").insertOne({
         nome: "bloco a",
         ativo: true,
-        turnos: {
-          diurno: { enfermeiros: 1, tecnicos: 1 },
-          noturno: { enfermeiros: 1, tecnicos: 1 },
-        },
+        plantao24h: { enfermeiros: 1, tecnicos: 1 },
       }),
     ).rejects.toThrow(/duplicate key/i);
   });
@@ -506,7 +512,7 @@ describe("Migrations", () => {
   it("down: restaura o modelo anterior sem perder dados", async () => {
     await aplicarMigrations(banco.uri, "down");
     const setor = await db.collection("setores").findOne({ nome: "Bloco A" });
-    expect(setor).toMatchObject({ quantMinEnf: 2, quantMinTec: 3 });
+    expect(setor).toMatchObject({ quantMinEnf: 4, quantMinTec: 5 });
     expect(setor).not.toHaveProperty("turnos");
     const profissional = await db
       .collection("profissionaisDaSaude")

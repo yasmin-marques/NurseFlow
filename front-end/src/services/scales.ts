@@ -2,6 +2,7 @@ import { api, apiDownload } from './api'
 
 export type ScaleStatus = 'rascunho' | 'em_revisao' | 'validada' | 'publicada' | 'finalizada'
 export type ScaleShift = 'diurno' | 'noturno'
+export type CoverageShift = '24h' | ScaleShift
 export type ShiftOption = '24h' | '12d' | '12n'
 export type ShiftType = 'regular' | 'extra'
 export type ShiftRole = 'enfermeiro' | 'tecnico'
@@ -18,7 +19,7 @@ export interface CoverageVacancy {
   setorId: string
   setor: string
   data: string
-  turno: ScaleShift
+  turno: CoverageShift
   funcao: 'enfermeiros' | 'tecnicos'
   necessario: number
   alocado: number
@@ -56,7 +57,7 @@ export interface ScheduleFinding {
   setorId?: string
   setor?: string
   data?: string
-  turno?: ScaleShift
+  turno?: CoverageShift
 }
 
 export interface ProfessionalWorkload {
@@ -137,7 +138,6 @@ export interface GenerateScaleInput {
   mes: number
   operacaoId?: string
   setorIds?: string[]
-  turnos?: ScaleShift[]
   substituirRascunho?: boolean
 }
 

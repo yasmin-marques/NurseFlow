@@ -123,10 +123,7 @@ describe('ExtrasService — Validações de Elegibilidade, Disponibilidade, Desc
       _id: dados._id ?? SETOR_PADRAO_ID,
       nome: 'UTI Adulto',
       ativo: true,
-      turnos: {
-        diurno: { enfermeiros: 2, tecnicos: 4 },
-        noturno: { enfermeiros: 2, tecnicos: 4 },
-      },
+      plantao24h: { enfermeiros: 2, tecnicos: 4 },
       ...dados,
     });
   }

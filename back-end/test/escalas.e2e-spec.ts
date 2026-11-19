@@ -73,10 +73,10 @@ class OtimizadorFalso extends OtimizadorEscala {
       }
     }
     return Promise.resolve({
-      versao_contrato: 3,
+      versao_contrato: 4,
       capacidades: ['alocacoes_fixas'],
       alocacoes,
-      descobertos: [{ setor_id: problema.setores[0].id, dia: 2, turno: 'noturno', funcao: 'tecnicos', necessario: 1, alocado: 0, faltam: 1 }],
+      descobertos: [{ setor_id: problema.setores[0].id, dia: 2, turno: '24h', funcao: 'tecnicos', necessario: 1, alocado: 0, faltam: 1 }],
       estatisticas: {
         status: 'OPTIMAL',
         otimo: true,
@@ -158,8 +158,8 @@ describe('Geração automática de escalas (e2e)', () => {
 
     // Setor fixo é obrigatório no cadastro: cria um setor de partida e o inativa (os testes atribuem os setores
     // desejados com `atribuirSetor`, e a geração ignora profissionais cujo setor está fora do escopo).
-    const turnosBase = { diurno: { enfermeiros: 0, tecnicos: 0 }, noturno: { enfermeiros: 0, tecnicos: 0 } };
-    const setorBase = (await http.post('/setores').set(auth(tokenCoord)).send({ nome: 'Setor de partida', turnos: turnosBase }).expect(201)).body.id as string;
+    const quantitativoBase = { enfermeiros: 0, tecnicos: 0 };
+    const setorBase = (await http.post('/setores').set(auth(tokenCoord)).send({ nome: 'Setor de partida', plantao24h: quantitativoBase }).expect(201)).body.id as string;
     const criar = async (nome: string, cpf: string, coren: string, formacao: string, email: string) =>
       (
         await http
@@ -197,7 +197,7 @@ describe('Geração automática de escalas (e2e)', () => {
       const setor = await http
         .post('/setores')
         .set(auth(tokenCoord))
-        .send({ nome: 'Setor de teste de remoção', turnos: { diurno: { enfermeiros: 1, tecnicos: 1 }, noturno: { enfermeiros: 1, tecnicos: 1 } } })
+        .send({ nome: 'Setor de teste de remoção', plantao24h: { enfermeiros: 1, tecnicos: 1 } })
         .expect(201);
       const criada = await http.post('/escalas').set(auth(tokenCoord)).send({ ano: 2027, mes: 1 }).expect(201);
       const escalaId = criada.body.escala.id as string;
@@ -319,7 +319,6 @@ describe('Geração automática de escalas (e2e)', () => {
 
       const problema = otimizador.problemas.at(-1)!;
       expect(problema.dias_mes).toBe(31);
-      expect(problema.turnos_selecionados).toEqual(['diurno', 'noturno']);
       const ana = problema.profissionais.find((p) => p.id === idEnf)!;
       expect(ana).toMatchObject({ carga_24h: 8, carga_12h: 0, max_extras: 2, max_plantoes: 10, dias_bloqueados: [10, 11, 12] });
       expect(problema.setores.map((s) => s.nome)).toEqual(['Emergência', 'UTI']);
@@ -356,16 +355,15 @@ describe('Geração automática de escalas (e2e)', () => {
       expect(await colecao('profissionaisRelacionados').countDocuments()).toBe(3);
     });
 
-    it('restringe geração aos setores e turnos solicitados e rejeita setores indisponíveis', async () => {
+    it('restringe geração aos setores solicitados e rejeita setores indisponíveis', async () => {
       await configurarCargas(2026, 9, 7, 30).expect(200);
-      const gerada = await gerar({ ano: 2026, mes: 9, setorIds: [setorA], turnos: ['diurno'] }).expect(201);
+      const gerada = await gerar({ ano: 2026, mes: 9, setorIds: [setorA] }).expect(201);
       const problema = otimizador.problemas.at(-1)!;
       expect(problema.setores.map((setor) => setor.id)).toEqual([setorA]);
-      expect(problema.setores[0].turnos.noturno.enfermeiros).toBe(1);
-      expect(problema.turnos_selecionados).toEqual(['diurno']);
-      expect(gerada.body.escopo).toEqual({ setorIds: [setorA], turnos: ['diurno'] });
+      expect(problema.setores[0].plantao24h.enfermeiros).toBe(1);
+      expect(gerada.body.escopo).toEqual({ setorIds: [setorA], turnos: ['diurno', 'noturno'] });
 
-      await gerar({ ano: 2026, mes: 8, setorIds: ['64b7f0f0f0f0f0f0f0f0f0f0'], turnos: ['diurno'] }).expect(422);
+      await gerar({ ano: 2026, mes: 8, setorIds: ['64b7f0f0f0f0f0f0f0f0f0f0'] }).expect(422);
       expect(await colecao('escalas').countDocuments({ ano: 2026, mes: 8 })).toBe(0);
     });
 
@@ -375,7 +373,7 @@ describe('Geração automática de escalas (e2e)', () => {
         data: '2028-02-01', opcao: '12d', setorId: setorB, funcao: 'enfermeiro', substitutoId: idEnfB, motivo: 'reforco',
       }).expect(201);
 
-      await gerar({ ano: 2028, mes: 2, setorIds: [setorA], turnos: ['diurno'] }).expect(201);
+      await gerar({ ano: 2028, mes: 2, setorIds: [setorA] }).expect(201);
       const problema = otimizador.problemas.at(-1)!;
       expect(problema.alocacoes_fixas).toEqual([]);
       expect(problema.profissionais.find((p) => p.id === idEnf)?.turnos_bloqueados).toContainEqual({ dia: 1, turno: 'diurno' });
@@ -408,7 +406,7 @@ describe('Geração automática de escalas (e2e)', () => {
 
     it('gera escalas em anos além de 2100 e aplica datas do calendário corretamente', async () => {
       await configurarCargas(9999, 12, 8).expect(200);
-      const gerada = await gerar({ ano: 9999, mes: 12, setorIds: [setorA], turnos: ['diurno'] }).expect(201);
+      const gerada = await gerar({ ano: 9999, mes: 12, setorIds: [setorA] }).expect(201);
 
       expect(gerada.body.escala).toMatchObject({ ano: 9999, mes: 12, status: 'rascunho' });
       expect(gerada.body.plantoes[0].data).toBe('9999-12-01');
@@ -1008,10 +1006,7 @@ describe('Geração automática de escalas (e2e)', () => {
         .set(auth(tokenCoord))
         .send({
           nome: 'Setor de teste de publicação',
-          turnos: {
-            diurno: { enfermeiros: 1, tecnicos: 1 },
-            noturno: { enfermeiros: 1, tecnicos: 1 },
-          },
+          plantao24h: { enfermeiros: 1, tecnicos: 1 },
         })
         .expect(201);
       setorPublicacao = setor.body.id;
@@ -1020,10 +1015,7 @@ describe('Geração automática de escalas (e2e)', () => {
         .set(auth(tokenCoord))
         .send({
           nome: 'Setor de teste de PDF',
-          turnos: {
-            diurno: { enfermeiros: 1, tecnicos: 1 },
-            noturno: { enfermeiros: 1, tecnicos: 1 },
-          },
+          plantao24h: { enfermeiros: 1, tecnicos: 1 },
         })
         .expect(201);
       setorPublicacaoB = segundoSetor.body.id;
@@ -1037,7 +1029,7 @@ describe('Geração automática de escalas (e2e)', () => {
         .send({ maxExtras: 2, limitePlantoes: 10 })
         .expect(200);
       await configurarCargas(ano, mes, 8, new Date(Date.UTC(ano, mes, 0)).getUTCDate()).expect(200);
-      return gerar({ ano, mes, setorIds, turnos: ['diurno'] }).expect(201);
+      return gerar({ ano, mes, setorIds }).expect(201);
     };
 
     const revisarEValidar = async (escala: { escala: { id: string; revisao: number } }) => {
@@ -1356,7 +1348,7 @@ describe('Geração automática de escalas (e2e)', () => {
         await http
           .post('/setores')
           .set(auth(tokenCoord))
-          .send({ nome, turnos: { diurno: { enfermeiros: 1, tecnicos: 0 }, noturno: { enfermeiros: 1, tecnicos: 0 } } })
+          .send({ nome, plantao24h: { enfermeiros: 1, tecnicos: 0 } })
           .expect(201)
       ).body.id as string;
 
@@ -1405,7 +1397,7 @@ describe('Geração automática de escalas (e2e)', () => {
       const setor = await http
         .post('/setores')
         .set(auth(tokenCoord))
-        .send({ nome: 'Setor de contrato incompatível', turnos: { diurno: { enfermeiros: 1, tecnicos: 0 }, noturno: { enfermeiros: 1, tecnicos: 0 } } })
+        .send({ nome: 'Setor de contrato incompatível', plantao24h: { enfermeiros: 1, tecnicos: 0 } })
         .expect(201);
       await atribuirSetor(setor.body.id);
       otimizador.respostaIncompativel = true;
@@ -1423,7 +1415,7 @@ describe('Geração automática de escalas (e2e)', () => {
       const setor = await http
         .post('/setores')
         .set(auth(tokenCoord))
-        .send({ nome: 'Setor de fingerprint', turnos: { diurno: { enfermeiros: 1, tecnicos: 0 }, noturno: { enfermeiros: 1, tecnicos: 0 } } })
+        .send({ nome: 'Setor de fingerprint', plantao24h: { enfermeiros: 1, tecnicos: 0 } })
         .expect(201);
       await atribuirSetor(setor.body.id);
       const extra = await http
@@ -1463,7 +1455,7 @@ describe('Geração automática de escalas (e2e)', () => {
         .set(auth(tokenCoord))
         .send({
           nome: 'Setor de teste de cancelamento',
-          turnos: { diurno: { enfermeiros: 1, tecnicos: 0 }, noturno: { enfermeiros: 1, tecnicos: 0 } },
+          plantao24h: { enfermeiros: 1, tecnicos: 0 },
         })
         .expect(201);
       await atribuirSetor(setor.body.id);

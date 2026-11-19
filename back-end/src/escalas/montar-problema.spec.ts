@@ -39,7 +39,7 @@ const prof = (id: string, tipoVinculo: TipoVinculo, extra: Partial<ProfissionalE
 const setor = {
   id: 's1',
   nome: 'UTI',
-  turnos: { diurno: { enfermeiros: 2, tecnicos: 1 }, noturno: { enfermeiros: 2, tecnicos: 1 } },
+  plantao24h: { enfermeiros: 2, tecnicos: 1 },
 };
 
 const dia = (d: number, h = 0, m = 0) => new Date(Date.UTC(2026, 9, d, h, m));
@@ -75,7 +75,7 @@ describe('configurações vigentes → problema de otimização', () => {
     );
     expect(problema.dias_mes).toBe(31);
     const [c, l, r] = problema.profissionais;
-    expect([c.carga_24h, c.carga_12h]).toEqual([6, 1]);
+    expect([c.carga_24h, c.carga_12h]).toEqual([6, 0]);
     expect([l.carga_24h, l.carga_12h]).toEqual([8, 0]);
     expect([r.carga_24h, r.carga_12h]).toEqual([0, 0]); // RPA: sem carga fixa
     expect([c.max_extras, l.max_extras, r.max_extras]).toEqual([2, 2, 2]);
@@ -92,8 +92,8 @@ describe('configurações vigentes → problema de otimização', () => {
     });
     const { problema } = montarProblema(entrada([prof('c', TipoVinculo.CONCURSADO), prof('l', TipoVinculo.CLT)], { configuracao: cfg }));
     const [c, l] = problema.profissionais;
-    expect([c.carga_24h, c.carga_12h, c.max_extras]).toEqual([5, 2, 4]);
-    expect([l.carga_24h, l.carga_12h, l.max_extras]).toEqual([7, 1, 1]);
+    expect([c.carga_24h, c.carga_12h, c.max_extras]).toEqual([5, 0, 4]);
+    expect([l.carga_24h, l.carga_12h, l.max_extras]).toEqual([7, 0, 1]);
     expect(c.max_plantoes).toBe(0);
   });
 
@@ -218,7 +218,7 @@ describe('validação prévia', () => {
   it('rejeita sem setores ativos, sem quantitativo ou sem profissionais ativos', () => {
     const base = entrada([prof('c', TipoVinculo.CLT)]);
     expect(validarEntrada({ ...base, setores: [] })).toHaveLength(1);
-    const zerado = { ...setor, turnos: { diurno: { enfermeiros: 0, tecnicos: 0 }, noturno: { enfermeiros: 0, tecnicos: 0 } } };
+    const zerado = { ...setor, plantao24h: { enfermeiros: 0, tecnicos: 0 } };
     expect(validarEntrada({ ...base, setores: [zerado] }).join(' ')).toMatch(/quantitativo/);
     expect(validarEntrada({ ...base, profissionais: [prof('x', TipoVinculo.CLT, { status: StatusProfissional.AFASTADO })] }).join(' ')).toMatch(/ativos/);
   });

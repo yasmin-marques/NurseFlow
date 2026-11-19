@@ -150,14 +150,12 @@ export class EscalasService {
     const administradorId = await this.administradorDe(usuario.id);
     const configuracao = await this.configuracoes.consultar(periodo.ano, periodo.mes);
     const setoresAtivos = await this.setores.find({ ativo: true }).lean().exec();
-    const turnos: ('diurno' | 'noturno')[] = ['diurno', 'noturno'];
     const pendencias = calcularPendenciasCobertura({
       ...periodo,
-      setores: setoresAtivos.map((setor) => ({ id: String(setor._id), nome: setor.nome, turnos: setor.turnos })),
+      setores: setoresAtivos.map((setor) => ({ id: String(setor._id), nome: setor.nome, plantao24h: setor.plantao24h })),
       alocacoes: [],
-      turnos,
     });
-    const cobertura = resumirCobertura({ ...periodo, setores: setoresAtivos, turnos, pendencias });
+    const cobertura = resumirCobertura({ ...periodo, setores: setoresAtivos, pendencias });
     try {
       const escala = await this.escalas.create({
         ...periodo,
@@ -166,7 +164,7 @@ export class EscalasService {
         geracao: {
           origem: 'manual',
           configuracao,
-          escopo: { setorIds: setoresAtivos.map((setor) => String(setor._id)), turnos },
+          escopo: { setorIds: setoresAtivos.map((setor) => String(setor._id)), turnos: ['diurno', 'noturno'] },
           resumo: { alocacoes: 0, vagasDescobertas: pendencias.length, extras: 0, cobertura },
           pendencias,
         },
@@ -1254,16 +1252,14 @@ export class EscalasService {
       setores: setoresDoEscopo.map((item) => ({
         id: String(item._id),
         nome: item.nome,
-        turnos: item.turnos,
+        plantao24h: item.plantao24h,
       })),
       alocacoes,
-      turnos: escopoAtualizado.turnos,
     });
     const cobertura = resumirCobertura({
       ano: escala.ano,
       mes: escala.mes,
       setores: setoresDoEscopo,
-      turnos: escopoAtualizado.turnos,
       pendencias,
     });
     const configuracao =
@@ -1436,30 +1432,19 @@ export class EscalasService {
       .lean()
       .exec();
     const setorIdsDoEscopo = new Set(geracao.escopo?.setorIds ?? setores.filter((item) => item.ativo).map((item) => String(item._id)));
-    const turnosDoEscopo = new Set<'diurno' | 'noturno'>(geracao.escopo?.turnos ?? ['diurno', 'noturno']);
-    for (const plantao of plantoesProjetados) {
-      setorIdsDoEscopo.add(plantao.setorId);
-      if (plantao.duracaoHoras >= 24) {
-        turnosDoEscopo.add('diurno');
-        turnosDoEscopo.add('noturno');
-      } else {
-        turnosDoEscopo.add(plantao.horarioInicio === '07:00' ? 'diurno' : 'noturno');
-      }
-    }
+    for (const plantao of plantoesProjetados) setorIdsDoEscopo.add(plantao.setorId);
     const setoresDoEscopo = setores.filter((item) => setorIdsDoEscopo.has(String(item._id)));
-    const turnos = [...turnosDoEscopo];
     const pendencias = calcularPendenciasCobertura({
       ano: escala.ano,
       mes: escala.mes,
       setores: setoresDoEscopo.map((item) => ({
         id: String(item._id),
         nome: item.nome,
-        turnos: item.turnos,
+        plantao24h: item.plantao24h,
       })),
       alocacoes,
-      turnos,
     });
-    const cobertura = resumirCobertura({ ano: escala.ano, mes: escala.mes, setores: setoresDoEscopo, turnos, pendencias });
+    const cobertura = resumirCobertura({ ano: escala.ano, mes: escala.mes, setores: setoresDoEscopo, pendencias });
     return { cobertura, pendencias };
   }
 

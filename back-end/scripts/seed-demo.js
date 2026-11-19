@@ -162,9 +162,9 @@ async function seed() {
     ];
     for (const [nome, descricao, dia, noite] of setores) {
       await db.collection('setores').updateOne({ nome }, { $setOnInsert: {
-        nome, descricao, turnos: {
-          diurno: { enfermeiros: dia[0], tecnicos: dia[1] },
-          noturno: { enfermeiros: noite[0], tecnicos: noite[1] },
+        nome, descricao, plantao24h: {
+          enfermeiros: Math.max(dia[0], noite[0]),
+          tecnicos: Math.max(dia[1], noite[1]),
         }, ativo: true, createdAt: ts, updatedAt: ts,
       } }, { upsert: true });
     }
@@ -175,7 +175,7 @@ async function seed() {
     const setorPorNome = new Map(setorDocs.map((s) => [s.nome, s._id]));
     for (const [formacaoDemo, indiceFuncao] of [['enfermeiro', 0], ['tecnico', 1]]) {
       const grupo = PEOPLE.filter((pessoa) => pessoa[2] === formacaoDemo);
-      const pesos = setores.map(([, , dia, noite]) => dia[indiceFuncao] + noite[indiceFuncao]);
+      const pesos = setores.map(([, , dia, noite]) => Math.max(dia[indiceFuncao], noite[indiceFuncao]));
       const cotas = repartir(grupo.length, pesos);
       let cursor = 0;
       for (let s = 0; s < setores.length; s++) {

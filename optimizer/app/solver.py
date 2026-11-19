@@ -2,9 +2,9 @@
 
 Unidade de decisão: o profissional `p` inicia, no dia `d`, um plantão do tipo `o` no setor `s`.
 
-  24h  07:00 -> 07:00 (dia seguinte)  cobre o turno diurno E o noturno de `d`
-  12d  07:00 -> 19:00                 cobre o turno diurno de `d`
-  12n  19:00 -> 07:00 (dia seguinte)  cobre o turno noturno de `d`
+  24h  07:00 -> 07:00 (dia seguinte)  cobre o mínimo diário do setor
+  12d  07:00 -> 19:00                 extra de cobertura diurna previamente fixado
+  12n  19:00 -> 07:00 (dia seguinte)  extra de cobertura noturna previamente fixado
 
 Restrições obrigatórias (duras):
   * setor fixo: o profissional só é alocado no setor do seu cadastro (`setor_id`) — as variáveis de
@@ -12,13 +12,14 @@ Restrições obrigatórias (duras):
   * cada plantão ocupa um único setor e o profissional não faz dois plantões ao mesmo tempo;
   * descanso mínimo após cada plantão: 72 h após 24h (regime 24x72) e 36 h após 12h;
   * dia ou turno de início bloqueado (férias, ausência, indisponibilidade, vínculo externo...) não é alocado;
-  * disponibilidade por turno e dias fixos recorrentes respeitados na seleção de opções;
+  * disponibilidade por turno e dias fixos recorrentes respeitados;
   * descanso herdado do mês anterior;
   * teto de extras por profissional e teto total de plantões no mês;
   * cada função (enfermeiro/técnico) só é coberta por profissionais da respectiva formação.
 
 O quantitativo mínimo é flexibilizado por uma variável de folga: se faltar gente, a vaga é
-devolvida como "descoberta" em vez de violar uma restrição dura.
+devolvida como "descoberta" em vez de violar uma restrição dura. A escala regular não ultrapassa
+esse quantitativo; alocações fixas são preservadas mesmo se excederem a demanda.
 
 Objetivo (em ordem de importância): menos vagas descobertas > menos extras > carga regular
 completa > menos sobra de cobertura > extras distribuídos de forma equilibrada.
@@ -126,9 +127,15 @@ def resolver(problema: Problema) -> Solucao:
 
     x: dict[tuple[int, int, int, str], cp_model.IntVar] = {}  # (p, s, d, o)
     y: dict[tuple[int, int, str], cp_model.IntVar] = {}  # (p, d, o): inicia plantão em algum setor
-    turnos_selecionados = set(problema.turnos_selecionados)
-
     setor_por_id = {s.id: si for si, s in enumerate(setores)}
+    prof_por_id = {p.id: pi for pi, p in enumerate(profs)}
+    fixas_por_chave: dict[tuple[int, int, int, str], str] = {}
+    for fixa in problema.alocacoes_fixas:
+        chave = (prof_por_id[fixa.profissional_id], setor_por_id[fixa.setor_id], fixa.dia - 1, fixa.opcao)
+        if chave in fixas_por_chave:
+            raise RuntimeError(f"Alocações fixas incompatíveis para o extra {fixa.extra_id}.")
+        fixas_por_chave[chave] = fixa.extra_id
+
     for pi, p in enumerate(profs):
         # Setor fixo (restrição dura): sem setor válido no problema, o profissional não é elegível.
         setores_elegiveis = [setor_por_id[p.setor_id]] if p.setor_id in setor_por_id else []
@@ -137,10 +144,11 @@ def resolver(problema: Problema) -> Solucao:
         for d in range(n):
             if (d + 1) in bloqueados:
                 continue
-            for o in OPCOES:
+            opcoes = ("24h",) + tuple(
+                o for p_i, _si, dia, o in fixas_por_chave if p_i == pi and dia == d and o != "24h"
+            )
+            for o in opcoes:
                 turnos_opcao = set(cobre(o))
-                if not turnos_opcao.issubset(turnos_selecionados):
-                    continue
                 if any((d + 1, t) in turnos_bloq for t in turnos_opcao):
                     continue
                 if janela(d, o)[0] < p.livre_a_partir_horas:
@@ -155,17 +163,11 @@ def resolver(problema: Problema) -> Solucao:
                     modelo.Add(sum(por_setor) == yv)
                     y[(pi, d, o)] = yv
 
-    prof_por_id = {p.id: pi for pi, p in enumerate(profs)}
-    fixas_por_chave: dict[tuple[int, int, int, str], str] = {}
-    for fixa in problema.alocacoes_fixas:
-        chave = (prof_por_id[fixa.profissional_id], setor_por_id[fixa.setor_id], fixa.dia - 1, fixa.opcao)
-        if chave in fixas_por_chave:
-            raise RuntimeError(f"Alocações fixas incompatíveis para o extra {fixa.extra_id}.")
+    for chave, extra_id in fixas_por_chave.items():
         if chave not in x:
             raise RuntimeError(
-                f"Alocação fixa inviável: {fixa.extra_id} não pode iniciar no dia/turno informado."
+                f"Alocação fixa inviável: {extra_id} não pode iniciar no dia/turno informado."
             )
-        fixas_por_chave[chave] = fixa.extra_id
         modelo.Add(x[chave] == 1)
 
     conflitos = pares_em_conflito(n, par.descanso_apos_24h, par.descanso_apos_12h)
@@ -177,30 +179,36 @@ def resolver(problema: Problema) -> Solucao:
 
     objetivo = []
 
-    # Índices para somar rapidamente a cobertura de cada (setor, dia, turno, formação).
-    cobertura_de: dict[tuple[int, int, str, str], list[cp_model.IntVar]] = defaultdict(list)
+    # Índices de cobertura por (setor, dia, formação), separados entre escala regular e fixa.
+    cobertura_regular_de: dict[tuple[int, int, str], list[cp_model.IntVar]] = defaultdict(list)
+    cobertura_fixa_de: dict[tuple[int, int, str], list[cp_model.IntVar]] = defaultdict(list)
     for (pi, si, d, o), v in x.items():
-        for turno in cobre(o):
-            cobertura_de[(si, d, turno, profs[pi].formacao)].append(v)
+        if o == "24h":
+            chave = (si, d, profs[pi].formacao)
+            if (pi, si, d, o) in fixas_por_chave:
+                cobertura_fixa_de[chave].append(v)
+            else:
+                cobertura_regular_de[chave].append(v)
 
     folgas = {}
     for si, setor in enumerate(setores):
         for d in range(n):
-            for turno in ("diurno", "noturno"):
-                if turno not in turnos_selecionados:
-                    continue
-                quant = getattr(setor.turnos, turno)
-                for funcao, formacao in (("enfermeiros", "enfermeiro"), ("tecnicos", "tecnico")):
-                    necessario = getattr(quant, funcao)
-                    cobertura = sum(cobertura_de.get((si, d, turno, formacao), []))
-                    sobra = modelo.NewIntVar(0, max(len(profs), 1), f"sobra_{si}_{d}_{turno}_{funcao}")
-                    modelo.Add(sobra >= cobertura - necessario)
-                    objetivo.append(PESO_SOBRA * sobra)
-                    if necessario > 0:
-                        folga = modelo.NewIntVar(0, necessario, f"folga_{si}_{d}_{turno}_{funcao}")
-                        modelo.Add(cobertura + folga >= necessario)
-                        objetivo.append(PESO_DESCOBERTO * folga)
-                        folgas[(si, d, turno, funcao)] = (folga, necessario)
+            quant = setor.plantao24h
+            for funcao, formacao in (("enfermeiros", "enfermeiro"), ("tecnicos", "tecnico")):
+                necessario = getattr(quant, funcao)
+                chave = (si, d, formacao)
+                cobertura_regular = sum(cobertura_regular_de.get(chave, []))
+                cobertura_fixa = cobertura_fixa_de.get(chave, [])
+                cobertura = cobertura_regular + sum(cobertura_fixa)
+                modelo.Add(cobertura_regular <= max(0, necessario - len(cobertura_fixa)))
+                sobra = modelo.NewIntVar(0, max(len(profs), 1), f"sobra_{si}_{d}_{funcao}")
+                modelo.Add(sobra >= cobertura - necessario)
+                objetivo.append(PESO_SOBRA * sobra)
+                if necessario > 0:
+                    folga = modelo.NewIntVar(0, necessario, f"folga_{si}_{d}_{funcao}")
+                    modelo.Add(cobertura + folga >= necessario)
+                    objetivo.append(PESO_DESCOBERTO * folga)
+                    folgas[(si, d, "24h", funcao)] = (folga, necessario)
 
     # Carga regular, extras e teto de plantões por profissional.
     por_prof_vars: dict[int, list[tuple[str, cp_model.IntVar]]] = defaultdict(list)

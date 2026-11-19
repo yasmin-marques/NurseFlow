@@ -7,23 +7,16 @@ export type SectorMinimum = {
     technicians: number;
 };
 
-export type SectorShift = {
-    id: "day" | "night";
-    label: string;
-    hours: string;
-    minimum: SectorMinimum;
-};
-
 type EditSectorMinimumModalProps = {
     sectorName: string;
-    shift: SectorShift;
+    minimum: SectorMinimum;
     onClose: () => void;
     onSave: (minimum: SectorMinimum) => void | Promise<void>;
 };
 
-export function EditSectorMinimumModal({ sectorName, shift, onClose, onSave }: EditSectorMinimumModalProps) {
-    const [nurses, setNurses] = useState(shift.minimum.nurses);
-    const [technicians, setTechnicians] = useState(shift.minimum.technicians);
+export function EditSectorMinimumModal({ sectorName, minimum, onClose, onSave }: EditSectorMinimumModalProps) {
+    const [nurses, setNurses] = useState(minimum.nurses);
+    const [technicians, setTechnicians] = useState(minimum.technicians);
     const [error, setError] = useState("");
     const [saving, setSaving] = useState(false);
 
@@ -57,9 +50,9 @@ export function EditSectorMinimumModal({ sectorName, shift, onClose, onSave }: E
                 <header className="flex items-center justify-between border-b border-border px-6 py-5">
                     <div>
                         <h2 id="minimum-modal-title" className="text-base font-bold text-text">
-                            Editar mínimo {shift.label.toLocaleLowerCase("pt-BR")} · {sectorName}
+                            Editar mínimo por plantão de 24h · {sectorName}
                         </h2>
-                        <p className="mt-1 text-xs text-text-muted">Defina a quantidade obrigatória por função e turno</p>
+                        <p className="mt-1 text-xs text-text-muted">Defina a quantidade mínima simultânea por função</p>
                     </div>
                     <button type="button" onClick={onClose} aria-label="Fechar edição de mínimo" className="rounded-xl border border-border p-2 text-text-muted hover:bg-card-header">
                         <X className="size-5" />
@@ -72,7 +65,7 @@ export function EditSectorMinimumModal({ sectorName, shift, onClose, onSave }: E
                             <Clock className="size-5" />
                         </span>
                         <div>
-                            <p className="text-[11px] font-bold text-text">Turno {shift.label.toLocaleLowerCase("pt-BR")} · {shift.hours}</p>
+                            <p className="text-[11px] font-bold text-text">Plantão contínuo de 24 horas · 07h às 07h</p>
                             <p className="mt-1 text-[10px] leading-relaxed text-text-muted">O sistema usará estes números para gerar a escala e identificar cobertura insuficiente.</p>
                         </div>
                     </div>
@@ -102,7 +95,7 @@ export function EditSectorMinimumModal({ sectorName, shift, onClose, onSave }: E
 
                     <div className="flex items-center gap-2 rounded-xl bg-[#e5f2dc] px-3 py-3 text-[10px] leading-relaxed text-[#356c39]">
                         <Check className="size-4 shrink-0" strokeWidth={2.4} />
-                        Escalas abaixo de {nurses} enfermeiros ou {technicians} técnicos neste turno serão sinalizadas como irregulares.
+                        Plantões abaixo de {nurses} enfermeiros ou {technicians} técnicos serão sinalizados como irregulares.
                     </div>
                 </div>
 

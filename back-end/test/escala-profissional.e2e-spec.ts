@@ -46,7 +46,7 @@ describe('Escala do profissional (e2e)', () => {
     const coord = await usuarios.criar({ nome: 'Coordenação', email: 'coord-ep@nurseflow.com', cpf: '11144477735', senha: await AuthService.gerarHashSenha(SENHA), tipoUsuario: TipoUsuario.ADMINISTRADOR });
     await usuarios.criarAdministrador(coord._id);
     tokenCoord = await login('coord-ep@nurseflow.com', 'coordenacao');
-    const setor = await http.post('/setores').set(auth(tokenCoord)).send({ nome: 'Setor A', turnos: { diurno: { enfermeiros: 0, tecnicos: 0 }, noturno: { enfermeiros: 0, tecnicos: 0 } } }).expect(201);
+    const setor = await http.post('/setores').set(auth(tokenCoord)).send({ nome: 'Setor A', plantao24h: { enfermeiros: 0, tecnicos: 0 } }).expect(201);
     const setorId = new ObjectId(setor.body.id);
     const criar = async (nome: string, cpf: string, coren: string, formacao: string, email: string) =>
       new ObjectId((await http.post('/profissionais').set(auth(tokenCoord)).send({ nome, cpf, coren, formacao, tipoVinculo: 'clt', email, senha: SENHA, setorId: setor.body.id }).expect(201)).body.id);

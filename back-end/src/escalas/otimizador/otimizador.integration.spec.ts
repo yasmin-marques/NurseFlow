@@ -38,7 +38,7 @@ describe('integração HTTP NestJS → otimizador', () => {
     } as unknown as ConfigService<AppConfig, true>;
     const otimizador = new OtimizadorHttp(config);
     const problema = {
-      versao_contrato: 3,
+      versao_contrato: 4,
       capacidades: ['alocacoes_fixas'],
       ano: 2031,
       mes: 1,

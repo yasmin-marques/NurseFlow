@@ -40,7 +40,7 @@ def problema_demo(ano: int, mes: int, dias_mes: int) -> Problema:
             "ano": ano,
             "mes": mes,
             "dias_mes": dias_mes,
-            "versao_contrato": 3,
+            "versao_contrato": 4,
             "capacidades": ["alocacoes_fixas"],
             "alocacoes_fixas": [],
             "profissionais": profissionais(dias_mes),
@@ -48,10 +48,7 @@ def problema_demo(ano: int, mes: int, dias_mes: int) -> Problema:
                 {
                     "id": setor,
                     "nome": setor,
-                    "turnos": {
-                        "diurno": {"enfermeiros": 1, "tecnicos": 1},
-                        "noturno": {"enfermeiros": 1, "tecnicos": 1},
-                    },
+                    "plantao24h": {"enfermeiros": 1, "tecnicos": 1},
                 }
                 for setor in SETORES
             ],

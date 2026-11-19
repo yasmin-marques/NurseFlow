@@ -79,7 +79,7 @@ function distribuir(plano, setores) {
   const porSetor = new Map(setores.map((s) => [String(s._id), 0]));
   for (const [formacao, funcao] of [['enfermeiro', 'enfermeiros'], ['tecnico', 'tecnicos']]) {
     const grupo = plano.filter((p) => p.formacao === formacao);
-    const pesos = setores.map((s) => (s.turnos?.diurno?.[funcao] ?? 0) + (s.turnos?.noturno?.[funcao] ?? 0));
+    const pesos = setores.map((s) => s.plantao24h?.[funcao] ?? 0);
     const cotas = repartir(grupo.length, pesos);
     let cursor = 0;
     setores.forEach((setor, idx) => {

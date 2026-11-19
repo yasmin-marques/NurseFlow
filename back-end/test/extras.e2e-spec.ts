@@ -56,10 +56,7 @@ describe('Extras programados (e2e)', () => {
       .set(auth(tokenCoord))
       .send({
         nome: 'UTI Pediátrica Extras',
-        turnos: {
-          diurno: { enfermeiros: 2, tecnicos: 4 },
-          noturno: { enfermeiros: 1, tecnicos: 2 },
-        },
+        plantao24h: { enfermeiros: 2, tecnicos: 4 },
       })
       .expect(201);
     setorId = setorResp.body.id;

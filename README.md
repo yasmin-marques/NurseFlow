@@ -522,7 +522,7 @@ Os parâmetros são armazenados com chave `<vínculo>_<diasDoMês>` (por exemplo
 ### Gerar uma escala demonstrativa
 
 1. Entre na interface como `admin@nurseflow.test` e selecione perfil Coordenação.
-2. Gere um mês de **2026**, selecionando os setores e turnos desejados.
+2. Gere um mês de **2026**, selecionando os setores desejados; os mínimos são aplicados por plantão de 24h.
 3. Revise as vagas descobertas e os conflitos retornados. A escala do mês anterior influencia o descanso herdado; o seed não cria nem remove escalas. Se o período já tiver escala, escolha outro mês ou use um banco local de demonstração.
 
 ### Restrições de demonstração (outubro de 2026)

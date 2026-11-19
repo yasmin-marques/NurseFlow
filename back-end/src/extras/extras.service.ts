@@ -325,17 +325,15 @@ export class ExtrasService {
       setores: setoresDoEscopo.map((item) => ({
         id: String(item._id),
         nome: item.nome,
-        turnos: item.turnos,
+        plantao24h: item.plantao24h,
       })),
       alocacoes,
-      turnos: escopoAtualizado.turnos,
     });
 
     const cobertura = resumirCobertura({
       ano: escala.ano,
       mes: escala.mes,
       setores: setoresDoEscopo,
-      turnos: escopoAtualizado.turnos,
       pendencias,
     });
 

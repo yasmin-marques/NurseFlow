@@ -440,9 +440,9 @@ export class TrocasService {
     }) : [];
     erros.forEach((mensagem) => impedimentos.push({ codigo: 'REGRA_ESCALA', mensagem }));
     const coberturaAntes = calcularPendenciasCobertura({ ano: escala.ano, mes: escala.mes,
-      setores: setores.map((s) => ({ id: String(s._id), nome: s.nome, turnos: s.turnos })),
+      setores: setores.map((s) => ({ id: String(s._id), nome: s.nome, plantao24h: s.plantao24h })),
       alocacoes: vinculosMes.flatMap((v) => { const p = plantoesMes.find((x) => String(x._id) === String(v.plantaoId)); const prof = profPorId.get(String(v.profissionalId)); if (!p || !prof) return []; return [{ profissional: profEntrada(String(v.profissionalId)), funcao: v.funcao as Formacao, data: p.data, horarioInicio: p.horarioInicio, duracaoHoras: p.duracaoHoras, tipo: p.tipo, setorId: String(p.setorId) }]; }) });
-    const coberturaDepois = calcularPendenciasCobertura({ ano: escala.ano, mes: escala.mes, setores: setores.map((s) => ({ id: String(s._id), nome: s.nome, turnos: s.turnos })), alocacoes });
+    const coberturaDepois = calcularPendenciasCobertura({ ano: escala.ano, mes: escala.mes, setores: setores.map((s) => ({ id: String(s._id), nome: s.nome, plantao24h: s.plantao24h })), alocacoes });
     const faltasAntes = new Map(coberturaAntes.map((x) => [`${x.setorId}|${x.data}|${x.turno}|${x.funcao}`, x.faltam]));
     for (const falta of coberturaDepois) {
       const antes = faltasAntes.get(`${falta.setorId}|${falta.data}|${falta.turno}|${falta.funcao}`) ?? 0;

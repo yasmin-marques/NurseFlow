@@ -110,10 +110,7 @@ describe('ExtrasService — Conciliação de Extras Programados com Escalas (Eta
         _id: dados._id ?? SETOR_PADRAO_ID,
         nome: dados.nome ?? 'UTI Geral',
         ativo: dados.ativo ?? true,
-        turnos: dados.turnos ?? {
-          diurno: { enfermeiros: 1, tecnicos: 2 },
-          noturno: { enfermeiros: 1, tecnicos: 2 },
-        },
+        plantao24h: dados.plantao24h ?? { enfermeiros: 1, tecnicos: 2 },
       },
     ]);
     return s;

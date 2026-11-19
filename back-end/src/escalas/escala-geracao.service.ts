@@ -160,17 +160,13 @@ export class EscalaGeracaoService {
         erros: ['Selecione somente setores ativos cadastrados.'],
       });
     }
-    const turnosSelecionados = dto.turnos ?? ['diurno', 'noturno'];
     const setores = setoresDocs.map((setor) => ({
       id: String(setor._id),
       nome: setor.nome,
-      turnos: {
-        diurno: { enfermeiros: setor.turnos.diurno.enfermeiros, tecnicos: setor.turnos.diurno.tecnicos },
-        noturno: { enfermeiros: setor.turnos.noturno.enfermeiros, tecnicos: setor.turnos.noturno.tecnicos },
-      },
+      plantao24h: { enfermeiros: setor.plantao24h.enfermeiros, tecnicos: setor.plantao24h.tecnicos },
     }));
 
-    const erros = validarEntrada({ ano, mes, profissionais, setores, configuracao, turnosSelecionados });
+    const erros = validarEntrada({ ano, mes, profissionais, setores, configuracao });
     if (erros.length > 0) {
       throw new UnprocessableEntityException({ message: 'Dados insuficientes para gerar a escala.', erros });
     }
@@ -197,7 +193,6 @@ export class EscalaGeracaoService {
       configuracao,
       plantoesAnteriores: await this.plantoesDoMesAnterior(ano, mes, inicioMes),
       tempoLimiteSegundos: this.config.get('otimizador', { infer: true }).tempoLimiteSegundos,
-      turnosSelecionados,
     });
 
     problema.operacao_id = dto.operacaoId;
@@ -218,7 +213,7 @@ export class EscalaGeracaoService {
       faltam: descoberto.faltam,
       motivo: 'Quantitativo mínimo não atingido sem violar as restrições obrigatórias.',
     }));
-    const cobertura = resumirCobertura({ ano, mes, setores, turnos: turnosSelecionados, pendencias });
+    const cobertura = resumirCobertura({ ano, mes, setores, pendencias });
 
     const cargas = solucao.estatisticas.cargas.map((carga) => {
       const profissional = porId.get(carga.profissional_id)!;
@@ -253,7 +248,7 @@ export class EscalaGeracaoService {
       geradaEm: new Date(),
       geradaPor: usuario.id,
       configuracao,
-      escopo: { setorIds: setores.map((setor) => setor.id), turnos: turnosSelecionados },
+      escopo: { setorIds: setores.map((setor) => setor.id), turnos: ['diurno', 'noturno'] },
       resumo: {
         alocacoes: solucao.estatisticas.total_alocacoes,
         vagasDescobertas: solucao.estatisticas.total_descobertos,
