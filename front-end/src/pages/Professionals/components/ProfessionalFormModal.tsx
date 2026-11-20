@@ -106,11 +106,11 @@ export function ProfessionalFormModal({ professional, isCreating = false, onClos
                     <div className="flex-1 space-y-4 overflow-y-auto px-6 py-5">
                         <label className="block text-[11px] font-semibold text-text">
                             Nome completo <span className="text-danger">*</span>
-                            <input required value={form.name} onChange={(event) => update("name", event.target.value)} className={inputClassName} />
+                            <input required value={form.name} readOnly={!isCreating} onChange={(event) => update("name", event.target.value)} className={`${inputClassName} ${!isCreating ? "cursor-not-allowed bg-neutral" : ""}`} />
                         </label>
                         <label className="block text-[11px] font-semibold text-text">
                             CPF <span className="text-danger">*</span>
-                            <input required value={form.cpf} onChange={(event) => update("cpf", event.target.value)} className={inputClassName} />
+                            <input required value={form.cpf} readOnly={!isCreating} onChange={(event) => update("cpf", event.target.value)} className={`${inputClassName} ${!isCreating ? "cursor-not-allowed bg-neutral" : ""}`} />
                         </label>
 
                         <label className="block text-[11px] font-semibold text-text">
@@ -121,7 +121,7 @@ export function ProfessionalFormModal({ professional, isCreating = false, onClos
                         <div className="grid grid-cols-2 gap-3">
                             <label className="block text-[11px] font-semibold text-text">
                                 COREN <span className="text-danger">*</span>
-                                <input required value={form.coren} onChange={(event) => update("coren", event.target.value)} className={inputClassName} />
+                                <input required value={form.coren} readOnly={!isCreating} onChange={(event) => update("coren", event.target.value)} className={`${inputClassName} ${!isCreating ? "cursor-not-allowed bg-neutral" : ""}`} />
                             </label>
                             <div className="block text-[11px] font-semibold text-text">
                                 <span>Tipo de vínculo <span className="text-danger">*</span></span>

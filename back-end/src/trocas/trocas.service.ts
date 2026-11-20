@@ -248,7 +248,6 @@ export class TrocasService {
     const existente = await this.trocas.findById(id).lean().exec();
     if (!existente) throw new NotFoundException('Solicitação de troca não encontrada.');
     if (existente.status === StatusTroca.RECUSADA_PELA_COORDENACAO && existente.chaveIdempotencia === dto.operacaoId) return this.detalhe(id);
-    if (!dto.justificativa.trim()) throw new UnprocessableEntityException('Informe o motivo da recusa.');
     try { await executarTransacao(this.connection, async (session) => {
       const troca = await this.trocas.findById(id).session(session).lean().exec();
       if (!troca) throw new NotFoundException('Solicitação de troca não encontrada.');
@@ -269,18 +268,18 @@ export class TrocasService {
       const agora = new Date();
       const atualizada = await this.trocas.updateOne({ _id: troca._id, status: StatusTroca.AGUARDANDO_COORDENACAO }, { $set: {
         status: StatusTroca.RECUSADA_PELA_COORDENACAO, chaveIdempotencia: dto.operacaoId,
-        decisaoCoordenacao: { resultado: 'recusada', usuarioId: new Types.ObjectId(usuario.id), decididaEm: agora, justificativa: dto.justificativa.trim(), versoesEscala: [{ ano: escala.ano, mes: escala.mes, numero: escala.versaoPublicada }] },
+        decisaoCoordenacao: { resultado: 'recusada', usuarioId: new Types.ObjectId(usuario.id), decididaEm: agora, justificativa: dto.justificativa?.trim() || undefined, versoesEscala: [{ ano: escala.ano, mes: escala.mes, numero: escala.versaoPublicada }] },
       } }, { session });
       if (atualizada.modifiedCount !== 1) throw new ConflictException('A solicitação foi decidida por outra operação.');
       const versoesEscala = [{ ano: escala.ano, mes: escala.mes, numero: escala.versaoPublicada }];
       await this.auditoriasTroca.create([{ solicitacaoId: troca._id, usuarioId: new Types.ObjectId(usuario.id), resultado: 'recusada', decididaEm: agora,
-        justificativa: dto.justificativa.trim(), excecaoLimite: false, operacaoId: dto.operacaoId,
+        justificativa: dto.justificativa?.trim() || undefined, excecaoLimite: false, operacaoId: dto.operacaoId,
         vinculos: [{ vinculoId: String(va._id), plantaoId: String(pa._id), profissionalId: String(va.profissionalId) }, { vinculoId: String(vb._id), plantaoId: String(pb._id), profissionalId: String(vb.profissionalId) }], versoesEscala }], { session });
-      await this.auditoriasEscala.create([{ escalaId: escala._id, revisao: escala.revisao, acao: 'troca_recusada', usuarioId: new Types.ObjectId(usuario.id), ocorridoEm: agora, detalhes: { solicitacaoId: String(troca._id), operacaoId: dto.operacaoId, justificativa: dto.justificativa.trim() } }], { session });
+      await this.auditoriasEscala.create([{ escalaId: escala._id, revisao: escala.revisao, acao: 'troca_recusada', usuarioId: new Types.ObjectId(usuario.id), ocorridoEm: agora, detalhes: { solicitacaoId: String(troca._id), operacaoId: dto.operacaoId, justificativa: dto.justificativa?.trim() || undefined } }], { session });
       const profissionais = await this.profissionais.find({ _id: { $in: [troca.solicitanteProfissionalId, troca.profissionalSolicitadoId] } }).select('usuarioId').session(session).lean().exec();
       const userIds = [...new Set(profissionais.map((p) => String(p.usuarioId)))];
       await this.notificacoes.insertMany(userIds.map((destinatarioId) => ({ solicitacaoId: troca._id, destinatarioId: new Types.ObjectId(destinatarioId), eventKey: `troca:${String(troca._id)}:${dto.operacaoId}`,
-        titulo: 'Troca de plantão recusada', mensagem: `A Coordenação recusou a troca: ${dto.justificativa.trim()}` })), { session });
+        titulo: 'Troca de plantão recusada', mensagem: `A Coordenação recusou a troca${dto.justificativa?.trim() ? `: ${dto.justificativa.trim()}` : "."}` })), { session });
     }); } catch (erro) {
       const resultado = await this.trocas.findById(id).lean().exec();
       if (resultado?.status === StatusTroca.RECUSADA_PELA_COORDENACAO && resultado.chaveIdempotencia === dto.operacaoId) return this.detalhe(id);

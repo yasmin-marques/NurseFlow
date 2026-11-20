@@ -66,7 +66,9 @@ export function ScaleShiftDialog({ scale, dayShifts, focusSectorId, initialDate,
   const [validated, setValidated] = useState(false)
   const [validationSummary, setValidationSummary] = useState('')
   const [coveragePending, setCoveragePending] = useState<CoverageVacancy[]>([])
-  const [coverageAccepted, setCoverageAccepted] = useState(false)
+  const [emergencyAccepted, setEmergencyAccepted] = useState(false)
+  const [emergencyErrors, setEmergencyErrors] = useState<string[]>([])
+  const [emergencyCanApply, setEmergencyCanApply] = useState(false)
   const monthStart = `${String(scale.escala.ano).padStart(4, '0')}-${String(scale.escala.mes).padStart(2, '0')}-01`
   const monthEnd = `${String(scale.escala.ano).padStart(4, '0')}-${String(scale.escala.mes).padStart(2, '0')}-${String(daysInMonth(scale.escala.ano, scale.escala.mes)).padStart(2, '0')}`
   const initialSectorId = focusSectorId ?? dayShifts[0]?.setor.id
@@ -95,8 +97,8 @@ export function ScaleShiftDialog({ scale, dayShifts, focusSectorId, initialDate,
   const sector = sectors.find((item) => item.id === sectorId)
   const sectorShifts = shiftsOf(sectorId)
   const availableProfessionals = useMemo(
-    () => professionals.filter((person): person is ProfessionalWithId => person.status && typeof person.id === 'string'),
-    [professionals],
+    () => professionals.filter((person): person is ProfessionalWithId => person.status && typeof person.id === 'string' && person.sectorId === sectorId),
+    [professionals, sectorId],
   )
   const activeById = new Map(availableProfessionals.map((person) => [person.id, person]))
   const knownById = new Map(scale.plantoes.flatMap((item) => item.profissionais).map((person) => [person.id, person]))
@@ -146,7 +148,9 @@ export function ScaleShiftDialog({ scale, dayShifts, focusSectorId, initialDate,
     setValidated(false)
     setValidationSummary('')
     setCoveragePending([])
-    setCoverageAccepted(false)
+    setEmergencyAccepted(false)
+    setEmergencyErrors([])
+    setEmergencyCanApply(false)
     setFormError('')
   }
 
@@ -194,18 +198,28 @@ export function ScaleShiftDialog({ scale, dayShifts, focusSectorId, initialDate,
         scale.escala.id,
         scale.escala.revisao,
         stageShiftChanges(stagedChanges, changes, scope),
+        emergencyAccepted,
       )
       setCoveragePending(preview.pendencias)
       if (!preview.valida) {
         setValidated(false)
-        setCoverageAccepted(false)
-        setValidationSummary('A validação encontrou conflitos neste conjunto de alterações.')
-        setFormError(formatValidationErrors(preview.erros))
+            const errors = preview.erros.map((error) => typeof error === 'string' ? error : error.motivo ?? error.tipo ?? 'Conflito de validação')
+        const forceableErrors = errors.filter((error) => error.includes('não respeita o descanso obrigatório ou possui plantões sobrepostos') || error.includes('excede a carga regular configurada'))
+        const blockingErrors = errors.filter((error) => !forceableErrors.includes(error))
+        setEmergencyErrors(forceableErrors)
+        setEmergencyCanApply(forceableErrors.length > 0 && blockingErrors.length === 0)
+        setValidationSummary(forceableErrors.length > 0
+          ? 'Há conflitos de descanso ou carga regular relacionados aos profissionais desta alteração.'
+          : 'A validação encontrou conflitos neste conjunto de alterações.')
+        setFormError(blockingErrors.length > 0 ? blockingErrors.join('\n') : '')
         return
       }
-      setCoverageAccepted(false)
-      setValidated(true)
-      setValidationSummary(preview.requerConfirmacaoCobertura
+      setEmergencyErrors(preview.conflitosForcados ?? [])
+      setEmergencyCanApply((preview.conflitosForcados?.length ?? 0) > 0)
+        setValidated(true)
+      setValidationSummary(preview.conflitosForcados?.length
+        ? `Conflito(s) emergencial(is) reconhecido(s). ${preview.requerConfirmacaoCobertura ? 'A cobertura do setor/dia ainda apresenta pendências.' : 'A alteração pode ser aplicada.'}`
+        : preview.requerConfirmacaoCobertura
         ? 'Sem conflitos impeditivos. A cobertura mínima ainda apresenta pendências.'
         : 'Alteração válida. Ela será salva ao aplicar.')
     } catch (error: unknown) {
@@ -217,12 +231,11 @@ export function ScaleShiftDialog({ scale, dayShifts, focusSectorId, initialDate,
 
   const apply = () => {
     if (!validated) return
-    if (coveragePending.length > 0 && !coverageAccepted) {
-      setFormError('Reconheça as pendências de cobertura antes de aplicar a alteração.')
-      return
-    }
     onStaged(
-      changes.map((change) => coveragePending.length > 0 ? { ...change, coberturaReconhecida: true } : change),
+      changes.map((change) => ({
+        ...change,
+        ...(emergencyAccepted ? { forcarConflitos: true } : {}),
+      })),
       scope,
     )
   }
@@ -246,7 +259,7 @@ export function ScaleShiftDialog({ scale, dayShifts, focusSectorId, initialDate,
         >
           {saving ? 'Validando...' : 'Validar conflitos'}
         </button>
-        <button type="button" onClick={apply} disabled={saving || !validated || (coveragePending.length > 0 && !coverageAccepted)} className="rounded-lg bg-primary px-3 py-2 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-50">Aplicar e salvar</button>
+        <button type="button" onClick={apply} disabled={saving || !validated} className="rounded-lg bg-primary px-3 py-2 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-50">Aplicar e salvar</button>
       </div>}
     >
       <form id="edit-scale-shift-form" onSubmit={submit} noValidate className="space-y-5">
@@ -386,11 +399,34 @@ export function ScaleShiftDialog({ scale, dayShifts, focusSectorId, initialDate,
         {emptied.length > 0 ? <p role="alert" className="text-xs text-warning-text">Cada plantão existente precisa manter ao menos um profissional.</p> : null}
         {hasInactiveSelection ? <p role="alert" className="text-sm text-warning-text">Remova da equipe os profissionais que não estão ativos.</p> : null}
         {validationSummary ? <p role="status" className="rounded-xl border border-primary/20 bg-highlight p-3 text-xs text-primary">✓ &nbsp;{validationSummary}</p> : null}
+        {emergencyErrors.length > 0 ? (
+          <section aria-label="Conflitos dos profissionais alterados" className="space-y-3 rounded-xl border border-warning bg-warning/20 p-4">
+            <div>
+              <h3 className="text-sm font-bold text-text">Conflitos desta alteração</h3>
+              <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-text">{emergencyErrors.map((error, index) => <li key={`${error}-${index}`}>{error}</li>)}</ul>
+            </div>
+            <label className="flex items-start gap-2 text-xs font-semibold text-text">
+              <input type="checkbox" checked={emergencyAccepted} onChange={(event) => {
+                const accepted = event.target.checked
+                setEmergencyAccepted(accepted)
+                setFormError('')
+                if (accepted && emergencyCanApply) {
+                  setValidated(true)
+                  setValidationSummary('Conflitos emergenciais reconhecidos. A alteração pode ser aplicada e será validada novamente ao salvar.')
+                } else {
+                  setValidated(false)
+                  setValidationSummary('Há conflitos de descanso ou carga regular relacionados aos profissionais desta alteração.')
+                }
+              }} />
+              Emergência: permitir este plantão mesmo com conflito de descanso ou carga regular.
+            </label>
+          </section>
+        ) : null}
         {coveragePending.length > 0 ? (
           <section aria-label="Pendências de cobertura" className="space-y-3 rounded-xl border border-warning bg-warning/20 p-4">
             <div>
               <h3 className="text-sm font-bold text-text">Cobertura abaixo do mínimo</h3>
-              <p className="mt-1 text-xs text-text-muted">A alteração não possui conflito impeditivo, mas estas vagas permanecerão abertas:</p>
+              <p className="mt-1 text-xs text-text-muted">Estas vagas permanecerão abertas após salvar; isso não impede a edição:</p>
             </div>
             <ul className="space-y-1 text-xs text-text">
               {coveragePending.map((pending) => (
@@ -399,19 +435,6 @@ export function ScaleShiftDialog({ scale, dayShifts, focusSectorId, initialDate,
                 </li>
               ))}
             </ul>
-            {validated ? (
-              <label className="flex items-start gap-2 text-xs font-semibold text-text">
-                <input
-                  type="checkbox"
-                  checked={coverageAccepted}
-                  onChange={(event) => {
-                    setCoverageAccepted(event.target.checked)
-                    setFormError('')
-                  }}
-                />
-                Reconheço as pendências de cobertura e desejo aplicar esta alteração.
-              </label>
-            ) : null}
           </section>
         ) : null}
         {formError ? <p role="alert" className="rounded-xl border border-error bg-error p-2.5 text-xs text-danger whitespace-pre-line">{formError}</p> : null}

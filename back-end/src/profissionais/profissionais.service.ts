@@ -149,7 +149,7 @@ export class ProfissionaisService {
   async atualizar(id: string, dto: UpdateProfissionalDto): Promise<ProfissionalResponseDto> {
     const { profissional, usuario } = await this.carregar(id);
     await this.garantirNaoCadastrado(
-      { cpf: dto.cpf, coren: dto.coren, email: dto.email },
+      { email: dto.email },
       { usuarioId: usuario._id, profissionalId: profissional._id },
     );
 
@@ -163,8 +163,8 @@ export class ProfissionaisService {
       await this.aplicarStatus(profissional, dto.status);
     }
 
-    usuario.set(semUndefined({ nome: dto.nome, cpf: dto.cpf, email: dto.email }));
-    profissional.set(semUndefined({ coren: dto.coren, formacao: dto.formacao, tipoVinculo: dto.tipoVinculo }));
+    usuario.set(semUndefined({ email: dto.email }));
+    profissional.set(semUndefined({ formacao: dto.formacao, tipoVinculo: dto.tipoVinculo }));
     await usuario.save();
     await profissional.save();
     return this.paraResposta(profissional, usuario, await this.nomeDoSetor(profissional.setorId));

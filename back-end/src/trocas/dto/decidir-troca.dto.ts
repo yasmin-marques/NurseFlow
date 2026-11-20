@@ -12,5 +12,5 @@ export class AprovarTrocaDto extends RevisaoTrocaDto {
 }
 
 export class RecusarTrocaDto extends RevisaoTrocaDto {
-  @ApiProperty({ minLength: 1, maxLength: 500 }) @IsString() @MaxLength(500) justificativa: string;
+  @ApiPropertyOptional({ maxLength: 500 }) @IsOptional() @IsString() @MaxLength(500) justificativa?: string;
 }
