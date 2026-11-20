@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react'
-import { CalendarPlus } from '../../components/icons'
 import { getMyShifts, type MyShift, type ShiftSituation } from '../../services/professionalSchedule'
+import { GoogleCalendarPanel } from './GoogleCalendarPanel'
 import { dayNumber, timeRange, weekdayLabel } from '../professionalDates'
 
 const TABS: { id: ShiftSituation; label: string }[] = [
@@ -131,18 +131,9 @@ export function MyShiftsPage() {
           <h1 className="mt-2 text-3xl font-bold tracking-tight text-text">Meus plantões</h1>
           <p className="mt-2 text-sm text-text-muted">Consulte seus próximos turnos em ordem cronológica.</p>
         </div>
-        <button
-          type="button"
-          disabled
-          aria-disabled="true"
-          title="Em breve"
-          className="flex h-11 cursor-not-allowed items-center gap-2 rounded-xl border border-border bg-surface px-4 text-sm font-semibold text-text opacity-60"
-        >
-          <CalendarPlus className="size-4" strokeWidth={1.8} />
-          Google Agenda
-          <span className="sr-only"> (em breve)</span>
-        </button>
       </header>
+
+      <GoogleCalendarPanel />
 
       <div role="tablist" aria-label="Situação dos plantões" className="mt-6 flex gap-1 border-b border-border">
         {TABS.map((item) => {

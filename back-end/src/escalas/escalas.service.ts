@@ -43,6 +43,7 @@ import {
 import { EscalaAuditoriaService } from './escala-auditoria.service';
 import { errosSetorFixo } from './setor-fixo';
 import { EscalaSnapshotService, isSnapshotEscala } from './escala-snapshot.service';
+import { GoogleAgendaSincronizacaoService } from '../google-agenda/google-agenda-sincronizacao.service';
 import { NotificacoesEscalaService } from '../notificacoes/notificacoes-escalas.service';
 
 const MS_DIA = 86_400_000;
@@ -77,6 +78,13 @@ const TIPOS_CONFLITO_INFORMATIVO = new Set([
   'DESCANSO_MES_ANTERIOR',
 ]);
 
+/** Profissionais alocados em um snapshot de versão oficial (ids como string). */
+function profissionaisDoSnapshot(snapshot: Record<string, unknown> | undefined): string[] {
+  const vinculos = snapshot?.profissionaisRelacionados;
+  if (!Array.isArray(vinculos)) return [];
+  return vinculos.map((vinculo: { profissionalId?: unknown }) => String(vinculo.profissionalId));
+}
+
 @Injectable()
 export class EscalasService {
   constructor(
@@ -94,6 +102,7 @@ export class EscalasService {
     private readonly auditoria: EscalaAuditoriaService,
     private readonly snapshots: EscalaSnapshotService,
     private readonly notificacoesEscala: NotificacoesEscalaService,
+    private readonly googleAgenda: GoogleAgendaSincronizacaoService,
   ) {}
 
   async obter(id: string) {
@@ -421,6 +430,12 @@ export class EscalasService {
         versaoAnterior?.snapshot,
         session,
       );
+      // Mesma transação da publicação: a tarefa só existe se a versão oficial foi confirmada. Não depende do Google.
+      await this.googleAgenda.enfileirar(
+        [...profissionaisDoSnapshot(snapshot), ...profissionaisDoSnapshot(versaoAnterior?.snapshot)],
+        'publicacao',
+        session,
+      );
       await this.auditoria.registrar(
         [{
           escalaId: escala._id,
@@ -433,6 +448,7 @@ export class EscalasService {
         { session },
       );
     });
+    this.googleAgenda.acionarProcessamento();
     return this.obter(id);
   }
 

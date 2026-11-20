@@ -66,11 +66,12 @@ describe("Migrations", () => {
   });
 
   it("há migrations nomeadas com timestamp", () => {
-    expect(listarMigrations()).toHaveLength(12);
+    expect(listarMigrations()).toHaveLength(13);
     expect(listarMigrations()).toContain("20261101000009-restricoes-campos-estruturados.js");
     expect(listarMigrations()).toContain("20261101000010-trocas.js");
     expect(listarMigrations()).toContain("20261119000011-profissionais-setor-fixo.js");
     expect(listarMigrations()).toContain("20261119000012-setores-minimo-plantao-24h.js");
+    expect(listarMigrations()).toContain("20261120000013-google-agenda.js");
   });
 
   it('up: consolida os quantitativos antigos no mínimo por plantão de 24h', async () => {
@@ -85,6 +86,7 @@ describe("Migrations", () => {
       },
     );
     await aplicarMigrations(banco.uri, "up", "20261119000012-setores-minimo-plantao-24h.js");
+    expect(listarMigrations()).toContain("20261120000013-google-agenda.js");
 
     const setor = await db.collection("setores").findOne({ nome: "Bloco A" });
     expect(setor).toMatchObject({

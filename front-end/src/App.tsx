@@ -30,7 +30,10 @@ function App() {
   )
   const [searchQuery, setSearchQuery] = useState('')
   const [exchangeCount, setExchangeCount] = useState<number | null>(null)
-  const [professionalTab, setProfessionalTab] = useState<ProfessionalTabId>('inicio')
+  // Ao voltar do consentimento do Google (?google_agenda=...), abre direto em "Meus plantões".
+  const [professionalTab, setProfessionalTab] = useState<ProfessionalTabId>(() =>
+    new URLSearchParams(window.location.search).has('google_agenda') ? 'meus-plantoes' : 'inicio',
+  )
   const lastNonProfileItem = useRef<NavItemId>('visao-geral')
   const activePage = NAV_ITEMS.find((item) => item.id === activeItem)
 
@@ -100,7 +103,11 @@ function App() {
         user={{ name: user.nome, role, initials }}
       >
         {professionalTab === 'inicio' ? (
-          <ProfessionalOverviewPage userName={user.nome.split(/\s+/)[0]} onNavigate={navigate} />
+          <ProfessionalOverviewPage
+            userName={user.nome.split(/\s+/)[0]}
+            onNavigate={navigate}
+            onOpenGoogleCalendar={() => setProfessionalTab('meus-plantoes')}
+          />
         ) : professionalTab === 'meus-plantoes' ? (
           <MyShiftsPage />
         ) : professionalTab === 'escala-geral' ? (

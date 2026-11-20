@@ -6,6 +6,8 @@ import { getIncomingExchangeCount, getMyShifts, type MyShift } from '../../servi
 type OverviewPageProps = {
   userName: string
   onNavigate: (id: NavItemId) => void
+  /** Abre "Meus plantões", onde fica a integração com o Google Agenda. */
+  onOpenGoogleCalendar?: () => void
 }
 
 function shiftStart(shift: MyShift) {
@@ -132,7 +134,7 @@ function ShiftDetailPage({
   )
 }
 
-export function ProfessionalOverviewPage({ userName, onNavigate }: OverviewPageProps) {
+export function ProfessionalOverviewPage({ userName, onNavigate, onOpenGoogleCalendar }: OverviewPageProps) {
   const [shifts, setShifts] = useState<MyShift[]>([])
   const [shiftLoading, setShiftLoading] = useState(true)
   const [shiftError, setShiftError] = useState<string | null>(null)
@@ -316,14 +318,14 @@ export function ProfessionalOverviewPage({ userName, onNavigate }: OverviewPageP
               {incomingExchanges ? <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-badge-red text-[10px] font-bold text-badge-red-text">{incomingExchanges}</span> : null}
               <ChevronRight className="size-5 text-text-muted transition-transform group-hover:translate-x-0.5" />
             </button>
-            <div className="flex items-center gap-4 py-4 opacity-60" aria-label="Google Agenda indisponível">
+            <button type="button" onClick={onOpenGoogleCalendar} disabled={!onOpenGoogleCalendar} className="group flex w-full items-center gap-4 py-4 text-left disabled:opacity-60">
               <span className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-secondary text-primary"><CalendarPlus size={18} /></span>
               <span className="min-w-0 flex-1">
                 <span className="block text-sm font-semibold text-text">Google Agenda</span>
-                <span className="mt-1 block text-xs text-text-muted">Integração ainda não disponível</span>
+                <span className="mt-1 block text-xs text-text-muted">Sincronize seus plantões com a sua agenda</span>
               </span>
-              <ChevronRight className="size-5 text-text-muted" />
-            </div>
+              <ChevronRight className="size-5 text-text-muted transition-transform group-hover:translate-x-0.5" />
+            </button>
           </div>
         </section>
       </div>

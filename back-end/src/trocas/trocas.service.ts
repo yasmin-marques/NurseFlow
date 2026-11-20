@@ -16,6 +16,7 @@ import type { AprovarTrocaDto, RecusarTrocaDto } from './dto/decidir-troca.dto';
 import { Setor } from '../setores/schemas/setor.schema';
 import { errosSetorFixo } from '../escalas/setor-fixo';
 import { Usuario } from '../usuarios/schemas/usuario.schema';
+import { GoogleAgendaSincronizacaoService } from '../google-agenda/google-agenda-sincronizacao.service';
 import { ListarHistoricoTrocasDto } from './dto/listar-historico-trocas.dto';
 import { FiltroTroca, ListarTrocasDto } from './dto/listar-trocas.dto';
 
@@ -44,6 +45,7 @@ export class TrocasService {
     @InjectModel(Restricao.name) private readonly restricoes: Model<Restricao>,
     @InjectModel(Administrador.name) private readonly administradores: Model<Administrador>,
     @InjectModel(Configuracao.name) private readonly configuracoes: Model<Configuracao>,
+    private readonly googleAgenda: GoogleAgendaSincronizacaoService,
   ) {}
 
   async contarTrocasRecebidas(profissionalId: string) {
@@ -235,11 +237,14 @@ export class TrocasService {
       const userIds = [...new Set(profissionais.map((p) => String(p.usuarioId)))];
       await this.notificacoes.insertMany(userIds.map((destinatarioId) => ({ solicitacaoId: troca._id, destinatarioId: new Types.ObjectId(destinatarioId), eventKey: chaveDecisao,
         titulo: 'Troca de plantão aprovada', mensagem: `A troca foi aprovada. Plantão ${plantaoA.data.toISOString().slice(0, 10)} (${plantaoA.horarioInicio}–${plantaoA.horarioFim}) e plantão ${plantaoB.data.toISOString().slice(0, 10)} (${plantaoB.horarioInicio}–${plantaoB.horarioFim}) foram permutados na versão ${numero}.` })), { session });
+      // Mesma transação da aprovação: sincroniza os dois profissionais afetados sem depender do Google.
+      await this.googleAgenda.enfileirar([troca.solicitanteProfissionalId, troca.profissionalSolicitadoId], 'troca', session);
     }); } catch (erro) {
       const resultado = await this.trocas.findById(id).lean().exec();
       if (resultado?.status === StatusTroca.APROVADA && resultado.chaveIdempotencia === dto.operacaoId) return this.detalhe(id);
       throw erro;
     }
+    this.googleAgenda.acionarProcessamento();
     return this.detalhe(id);
   }
 
