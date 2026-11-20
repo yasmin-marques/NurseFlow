@@ -244,6 +244,7 @@ export class TrocasService {
   }
 
   async recusar(id: string, dto: RecusarTrocaDto, usuario: UsuarioAutenticado) {
+    if (!dto.justificativa?.trim()) throw new UnprocessableEntityException('Informe o motivo da recusa.');
     this.exigirTransacoesConfirmadas();
     const existente = await this.trocas.findById(id).lean().exec();
     if (!existente) throw new NotFoundException('Solicitação de troca não encontrada.');

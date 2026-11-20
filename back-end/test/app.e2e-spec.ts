@@ -86,9 +86,9 @@ describe('NurseFlow API (e2e)', () => {
     tokenCoordenacao = (await login('coordenacao@nurseflow.com', SENHA_COORDENACAO, 'coordenação')).body.accessToken;
 
     // Setor fixo é obrigatório no cadastro do profissional (estes setores auxiliares saem antes do bloco de Setores).
-    const turnos = { diurno: { enfermeiros: 1, tecnicos: 1 }, noturno: { enfermeiros: 1, tecnicos: 1 } };
-    setorId = (await http.post('/setores').set(auth(tokenCoordenacao)).send({ nome: 'UTI', turnos })).body.id;
-    setorInativoId = (await http.post('/setores').set(auth(tokenCoordenacao)).send({ nome: 'Setor inativo', turnos })).body.id;
+    const plantao24h = { enfermeiros: 1, tecnicos: 1 };
+    setorId = (await http.post('/setores').set(auth(tokenCoordenacao)).send({ nome: 'UTI', plantao24h })).body.id;
+    setorInativoId = (await http.post('/setores').set(auth(tokenCoordenacao)).send({ nome: 'Setor inativo', plantao24h })).body.id;
     await http.patch(`/setores/${setorInativoId}/inativar`).set(auth(tokenCoordenacao)).expect(200);
   });
 
@@ -283,13 +283,14 @@ describe('NurseFlow API (e2e)', () => {
       await http.get('/profissionais/abc').set(auth(tokenCoordenacao)).expect(400);
     });
 
-    it('edita parcialmente; mantém o próprio CPF/COREN sem conflito; rejeita os de outro profissional', async () => {
+    it('edita o vínculo e rejeita alterações em campos imutáveis e identificadores alheios', async () => {
       const res = await http.patch(`/profissionais/${anaId}`).set(auth(tokenCoordenacao))
-        .send({ nome: 'Ana Clara Souza Lima', cpf: '529.982.247-25', tipoVinculo: 'concursado' }).expect(200);
-      expect(res.body).toMatchObject({ nome: 'Ana Clara Souza Lima', tipoVinculo: 'concursado', coren: 'COREN-CE 123456' });
+        .send({ tipoVinculo: 'concursado' }).expect(200);
+      expect(res.body).toMatchObject({ nome: 'Ana Clara Souza', tipoVinculo: 'concursado', coren: 'COREN-CE 123456' });
 
-      await http.patch(`/profissionais/${anaId}`).set(auth(tokenCoordenacao)).send({ cpf: '12345678909' }).expect(409);
-      await http.patch(`/profissionais/${anaId}`).set(auth(tokenCoordenacao)).send({ coren: 'COREN-CE 456789' }).expect(409);
+      await http.patch(`/profissionais/${anaId}`).set(auth(tokenCoordenacao)).send({ nome: 'Ana Clara Souza Lima' }).expect(400);
+      await http.patch(`/profissionais/${anaId}`).set(auth(tokenCoordenacao)).send({ cpf: '529.982.247-25' }).expect(400);
+      await http.patch(`/profissionais/${anaId}`).set(auth(tokenCoordenacao)).send({ coren: 'COREN-CE 456789' }).expect(400);
       await http.patch(`/profissionais/${anaId}`).set(auth(tokenCoordenacao)).send({ email: 'joao@nurseflow.com' }).expect(409);
       await http.patch(`/profissionais/${anaId}`).set(auth(tokenCoordenacao)).send({ cpf: '1' }).expect(400);
     });

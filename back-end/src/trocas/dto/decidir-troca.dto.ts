@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 import { IsBoolean, IsInt, IsOptional, IsString, IsUUID, MaxLength, Min } from 'class-validator';
 
 export class RevisaoTrocaDto {
@@ -12,5 +13,5 @@ export class AprovarTrocaDto extends RevisaoTrocaDto {
 }
 
 export class RecusarTrocaDto extends RevisaoTrocaDto {
-  @ApiPropertyOptional({ maxLength: 500 }) @IsOptional() @IsString() @MaxLength(500) justificativa?: string;
+  @ApiPropertyOptional({ maxLength: 500 }) @IsOptional() @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value)) @IsString() @MaxLength(500) justificativa?: string;
 }

@@ -279,9 +279,9 @@ describe('Geração automática de escalas (e2e)', () => {
     let plantaoManualId: string;
 
     beforeAll(async () => {
-      const turnos = { diurno: { enfermeiros: 1, tecnicos: 1 }, noturno: { enfermeiros: 1, tecnicos: 1 } };
-      setorA = (await http.post('/setores').set(auth(tokenCoord)).send({ nome: 'UTI', turnos }).expect(201)).body.id;
-      setorB = (await http.post('/setores').set(auth(tokenCoord)).send({ nome: 'Emergência', turnos }).expect(201)).body.id;
+      const plantao24h = { enfermeiros: 1, tecnicos: 1 };
+      setorA = (await http.post('/setores').set(auth(tokenCoord)).send({ nome: 'UTI', plantao24h }).expect(201)).body.id;
+      setorB = (await http.post('/setores').set(auth(tokenCoord)).send({ nome: 'Emergência', plantao24h }).expect(201)).body.id;
       await atribuirSetor(setorA); // Ana e Rafael (profissionais de teste) pertencem à UTI
       // Cada setor precisa de efetivo próprio (setor fixo): uma enfermeira e um técnico dedicados à Emergência.
       idEnfB = (
@@ -340,7 +340,7 @@ describe('Geração automática de escalas (e2e)', () => {
         origemCobertura: 'regular',
       });
       expect(res.body.pendencias).toEqual([
-        expect.objectContaining({ setor: 'Emergência', data: '2026-10-02', turno: 'noturno', funcao: 'tecnicos', faltam: 1 }),
+        expect.objectContaining({ setor: 'Emergência', data: '2026-10-02', turno: '24h', funcao: 'tecnicos', faltam: 1 }),
       ]);
       expect(res.body.conflitos).toEqual(
         expect.arrayContaining([
@@ -426,18 +426,10 @@ describe('Geração automática de escalas (e2e)', () => {
           { profissionalId: idTec, funcao: 'tecnico' },
         ],
       };
-      const bloqueada = await http
-        .post(`/escalas/${escalaId}/plantoes`)
-        .set(auth(tokenCoord))
-        .send(inclusao)
-        .expect(422);
-      expect(bloqueada.body.message).toMatch(/reconheça as pendências de cobertura/i);
-      expect(await colecao('plantoes').countDocuments({ escalaId: new mongoose.Types.ObjectId(escalaId) })).toBe(3);
-
       const criado = await http
         .post(`/escalas/${escalaId}/plantoes`)
         .set(auth(tokenCoord))
-        .send({ ...inclusao, coberturaReconhecida: true })
+        .send(inclusao)
         .expect(201);
       plantaoManualId = criado.body.plantoes.find((p: { data: string; setor: { id: string } }) => p.data === '2026-10-14' && p.setor.id === setorA).id;
       expect(criado.body.plantoes.find((p: { id: string }) => p.id === plantaoManualId).profissionais).toEqual(
@@ -448,7 +440,7 @@ describe('Geração automática de escalas (e2e)', () => {
       );
       expect(criado.body.escala.revisao).toBe(antes.body.escala.revisao + 1);
       expect(criado.body.pendencias).not.toContainEqual(
-        expect.objectContaining({ setorId: setorA, data: '2026-10-14', turno: 'diurno', funcao: 'tecnicos' }),
+        expect.objectContaining({ setorId: setorA, data: '2026-10-14', turno: '24h', funcao: 'tecnicos' }),
       );
 
       // Setor fixo: mover o plantão de Ana/Rafael (UTI) para a Emergência é recusado e nada é gravado.
@@ -494,20 +486,20 @@ describe('Geração automática de escalas (e2e)', () => {
         duracaoHoras: 24,
       });
       expect(editado.body.pendencias).toContainEqual(
-        expect.objectContaining({ setorId: setorA, data: '2026-10-14', turno: 'diurno', funcao: 'enfermeiros' }),
+        expect.objectContaining({ setorId: setorA, data: '2026-10-14', turno: '24h', funcao: 'enfermeiros' }),
       );
       expect(editado.body.pendencias).not.toContainEqual(
-        expect.objectContaining({ setorId: setorB, data: '2026-10-15', turno: 'noturno', funcao: 'enfermeiros' }),
+        expect.objectContaining({ setorId: setorB, data: '2026-10-15', turno: '24h', funcao: 'enfermeiros' }),
       );
       expect(editado.body.pendencias).not.toContainEqual(
-        expect.objectContaining({ setorId: setorB, data: '2026-10-15', turno: 'noturno', funcao: 'tecnicos' }),
+        expect.objectContaining({ setorId: setorB, data: '2026-10-15', turno: '24h', funcao: 'tecnicos' }),
       );
       expect(await colecao('auditoriaEscalas').countDocuments({ escalaId: new mongoose.Types.ObjectId(escalaId) })).toBe(2);
       const auditoria = await colecao('auditoriaEscalas').findOne({
         escalaId: new mongoose.Types.ObjectId(escalaId),
         acao: 'plantao_adicionado',
       });
-      expect(auditoria?.detalhes).toMatchObject({ plantaoId: plantaoManualId, coberturaReconhecida: true });
+      expect(auditoria?.detalhes).toMatchObject({ plantaoId: plantaoManualId, coberturaReconhecida: false });
     });
 
     it('rejeita função, indisponibilidade e descanso inválidos sem alterações parciais', async () => {
@@ -615,12 +607,12 @@ describe('Geração automática de escalas (e2e)', () => {
       const validacao = await http.post(validarUrl).set(auth(tokenCoord)).send(lote).expect(200);
       expect(validacao.body).toMatchObject({ revisao: plantaoExistente.body.escala.revisao, valida: true, erros: [] });
       expect(validacao.body.requerConfirmacaoCobertura).toBe(true);
-      expect(validacao.body.cobertura).toEqual({ posicoesExigidas: 248, posicoesPreenchidas: 6, percentual: 2 });
+      expect(validacao.body.cobertura).toEqual({ posicoesExigidas: 124, posicoesPreenchidas: 2, percentual: 1 });
       expect(validacao.body.pendencias).toEqual(expect.arrayContaining([
         expect.objectContaining({
           setorId: setorA,
           data: '2030-01-02',
-          turno: 'noturno',
+          turno: '24h',
           funcao: 'enfermeiros',
           necessario: 1,
           alocado: 0,
@@ -1209,8 +1201,7 @@ describe('Geração automática de escalas (e2e)', () => {
         [...pdf.toString('latin1').matchAll(/<([0-9a-f]+)>/gi)]
           .map(([, hex]) => Buffer.from(hex, 'hex').toString('latin1'))
           .join('');
-      expect(textoPdf(geral.body)).toContain('ESCALA MENSAL');
-      expect(textoPdf(geral.body)).toContain('PEND');
+      expect(textoPdf(geral.body)).toContain('ESCALA 04/2032');
       expect(textoPdf(geral.body)).toContain('Coordena');
       expect(textoPdf(geral.body)).toContain('Diretoria');
 

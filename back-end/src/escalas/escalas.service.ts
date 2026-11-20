@@ -602,7 +602,7 @@ export class EscalasService {
       const escala = await this.escalaEditavel(escalaId, dto.revisaoEsperada, session);
       await this.validarPlantao(escala, dto, session);
       const preparadas = await this.prepararLote(escala, [dto], session);
-      await this.exigirReconhecimentoCobertura(escala, dto, preparadas, session);
+      await this.exigirReconhecimentoCobertura(escala, preparadas, session);
 
       const plantaoId = preparadas[0].plantaoId;
       await this.plantoes.create(
@@ -667,6 +667,7 @@ export class EscalasService {
       if (errosBloqueantes.length > 0) {
         throw new UnprocessableEntityException({ message: 'O lote de plantões viola regras da escala.', erros: errosBloqueantes });
       }
+      await this.exigirReconhecimentoCobertura(escala, preparadas, session);
 
       for (const item of preparadas) {
         if (item.novo) {
@@ -774,12 +775,11 @@ export class EscalasService {
 
   private async exigirReconhecimentoCobertura(
     escala: Escala & { _id: Types.ObjectId },
-    dto: PlantaoDto,
     preparadas: AlteracaoPlantaoPreparada[],
     session: ClientSession,
   ) {
     const { pendencias } = await this.coberturaProjetadaLote(escala, preparadas, session);
-    if (pendencias.length > 0 && dto.coberturaReconhecida !== true) {
+    if (pendencias.length > 0 && preparadas.some((item) => item.dto.coberturaReconhecida !== true)) {
       throw new UnprocessableEntityException({
         message: 'Reconheça as pendências de cobertura antes de salvar o plantão.',
         erros: ['A cobertura está abaixo dos quantitativos mínimos configurados.'],

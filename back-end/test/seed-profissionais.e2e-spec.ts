@@ -19,13 +19,15 @@ describe("seed de 40 profissionais com setor fixo (e2e)", () => {
   let db: mongoose.mongo.Db;
   const original = Object.fromEntries(ENV.map((k) => [k, process.env[k]]));
   const col = (nome: string) => db.collection(nome);
-  const turnos = (d: [number, number], n: [number, number]) => ({
-    diurno: { enfermeiros: d[0], tecnicos: d[1] },
-    noturno: { enfermeiros: n[0], tecnicos: n[1] },
-  });
   const agora = new Date();
   const inserirSetor = async (nome: string, d: [number, number], n: [number, number], ativo = true) =>
-    (await col("setores").insertOne({ nome, ativo, turnos: turnos(d, n), createdAt: agora, updatedAt: agora })).insertedId;
+    (await col("setores").insertOne({
+      nome,
+      ativo,
+      plantao24h: { enfermeiros: Math.max(d[0], n[0]), tecnicos: Math.max(d[1], n[1]) },
+      createdAt: agora,
+      updatedAt: agora,
+    })).insertedId;
   const filtroSeed = { email: /^prof\.seed\.\d{2}@/ };
   const usuarioAlheio = (email: string, cpf: string) => ({
     nome: "Pessoa Alheia", email, cpf, senha: "x", tipoUsuario: "profissionalDaSaude",
