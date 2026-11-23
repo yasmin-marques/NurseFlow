@@ -48,12 +48,13 @@ describe('Trocas administrativas (e2e)', () => {
     const coord = await usuarios.criar({ nome: 'Coordenação', email: 'coord-trocas@nurseflow.com', cpf: '11144477735', senha: await AuthService.gerarHashSenha(SENHA), tipoUsuario: TipoUsuario.ADMINISTRADOR });
     await usuarios.criarAdministrador(coord._id);
     tokenCoord = await login('coord-trocas@nurseflow.com', 'coordenacao');
-    const profissional = await http.post('/profissionais').set(auth(tokenCoord)).send({ nome: 'Ana Souza', cpf: '529.982.247-25', coren: 'COREN-CE 700001', formacao: 'enfermeiro', tipoVinculo: 'clt', email: 'ana-trocas@nurseflow.com', senha: SENHA }).expect(201);
+    const setorTrocas = await http.post('/setores').set(auth(tokenCoord)).send({ nome: 'Unidade de teste de trocas', plantao24h: { enfermeiros: 0, tecnicos: 0 } }).expect(201);
+    const profissional = await http.post('/profissionais').set(auth(tokenCoord)).send({ nome: 'Ana Souza', cpf: '529.982.247-25', coren: 'COREN-CE 700001', formacao: 'enfermeiro', tipoVinculo: 'clt', email: 'ana-trocas@nurseflow.com', senha: SENHA, setorId: setorTrocas.body.id }).expect(201);
     tokenEnfermeiro = await login('ana-trocas@nurseflow.com');
-    const profissionalBResponse = await http.post('/profissionais').set(auth(tokenCoord)).send({ nome: 'Beatriz Lima', cpf: '390.533.447-05', coren: 'COREN-CE 700002', formacao: 'enfermeiro', tipoVinculo: 'clt', email: 'bia-trocas@nurseflow.com', senha: SENHA }).expect(201);
+    const profissionalBResponse = await http.post('/profissionais').set(auth(tokenCoord)).send({ nome: 'Beatriz Lima', cpf: '390.533.447-05', coren: 'COREN-CE 700002', formacao: 'enfermeiro', tipoVinculo: 'clt', email: 'bia-trocas@nurseflow.com', senha: SENHA, setorId: setorTrocas.body.id }).expect(201);
     tokenEnfermeiraB = await login('bia-trocas@nurseflow.com');
-    const tecnicoAResponse = await http.post('/profissionais').set(auth(tokenCoord)).send({ nome: 'Rafael Técnico', cpf: '168.995.350-09', coren: 'COREN-CE 700003', formacao: 'tecnico', tipoVinculo: 'clt', email: 'rafael-tecnico-trocas@nurseflow.com', senha: SENHA }).expect(201);
-    const tecnicoBResponse = await http.post('/profissionais').set(auth(tokenCoord)).send({ nome: 'Daniel Técnico', cpf: '86288366757', coren: 'COREN-CE 700004', formacao: 'tecnico', tipoVinculo: 'clt', email: 'daniel-tecnico-trocas@nurseflow.com', senha: SENHA }).expect(201);
+    const tecnicoAResponse = await http.post('/profissionais').set(auth(tokenCoord)).send({ nome: 'Rafael Técnico', cpf: '168.995.350-09', coren: 'COREN-CE 700003', formacao: 'tecnico', tipoVinculo: 'clt', email: 'rafael-tecnico-trocas@nurseflow.com', senha: SENHA, setorId: setorTrocas.body.id }).expect(201);
+    const tecnicoBResponse = await http.post('/profissionais').set(auth(tokenCoord)).send({ nome: 'Daniel Técnico', cpf: '86288366757', coren: 'COREN-CE 700004', formacao: 'tecnico', tipoVinculo: 'clt', email: 'daniel-tecnico-trocas@nurseflow.com', senha: SENHA, setorId: setorTrocas.body.id }).expect(201);
     tokenTecnicoA = await login('rafael-tecnico-trocas@nurseflow.com');
     tokenTecnicoB = await login('daniel-tecnico-trocas@nurseflow.com');
     tecnicoAId = new mongoose.Types.ObjectId(tecnicoAResponse.body.id);
@@ -329,7 +330,7 @@ describe('Trocas administrativas (e2e)', () => {
       vinculoSolicitanteId: ids.vinculoA, vinculoSolicitadoId: ids.vinculoB });
     const plantaoA = await db.collection('plantoes').findOne({ _id: (await db.collection('profissionaisRelacionados').findOne({ _id: ids.vinculoA }))!.plantaoId });
     const setor = await db.collection('setores').findOne({ _id: plantaoA!.setorId });
-    await db.collection('setores').updateOne({ _id: setor!._id }, { $set: { 'turnos.diurno.enfermeiros': 1 } });
+    await db.collection('setores').updateOne({ _id: setor!._id }, { $set: { 'plantao24h.enfermeiros': 1 } });
     const result = await http.get(`/trocas/${troca.id}/validacao`).set(auth(tokenCoord)).expect(200);
     expect(result.body.cobertura.antes.length).toBeGreaterThan(0);
     expect(result.body.cobertura.depois).toEqual(result.body.cobertura.antes);

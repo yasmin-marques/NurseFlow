@@ -1,4 +1,4 @@
-import { validateEnv } from './configuration';
+import configuration, { validateEnv } from './configuration';
 
 const ambienteValido = {
   MONGODB_URI: 'mongodb://localhost:27017/nurseflow',
@@ -36,5 +36,29 @@ describe('validateEnv', () => {
     for (const valor of ['0', '-1', '1.5', 'inválido']) {
       expect(() => validateEnv({ ...ambienteValido, [nomeVariavel]: valor })).toThrow(nomeVariavel);
     }
+  });
+
+  describe('Google Agenda', () => {
+    const chave = Buffer.alloc(32, 7).toString('base64');
+    const google = {
+      GOOGLE_CLIENT_ID: 'id.apps.googleusercontent.com',
+      GOOGLE_CLIENT_SECRET: 'segredo',
+      GOOGLE_REDIRECT_URI: 'http://localhost:3000/integracoes/google-agenda/callback',
+      GOOGLE_TOKEN_ENCRYPTION_KEY: chave,
+    };
+
+    it('é opcional: sem variáveis a integração fica não configurada', () => {
+      expect(() => validateEnv({ ...ambienteValido })).not.toThrow();
+      expect(configuration().googleAgenda.configurada).toBe(false);
+    });
+
+    it('aceita a configuração completa', () => {
+      expect(() => validateEnv({ ...ambienteValido, ...google })).not.toThrow();
+    });
+
+    it('rejeita configuração parcial e chave de criptografia inválida', () => {
+      expect(() => validateEnv({ ...ambienteValido, GOOGLE_CLIENT_ID: 'id' })).toThrow('GOOGLE_CLIENT_SECRET');
+      expect(() => validateEnv({ ...ambienteValido, ...google, GOOGLE_TOKEN_ENCRYPTION_KEY: 'curta' })).toThrow('GOOGLE_TOKEN_ENCRYPTION_KEY');
+    });
   });
 });

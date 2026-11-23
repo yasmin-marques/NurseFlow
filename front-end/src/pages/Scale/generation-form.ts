@@ -1,4 +1,3 @@
-import type { ScaleShift } from '../../services/scales'
 import { daysInMonth } from './calendar'
 
 export function isScaleReplaceable(status: string | null | undefined): boolean {
@@ -11,7 +10,6 @@ export interface GenerationSelection {
   startDate: string
   endDate: string
   sectorIds: readonly string[]
-  shifts: readonly ScaleShift[]
 }
 
 export function validateGenerationSelection(selection: GenerationSelection): string | null {
@@ -40,9 +38,6 @@ export function validateGenerationSelection(selection: GenerationSelection): str
   }
   if (selection.sectorIds.length === 0) {
     return 'Selecione ao menos um setor.'
-  }
-  if (selection.shifts.length === 0) {
-    return 'Selecione ao menos um turno.'
   }
   return null
 }

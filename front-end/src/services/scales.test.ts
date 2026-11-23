@@ -216,12 +216,11 @@ describe('services/scales', () => {
       mes: 10,
       operacaoId: 'generation-1',
       setorIds: ['sector-1'],
-      turnos: ['diurno'],
     })
     expect(calls[0]).toMatchObject({
       url: '/api/escalas/gerar',
       method: 'POST',
-      body: { ano: 2026, mes: 10, operacaoId: 'generation-1', setorIds: ['sector-1'], turnos: ['diurno'] },
+      body: { ano: 2026, mes: 10, operacaoId: 'generation-1', setorIds: ['sector-1'] },
     })
   })
 

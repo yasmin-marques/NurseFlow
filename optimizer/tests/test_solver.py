@@ -15,15 +15,19 @@ def setor(sid="s1", dia=(1, 1), noite=(1, 1)):
     return {
         "id": sid,
         "nome": sid,
-        "turnos": {
-            "diurno": {"enfermeiros": dia[0], "tecnicos": dia[1]},
-            "noturno": {"enfermeiros": noite[0], "tecnicos": noite[1]},
+        "plantao24h": {
+            "enfermeiros": max(dia[0], noite[0]),
+            "tecnicos": max(dia[1], noite[1]),
         },
     }
 
 
-def prof(pid, formacao="enfermeiro", c24=6, c12=1, extras=0, **kw):
-    return {"id": pid, "formacao": formacao, "carga_24h": c24, "carga_12h": c12, "max_extras": extras, **kw}
+def prof(pid, formacao="enfermeiro", c24=6, c12=0, extras=0, setor_id="s1", **kw):
+    """`setor_id` é o setor fixo do profissional (por padrão, "s1")."""
+    return {
+        "id": pid, "setor_id": setor_id, "formacao": formacao,
+        "carga_24h": c24, "carga_12h": c12, "max_extras": extras, **kw,
+    }
 
 
 def problema(profs, setores, dias=DIAS, tempo=20, alocacoes_fixas=None):
@@ -32,7 +36,7 @@ def problema(profs, setores, dias=DIAS, tempo=20, alocacoes_fixas=None):
             "ano": 2026,
             "mes": 9,
             "dias_mes": dias,
-            "versao_contrato": 2,
+            "versao_contrato": 4,
             "capacidades": ["alocacoes_fixas"],
             "alocacoes_fixas": alocacoes_fixas or [],
             "profissionais": profs,
@@ -97,7 +101,7 @@ def test_alocacao_fixa_bloqueada_retorna_inviabilidade_sem_trocar_profissional()
 def test_extra_fixo_nao_satisfaz_carga_regular_nem_e_contado_duas_vezes(vinculo):
     sol = resolver(
         problema(
-            [prof(f"{vinculo}-1", c24=0, c12=1, extras=1, vinculo=vinculo)],
+            [prof(f"{vinculo}-1", c24=1, c12=0, extras=1, vinculo=vinculo)],
             [setor("s1", dia=(0, 0), noite=(0, 0))],
             alocacoes_fixas=[{
                 "extra_id": f"extra-{vinculo}",
@@ -115,9 +119,10 @@ def test_extra_fixo_nao_satisfaz_carga_regular_nem_e_contado_duas_vezes(vinculo)
     assert fixa.extra is True
     assert regular.extra is False
     carga = sol.estatisticas.cargas[0]
-    assert carga.plantoes_12h == 2
+    assert carga.plantoes_24h == 1
+    assert carga.plantoes_12h == 1
     assert carga.extras == 1
-    assert carga.faltam_12h == 0
+    assert carga.faltam_24h == 0
 
 
 # ---------- 24x72 ----------
@@ -165,34 +170,25 @@ def test_cobre_quantitativo_minimo_quando_ha_gente_suficiente():
     cobertura = Counter()
     formacao = {p["id"]: p["formacao"] for p in enf + tec}
     for a in sol.alocacoes:
-        turnos = ("diurno", "noturno") if a.opcao == "24h" else (("diurno",) if a.opcao == "12d" else ("noturno",))
-        for t in turnos:
-            cobertura[(a.dia, t, formacao[a.profissional_id])] += 1
+        if a.opcao == "24h":
+            cobertura[(a.dia, formacao[a.profissional_id])] += 1
     for dia in range(1, DIAS + 1):
-        for t in ("diurno", "noturno"):
-            assert cobertura[(dia, t, "enfermeiro")] >= 2
-            assert cobertura[(dia, t, "tecnico")] >= 2
+        assert cobertura[(dia, "enfermeiro")] == 2
+        assert cobertura[(dia, "tecnico")] == 2
 
 
-def test_turno_selecionado_restringe_opcoes_e_nao_avalia_turno_fora_do_escopo():
-    p = problema(
-        [prof("e1", c24=0, c12=2, extras=0)],
-        [setor(dia=(1, 0), noite=(1, 0))],
-    )
-    p.turnos_selecionados = ["diurno"]
-
-    sol = resolver(p)
-
+def test_geracao_regular_usa_somente_plantoes_de_24h():
+    sol = resolver(problema([prof("e1", c24=2, c12=0)], [setor(dia=(1, 0), noite=(1, 0))]))
     assert sol.alocacoes
-    assert all(a.opcao == "12d" for a in sol.alocacoes)
-    assert all(d.turno == "diurno" for d in sol.descobertos)
+    assert all(a.opcao == "24h" for a in sol.alocacoes)
+    assert all(d.turno == "24h" for d in sol.descobertos)
 
 
 def test_tecnico_nao_cobre_vaga_de_enfermeiro():
     sol = resolver(problema([prof("t1", "tecnico", c24=0, c12=0, extras=8)], [setor(dia=(1, 0), noite=(1, 0))]))
     assert sol.alocacoes == []
     assert all(d.funcao == "enfermeiros" for d in sol.descobertos)
-    assert sol.estatisticas.total_descobertos == 2 * DIAS
+    assert sol.estatisticas.total_descobertos == DIAS
 
 
 def test_cancelamento_interrompe_solver_ativo(monkeypatch):
@@ -248,10 +244,10 @@ def test_informa_vagas_descobertas_sem_violar_restricoes():
 # ---------- carga por vínculo, extras ----------
 def test_carga_regular_por_vinculo_e_marcacao_de_extras():
     # Sem demanda no setor, cada um cumpre exatamente a própria carga e nenhum plantão é extra.
-    profs = [prof("conc", c24=6, c12=1, extras=1), prof("clt", c24=8, c12=0)]
+    profs = [prof("conc", c24=6, c12=0, extras=1), prof("clt", c24=8, c12=0)]
     sol = resolver(problema(profs, [setor(dia=(0, 0), noite=(0, 0))], dias=31))
     cargas = {c.profissional_id: c for c in sol.estatisticas.cargas}
-    assert (cargas["conc"].plantoes_24h, cargas["conc"].plantoes_12h) == (6, 1)
+    assert (cargas["conc"].plantoes_24h, cargas["conc"].plantoes_12h) == (6, 0)
     assert (cargas["clt"].plantoes_24h, cargas["clt"].plantoes_12h) == (8, 0)
     assert not any(a.extra for a in sol.alocacoes)
 
@@ -294,3 +290,68 @@ def test_cada_plantao_ocupa_um_unico_setor():
     sol = resolver(problema(profs, [setor("a", dia=(1, 0), noite=(1, 0)), setor("b", dia=(1, 0), noite=(1, 0))]))
     vistos = Counter((a.profissional_id, a.dia, a.opcao) for a in sol.alocacoes)
     assert all(v == 1 for v in vistos.values())
+ 
+# ---------- setor fixo (restrição obrigatória) ----------
+def test_nunca_aloca_profissional_fora_do_seu_setor_fixo():
+    profs = [prof(f"a{i}", c24=7, c12=0, setor_id="a") for i in range(5)] + [
+        prof(f"b{i}", c24=7, c12=0, setor_id="b") for i in range(5)
+    ]
+    sol = resolver(problema(profs, [setor("a", dia=(1, 0), noite=(1, 0)), setor("b", dia=(1, 0), noite=(1, 0))]))
+    setor_fixo = {p["id"]: p["setor_id"] for p in profs}
+
+    assert sol.alocacoes
+    assert all(setor_fixo[a.profissional_id] == a.setor_id for a in sol.alocacoes)
+    assert sol.estatisticas.total_descobertos == 0  # com efetivo suficiente em cada setor, cobre tudo
+
+
+def test_falta_em_um_setor_com_sobra_em_outro_nao_gera_alocacao_cruzada():
+    # Setor "a" exige 1 enfermeiro por plantão de 24h mas não tem ninguém; "b" tem efetivo de sobra.
+    profs = [prof(f"b{i}", c24=7, c12=0, extras=2, setor_id="b") for i in range(8)]
+    sol = resolver(problema(profs, [setor("a", dia=(1, 0), noite=(1, 0)), setor("b", dia=(1, 0), noite=(1, 0))]))
+
+    assert not [a for a in sol.alocacoes if a.setor_id == "a"], "ninguém de outro setor pode cobrir o setor a"
+    assert all(a.setor_id == "b" for a in sol.alocacoes)
+    faltas_a = [d for d in sol.descobertos if d.setor_id == "a"]
+    assert sum(d.faltam for d in faltas_a) == DIAS
+    assert not [d for d in sol.descobertos if d.setor_id == "b"]
+    assert sol.estatisticas.total_descobertos == DIAS
+
+
+def test_extras_tambem_ficam_no_setor_fixo():
+    # Demanda alta em "a" com pouco efetivo; o efetivo de "b" (com extras livres) nunca é usado em "a".
+    profs = [prof("a1", c24=2, c12=0, extras=1, setor_id="a")] + [
+        prof(f"b{i}", c24=8, c12=0, extras=3, setor_id="b") for i in range(8)
+    ]
+    sol = resolver(problema(profs, [setor("a", dia=(1, 0), noite=(1, 0)), setor("b", dia=(0, 0), noite=(0, 0))]))
+
+    assert all(a.setor_id == "a" for a in sol.alocacoes if a.profissional_id == "a1")
+    assert not [a for a in sol.alocacoes if a.setor_id == "a" and a.profissional_id.startswith("b")]
+
+
+def test_profissional_sem_setor_nao_e_elegivel_a_nenhuma_alocacao():
+    sem_setor = prof("x1", c24=7, c12=0, extras=3)
+    sem_setor.pop("setor_id")
+    sol = resolver(problema([sem_setor], [setor("s1", dia=(1, 0), noite=(1, 0))]))
+
+    assert sol.alocacoes == []
+    assert sol.estatisticas.total_descobertos == DIAS
+
+
+def test_setor_fixo_inexistente_no_problema_nao_e_elegivel():
+    # Profissional de um setor que não faz parte do problema (ex.: setor fora do escopo) não cobre outro setor.
+    sol = resolver(problema([prof("o1", c24=7, c12=0, setor_id="outro")], [setor("s1", dia=(1, 0), noite=(1, 0))]))
+
+    assert sol.alocacoes == []
+    assert sol.estatisticas.total_descobertos == DIAS
+
+
+def test_contrato_rejeita_alocacao_fixa_fora_do_setor_fixo():
+    with pytest.raises(ValueError, match="fora do setor fixo"):
+        problema(
+            [prof("e1", c24=0, c12=0, extras=1, setor_id="s1")],
+            [setor("s1", dia=(0, 0), noite=(0, 0)), setor("s2", dia=(1, 0), noite=(0, 0))],
+            alocacoes_fixas=[{
+                "extra_id": "extra-cruzado", "profissional_id": "e1", "setor_id": "s2",
+                "dia": 3, "opcao": "12d", "tipo": "extra",
+            }],
+        )

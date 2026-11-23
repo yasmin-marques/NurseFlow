@@ -9,7 +9,6 @@ import {
   generateScale,
   listScales,
   type ScaleDetail,
-  type ScaleShift,
 } from '../../services/scales'
 import { isScaleReplaceable, validateGenerationSelection } from './generation-form'
 
@@ -28,12 +27,6 @@ function monthDate(year: number, month: number, day: number) {
   return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
 }
 
-const TURNOS: { id: '24h' | ScaleShift; label: string }[] = [
-  { id: '24h', label: '24 horas' },
-  { id: 'diurno', label: 'Diurno' },
-  { id: 'noturno', label: 'Noturno' },
-]
-
 export function GenerateScaleDialog({ initialDate, onClose, onGenerated, onGeneratingChange }: GenerateScaleDialogProps) {
   const initialYear = initialDate.getFullYear()
   const initialMonth = initialDate.getMonth() + 1
@@ -41,7 +34,6 @@ export function GenerateScaleDialog({ initialDate, onClose, onGenerated, onGener
   const [endDate, setEndDate] = useState(monthDate(initialYear, initialMonth, daysInMonth(initialYear, initialMonth)))
   const [sectors, setSectors] = useState<Sector[]>([])
   const [selectedSectorIds, setSelectedSectorIds] = useState<string[]>([])
-  const [selectedShifts, setSelectedShifts] = useState<Array<'24h' | ScaleShift>>(['24h', 'diurno', 'noturno'])
   const [sectorsLoading, setSectorsLoading] = useState(true)
   const [sectorsError, setSectorsError] = useState('')
   const [periodResult, setPeriodResult] = useState<{
@@ -55,10 +47,6 @@ export function GenerateScaleDialog({ initialDate, onClose, onGenerated, onGener
   const dateParts = /^(\d{4})-(\d{2})-\d{2}$/.exec(startDate)
   const year = dateParts ? Number(dateParts[1]) : 0
   const month = dateParts ? Number(dateParts[2]) : 0
-  const apiShifts: ScaleShift[] = [...new Set<ScaleShift>(
-    selectedShifts.flatMap((shift) => shift === '24h' ? ['diurno', 'noturno'] : [shift]),
-  )]
-
   useEffect(() => {
     let active = true
     listSectors()
@@ -106,7 +94,6 @@ export function GenerateScaleDialog({ initialDate, onClose, onGenerated, onGener
     startDate,
     endDate,
     sectorIds: selectedSectorIds,
-    shifts: apiShifts,
   })
   const periodResultIsCurrent = periodResult.key === periodKey
   const periodLoading = validPeriod && !periodResultIsCurrent
@@ -150,7 +137,6 @@ export function GenerateScaleDialog({ initialDate, onClose, onGenerated, onGener
         mes: month,
         operacaoId,
         setorIds: selectedSectorIds,
-        turnos: apiShifts,
         substituirRascunho: existingReplaceable ? confirmReplacement : false,
       })
       await onGenerated(scale)
@@ -165,12 +151,6 @@ export function GenerateScaleDialog({ initialDate, onClose, onGenerated, onGener
   const toggleSector = (sectorId: string) => {
     setSelectedSectorIds((current) =>
       current.includes(sectorId) ? current.filter((id) => id !== sectorId) : [...current, sectorId],
-    )
-  }
-
-  const toggleShift = (shift: '24h' | ScaleShift) => {
-    setSelectedShifts((current) =>
-      current.includes(shift) ? current.filter((item) => item !== shift) : [...current, shift],
     )
   }
 
@@ -250,22 +230,6 @@ export function GenerateScaleDialog({ initialDate, onClose, onGenerated, onGener
               </div>
             </fieldset>
 
-            <fieldset disabled={generating} className="space-y-3">
-              <legend className="mb-2 text-sm font-bold text-text">Turnos aplicáveis</legend>
-              <div className="grid grid-cols-3 gap-2">
-                {TURNOS.map((shift) => (
-                  <SelectionChip
-                    key={shift.id}
-                    checked={selectedShifts.includes(shift.id)}
-                    disabled={generating}
-                    onChange={() => toggleShift(shift.id)}
-                  >
-                    {shift.label}
-                  </SelectionChip>
-                ))}
-              </div>
-            </fieldset>
-
             {selectionError ? <p className="text-sm text-text-muted">{selectionError}</p> : null}
             {formError ? <p role="alert" className="rounded-xl border border-error bg-error p-3 text-sm text-danger">{formError}</p> : null}
             <section className="rounded-xl border border-border bg-neutral p-4">
@@ -274,7 +238,7 @@ export function GenerateScaleDialog({ initialDate, onClose, onGenerated, onGener
                 <li><span className="mr-2 font-bold text-primary">✓</span>Profissionais ativos e disponíveis</li>
                 <li><span className="mr-2 font-bold text-primary">✓</span>Férias, afastamentos e restrições</li>
                 <li><span className="mr-2 font-bold text-primary">✓</span>Descanso dos técnicos e sobreposição</li>
-                <li><span className="mr-2 font-bold text-primary">✓</span>Cobertura mínima por setor e turno</li>
+                <li><span className="mr-2 font-bold text-primary">✓</span>Cobertura mínima por setor e plantão de 24h</li>
                 <li><span className="mr-2 font-bold text-primary">✓</span>Enfermeiro chefe e responsabilidades</li>
               </ul>
             </section>

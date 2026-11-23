@@ -101,6 +101,8 @@ describe('ExtrasService — Validações de Elegibilidade, Disponibilidade, Desc
     });
   }
 
+  const SETOR_PADRAO_ID = new Types.ObjectId();
+
   async function criarProfissional(dados: Partial<Profissional> = {}) {
     return profissionalModel.create({
       usuarioId: new Types.ObjectId(),
@@ -108,6 +110,7 @@ describe('ExtrasService — Validações de Elegibilidade, Disponibilidade, Desc
       formacao: Formacao.ENFERMEIRO,
       tipoVinculo: TipoVinculo.CLT,
       status: StatusProfissional.ATIVO,
+      setorId: SETOR_PADRAO_ID,
       sincronizaAgenda: false,
       desativadoEm: null,
       ...dados,
@@ -116,12 +119,10 @@ describe('ExtrasService — Validações de Elegibilidade, Disponibilidade, Desc
 
   async function criarSetor(dados: Partial<Setor> = {}) {
     return setorModel.create({
+      _id: dados._id ?? SETOR_PADRAO_ID,
       nome: 'UTI Adulto',
       ativo: true,
-      turnos: {
-        diurno: { enfermeiros: 2, tecnicos: 4 },
-        noturno: { enfermeiros: 2, tecnicos: 4 },
-      },
+      plantao24h: { enfermeiros: 2, tecnicos: 4 },
       ...dados,
     });
   }
@@ -237,6 +238,24 @@ describe('ExtrasService — Validações de Elegibilidade, Disponibilidade, Desc
         motivo: 'reforco',
       }),
     ).rejects.toThrow(UnprocessableEntityException);
+  });
+
+  it('rejeita extra fora do setor fixo do substituto', async () => {
+    const setorDoSubstituto = await criarSetor();
+    const outroSetor = await criarSetor({ _id: new Types.ObjectId(), nome: 'Emergência' });
+    const substituto = await criarProfissional();
+    const semSetor = await criarProfissional({ setorId: null });
+    const base = { data: '2027-03-05', opcao: ExtraOpcao.DOZE_DIA, funcao: 'enfermeiro' as const, motivo: 'reforco' };
+
+    await expect(service.validar({ ...base, setorId: outroSetor._id, substitutoId: substituto._id })).rejects.toThrow(
+      /outro setor/,
+    );
+    await expect(service.validar({ ...base, setorId: setorDoSubstituto._id, substitutoId: semSetor._id })).rejects.toThrow(
+      /não possui setor fixo/,
+    );
+    await expect(
+      service.validar({ ...base, setorId: setorDoSubstituto._id, substitutoId: substituto._id }),
+    ).resolves.toBeDefined();
   });
 
   // 4. Substituto igual ao coberto
@@ -1185,4 +1204,3 @@ describe('ExtrasService — Validações de Elegibilidade, Disponibilidade, Desc
     expect(extraNoBanco.revisao).toBe(1);
   });
 });
-

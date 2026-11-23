@@ -21,6 +21,7 @@ describe('NurseFlow API (e2e)', () => {
   let http: ReturnType<typeof request>;
   let tokenCoordenacao: string;
   let tokenEnfermeiro: string;
+  let setorId: string;
   let tokensRecuperacao: Record<string, string>;
   let plantoesFuturos: { plantaoId: string; data: Date; setor: string }[];
 
@@ -36,6 +37,7 @@ describe('NurseFlow API (e2e)', () => {
     formacao: 'enfermeiro',
     tipoVinculo: 'clt',
     senha: SENHA_PROFISSIONAL,
+    setorId,
     ...sobrescrever,
   });
 
@@ -80,6 +82,11 @@ describe('NurseFlow API (e2e)', () => {
     await usuarios.criarAdministrador(coordenacao._id);
 
     tokenCoordenacao = (await login('coordenacao@nurseflow.com', SENHA_COORDENACAO, 'coordenação')).body.accessToken;
+    // Setor fixo é obrigatório no cadastro do profissional (estes setores auxiliares saem antes do bloco de Setores).
+    const plantao24h = { enfermeiros: 1, tecnicos: 1 };
+    setorId = (await http.post('/setores').set(auth(tokenCoordenacao)).send({ nome: 'UTI', plantao24h })).body.id;
+    setorInativoId = (await http.post('/setores').set(auth(tokenCoordenacao)).send({ nome: 'Setor inativo', plantao24h })).body.id;
+    await http.patch(`/setores/${setorInativoId}/inativar`).set(auth(tokenCoordenacao)).expect(200);
   });
 
   afterAll(async () => {
@@ -254,13 +261,14 @@ describe('NurseFlow API (e2e)', () => {
       await http.get('/profissionais/abc').set(auth(tokenCoordenacao)).expect(400);
     });
 
-    it('edita parcialmente; mantém o próprio CPF/COREN sem conflito; rejeita os de outro profissional', async () => {
+    it('edita o vínculo e rejeita alterações em campos imutáveis e identificadores alheios', async () => {
       const res = await http.patch(`/profissionais/${anaId}`).set(auth(tokenCoordenacao))
-        .send({ nome: 'Ana Clara Souza Lima', cpf: '529.982.247-25', tipoVinculo: 'concursado' }).expect(200);
-      expect(res.body).toMatchObject({ nome: 'Ana Clara Souza Lima', tipoVinculo: 'concursado', coren: 'COREN-CE 123456' });
+        .send({ tipoVinculo: 'concursado' }).expect(200);
+      expect(res.body).toMatchObject({ nome: 'Ana Clara Souza', tipoVinculo: 'concursado', coren: 'COREN-CE 123456' });
 
-      await http.patch(`/profissionais/${anaId}`).set(auth(tokenCoordenacao)).send({ cpf: '12345678909' }).expect(409);
-      await http.patch(`/profissionais/${anaId}`).set(auth(tokenCoordenacao)).send({ coren: 'COREN-CE 456789' }).expect(409);
+      await http.patch(`/profissionais/${anaId}`).set(auth(tokenCoordenacao)).send({ nome: 'Ana Clara Souza Lima' }).expect(400);
+      await http.patch(`/profissionais/${anaId}`).set(auth(tokenCoordenacao)).send({ cpf: '529.982.247-25' }).expect(400);
+      await http.patch(`/profissionais/${anaId}`).set(auth(tokenCoordenacao)).send({ coren: 'COREN-CE 456789' }).expect(400);
       await http.patch(`/profissionais/${anaId}`).set(auth(tokenCoordenacao)).send({ email: 'joao@nurseflow.com' }).expect(409);
       await http.patch(`/profissionais/${anaId}`).set(auth(tokenCoordenacao)).send({ cpf: '1' }).expect(400);
     });
@@ -313,17 +321,17 @@ describe('NurseFlow API (e2e)', () => {
     const novoSetor = (sobrescrever: Record<string, unknown> = {}) => ({
       nome: 'Emergência',
       descricao: 'Atendimento imediato e classificação de risco',
-      turnos: { diurno: { enfermeiros: 2, tecnicos: 3 }, noturno: { enfermeiros: 1, tecnicos: 2 } },
+      plantao24h: { enfermeiros: 2, tecnicos: 3 },
       ...sobrescrever,
     });
 
-    it('cadastra setor com quantitativo distinto por turno', async () => {
+    it('cadastra setor com quantitativo mínimo único por plantão de 24h', async () => {
       const res = await http.post('/setores').set(auth(tokenCoordenacao)).send(novoSetor()).expect(201);
       setorId = res.body.id;
       expect(res.body).toMatchObject({
         nome: 'Emergência',
         ativo: true,
-        turnos: { diurno: { enfermeiros: 2, tecnicos: 3 }, noturno: { enfermeiros: 1, tecnicos: 2 } },
+        plantao24h: { enfermeiros: 2, tecnicos: 3 },
       });
     });
 
@@ -333,18 +341,18 @@ describe('NurseFlow API (e2e)', () => {
     });
 
     it('valida quantitativos e campos obrigatórios', async () => {
-      const negativo = novoSetor({ turnos: { diurno: { enfermeiros: -1, tecnicos: 3 }, noturno: { enfermeiros: 1, tecnicos: 2 } } });
+      const negativo = novoSetor({ plantao24h: { enfermeiros: -1, tecnicos: 3 } });
       await http.post('/setores').set(auth(tokenCoordenacao)).send(negativo).expect(400);
-      await http.post('/setores').set(auth(tokenCoordenacao)).send(novoSetor({ turnos: { diurno: { enfermeiros: 1, tecnicos: 1 } } })).expect(400);
-      await http.post('/setores').set(auth(tokenCoordenacao)).send(novoSetor({ nome: 'X', turnos: undefined })).expect(400);
-      const fracionado = novoSetor({ nome: 'UTI', turnos: { diurno: { enfermeiros: 1.5, tecnicos: 1 }, noturno: { enfermeiros: 1, tecnicos: 1 } } });
+      await http.post('/setores').set(auth(tokenCoordenacao)).send(novoSetor({ plantao24h: { enfermeiros: 1 } })).expect(400);
+      await http.post('/setores').set(auth(tokenCoordenacao)).send(novoSetor({ nome: 'X', plantao24h: undefined })).expect(400);
+      const fracionado = novoSetor({ nome: 'UTI', plantao24h: { enfermeiros: 1.5, tecnicos: 1 } });
       await http.post('/setores').set(auth(tokenCoordenacao)).send(fracionado).expect(400);
     });
 
-    it('edita apenas um turno/função sem alterar os demais (DA08)', async () => {
+    it('edita apenas uma função do mínimo de 24h sem alterar a outra (DA08)', async () => {
       const res = await http.patch(`/setores/${setorId}`).set(auth(tokenCoordenacao))
-        .send({ turnos: { noturno: { tecnicos: 4 } } }).expect(200);
-      expect(res.body.turnos).toEqual({ diurno: { enfermeiros: 2, tecnicos: 3 }, noturno: { enfermeiros: 1, tecnicos: 4 } });
+        .send({ plantao24h: { tecnicos: 4 } }).expect(200);
+      expect(res.body.plantao24h).toEqual({ enfermeiros: 2, tecnicos: 4 });
     });
 
     it('edita nome/descrição e impede renomear para um nome já existente', async () => {

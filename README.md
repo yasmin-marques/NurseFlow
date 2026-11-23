@@ -11,9 +11,10 @@ Aplicação com **React 19 / Vite**, **NestJS**, **MongoDB 8**, **FastAPI/OR-Too
 5. [Instalação (desenvolvimento local)](#instalação-desenvolvimento-local)
 6. [Execução (desenvolvimento local)](#execução-desenvolvimento-local)
 7. [Execução com Docker (stack completa)](#execução-com-docker-stack-completa)
-8. [Testes automatizados](#testes-automatizados)
-9. [Solução de problemas](#solução-de-problemas)
-10. [Dados de demonstração (Docker)](#dados-de-demonstração-docker)
+8. [Integração com o Google Agenda](#integração-com-o-google-agenda)
+9. [Testes automatizados](#testes-automatizados)
+10. [Solução de problemas](#solução-de-problemas)
+11. [Dados de demonstração (Docker)](#dados-de-demonstração-docker)
 
 ## Sobre o NurseFlow
 
@@ -350,6 +351,52 @@ Todas as rotas abaixo são autenticadas; operações de gestão e exportação s
 
 O Compose local (`db/docker-compose.yml`) e o Compose integrado (`docker-compose.yml`) inicializam `rs0`; transações exigem replica set também em ambientes de produção. A exportação PDF/ZIP só aceita versões oficiais publicadas; `setorId` e `separarPorSetor=true` não podem ser usados juntos. Pendências aceitas permanecem visíveis no snapshot e no documento.
 
+## Integração com o Google Agenda
+
+Enfermeiros e Técnicos podem enviar os próprios plantões **oficiais** para o Google Agenda (RU015, RU022, RF013, US17, RNF008, DA27). A Coordenação não conecta conta Google e publica escalas normalmente.
+
+**Como funciona**
+
+- **Unidirecional**: NurseFlow → Google. O Google nunca altera escalas, nada é importado e eventos pessoais jamais são tocados.
+- **Onde fica**: aba **Meus plantões** → painel *Google Agenda* (*Conectar Google Agenda*, *Sincronizar agora*, *Desativar sincronização* e *Reconectar*).
+- **Manual (DA27)**: *Sincronizar agora* só mostra sucesso quando o processamento termina; falha parcial ou total é exibida como tal.
+- **Automático (US17)**: ao confirmar uma publicação (inclusive republicação após alteração) ou uma troca aprovada, o NurseFlow registra, **na mesma transação**, uma tarefa por profissional afetado. Um worker em segundo plano (coleção `tarefasGoogleAgenda`, com tentativas limitadas e espera crescente) envia os eventos; publicar ou aprovar nunca espera nem depende do Google. Rascunhos, revisões abertas e trocas pendentes não são enviados.
+- **Sem duplicatas**: o id do evento é determinístico (profissional + plantão) e cada execução lê o estado oficial mais recente sob um *lock* por profissional; tarefas antigas, execuções paralelas e reprocessamentos convergem para o mesmo resultado.
+- **Remoção**: se o profissional perde um plantão (troca/realocação), só o evento criado pelo NurseFlow para aquele plantão é removido. Desativar a integração interrompe novos envios, descarta o token e **preserva** os eventos já exportados.
+- **Conteúdo do evento**: data, início/fim (fuso `America/Fortaleza`, plantões noturnos/24h terminam no dia seguinte), setor e função do próprio profissional. Nenhum paciente, colega ou observação interna.
+- **Segurança**: OAuth 2.0 no backend (`state` de uso único, vinculado ao profissional, expira em 10 min), acesso offline e escopo único `https://www.googleapis.com/auth/calendar.events`. O refresh token é cifrado (AES-256-GCM) e nunca chega ao frontend, aos logs ou ao Git. O login do NurseFlow não muda.
+
+### Configuração (Google Cloud)
+
+1. No [Google Cloud Console](https://console.cloud.google.com/), crie (ou escolha) um projeto e ative a **Google Calendar API** (*APIs e serviços → Biblioteca*).
+2. Em *Google Auth Platform / Tela de consentimento OAuth*, configure o app (tipo **Externo** para contas Gmail) e adicione o escopo `.../auth/calendar.events`. Enquanto o app estiver em modo *Teste*, adicione as contas de teste em *Usuários de teste* (e saiba que, nesse modo, o Google expira os refresh tokens em 7 dias — o NurseFlow então pedirá *Reconectar*). Para uso real, publique o app (escopo sensível: exige verificação do Google).
+3. Em *Credenciais → Criar credenciais → ID do cliente OAuth → Aplicativo da Web*, registre em **URIs de redirecionamento autorizados** exatamente o valor de `GOOGLE_REDIRECT_URI`:
+   - Docker (frontend com proxy `/api`): `http://localhost:8080/api/integracoes/google-agenda/callback`
+   - Back-end local (`npm run start:dev`): `http://localhost:3000/integracoes/google-agenda/callback`
+   - Produção: `https://SEU-DOMINIO/api/integracoes/google-agenda/callback` (HTTPS obrigatório fora de localhost)
+4. Preencha o `.env` (raiz, para Docker) ou `back-end/.env` (local) — ver `.env.example`:
+
+| Variável | Descrição |
+|---|---|
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Credenciais do cliente OAuth. |
+| `GOOGLE_REDIRECT_URI` | URI de callback (idêntica à registrada no Google). |
+| `GOOGLE_TOKEN_ENCRYPTION_KEY` | 32 bytes em base64: `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`. Trocá-la exige reconexão dos profissionais. |
+| `FRONTEND_URL` | Para onde o navegador volta após o consentimento (`http://localhost:8080` no Docker, `http://localhost:5173` no Vite). |
+| `GOOGLE_SYNC_WORKER_ENABLED` / `GOOGLE_SYNC_WORKER_INTERVAL_MS` | Opcionais: liga/desliga o worker (padrão ligado) e o intervalo de leitura da fila (15000 ms). |
+
+As variáveis `GOOGLE_*` são opcionais, mas **todas as quatro** devem ser definidas juntas (configuração parcial impede o início do backend). Sem elas a interface informa que a integração não está configurada. Aplique a migration `20261120000013-google-agenda` (`npm run migrate:up`; no Docker ela roda na subida do backend).
+
+### Roteiro de validação com uma conta Google de teste
+
+1. Configure as variáveis acima, suba a stack e entre como Enfermeiro ou Técnico com plantões **publicados e futuros** (os dados demo ajudam).
+2. *Meus plantões* → **Conectar Google Agenda** → escolha a conta de teste e aceite a permissão de eventos. Você volta ao NurseFlow com a mensagem de conexão concluída; em instantes os plantões aparecem na agenda (calendário principal).
+3. Confira no Google Agenda: título `Plantão — <Setor>`, horário correto (um plantão 24h ou noturno termina no dia seguinte) e descrição apenas com setor e função.
+4. Clique em **Sincronizar agora** de novo: a mensagem deve indicar que a agenda já estava atualizada, sem eventos duplicados.
+5. Como Coordenação, altere e republique a escala (ou aprove uma troca envolvendo esse profissional): o evento é atualizado/removido sem nenhuma ação do profissional. Crie um evento pessoal antes para confirmar que ele permanece.
+6. **Desativar sincronização**: os eventos continuam na agenda e novas publicações não os alteram. Em *Conta Google → Segurança → Acesso de terceiros*, remova o NurseFlow e clique em **Sincronizar agora** em outra conexão para ver o estado *Reconexão necessária* → **Reconectar**.
+
+> **Status da verificação real**: a suíte automatizada usa uma API do Google simulada (nenhuma chamada de rede). O teste ponta a ponta com uma conta Google real depende das credenciais acima e **ainda não foi executado**.
+
 ## Testes automatizados
 
 Os testes do backend e do frontend rodam com um único comando, na raiz do projeto:
@@ -501,7 +548,7 @@ Os parâmetros são armazenados com chave `<vínculo>_<diasDoMês>` (por exemplo
 ### Gerar uma escala demonstrativa
 
 1. Entre na interface como `admin@nurseflow.test` e selecione perfil Coordenação.
-2. Gere um mês de **2026**, selecionando os setores e turnos desejados.
+2. Gere um mês de **2026**, selecionando os setores desejados; os mínimos são aplicados por plantão de 24h.
 3. Revise as vagas descobertas e os conflitos retornados. A escala do mês anterior influencia o descanso herdado; o seed não cria nem remove escalas. Se o período já tiver escala, escolha outro mês ou use um banco local de demonstração.
 
 ### Restrições de demonstração (outubro de 2026)

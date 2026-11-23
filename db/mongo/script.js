@@ -513,7 +513,7 @@ db.createCollection("plantoes",{
 
 
 // COLLECTION SETORES
-// Quantitativo mínimo por turno (diurno/noturno) e função (DA07/DA08)
+// Quantitativo mínimo por plantão de 24h e função (DA07/DA08)
 db.createCollection("setores",{
 
     validator:{
@@ -524,7 +524,7 @@ db.createCollection("setores",{
 
             required:[
                 "nome",
-                "turnos",
+                "plantao24h",
                 "ativo"
             ],
 
@@ -542,26 +542,12 @@ db.createCollection("setores",{
                     bsonType:"bool"
                 },
 
-                turnos:{
+                plantao24h:{
                     bsonType:"object",
-                    required:["diurno","noturno"],
+                    required:["enfermeiros","tecnicos"],
                     properties:{
-                        diurno:{
-                            bsonType:"object",
-                            required:["enfermeiros","tecnicos"],
-                            properties:{
-                                enfermeiros:{ bsonType:"number", minimum:0 },
-                                tecnicos:{ bsonType:"number", minimum:0 }
-                            }
-                        },
-                        noturno:{
-                            bsonType:"object",
-                            required:["enfermeiros","tecnicos"],
-                            properties:{
-                                enfermeiros:{ bsonType:"number", minimum:0 },
-                                tecnicos:{ bsonType:"number", minimum:0 }
-                            }
-                        }
+                        enfermeiros:{ bsonType:"number", minimum:0 },
+                        tecnicos:{ bsonType:"number", minimum:0 }
                     }
                 },
 

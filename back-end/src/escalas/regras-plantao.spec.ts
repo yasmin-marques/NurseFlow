@@ -181,7 +181,7 @@ describe('regras de plantões manuais', () => {
     expect(erros.join(' ')).toMatch(/descanso obrigatório/);
   });
 
-  it('calcula vagas descobertas por setor, dia, turno e função', () => {
+  it('calcula vagas descobertas por setor, dia de plantão de 24h e função', () => {
     const pendencias = calcularPendenciasCobertura({
       ano: 2026,
       mes: 10,
@@ -189,30 +189,26 @@ describe('regras de plantões manuais', () => {
         {
           id: 'setor-1',
           nome: 'UTI',
-          turnos: {
-            diurno: { enfermeiros: 1, tecnicos: 1 },
-            noturno: { enfermeiros: 1, tecnicos: 1 },
-          },
+          plantao24h: { enfermeiros: 1, tecnicos: 1 },
         },
       ],
       alocacoes: [{ ...alocacao('07:00', 24), setorId: 'setor-1' }],
     });
     expect(pendencias).toContainEqual(
-      expect.objectContaining({ data: '2026-10-12', turno: 'diurno', funcao: 'tecnicos', necessario: 1, alocado: 0, faltam: 1 }),
+      expect.objectContaining({ data: '2026-10-12', turno: '24h', funcao: 'tecnicos', necessario: 1, alocado: 0, faltam: 1 }),
     );
     expect(pendencias).not.toContainEqual(
-      expect.objectContaining({ data: '2026-10-12', turno: 'noturno', funcao: 'enfermeiros' }),
+      expect.objectContaining({ data: '2026-10-12', turno: '24h', funcao: 'enfermeiros' }),
     );
   });
 
-  it('calcula percentual de cobertura arredondando para baixo e deixa vazio sem posições exigidas', () => {
-    const setores = [{ turnos: { diurno: { enfermeiros: 1, tecnicos: 0 }, noturno: { enfermeiros: 0, tecnicos: 0 } } }];
+  it('calcula percentual da cobertura de 24h arredondando para baixo e deixa vazio sem posições exigidas', () => {
+    const setores = [{ plantao24h: { enfermeiros: 1, tecnicos: 0 } }];
     const parcial = resumirCobertura({
       ano: 2026,
       mes: 10,
       setores,
-      turnos: ['diurno'],
-      pendencias: [{ setorId: 'setor-1', setor: 'UTI', data: '2026-10-01', turno: 'diurno', funcao: 'enfermeiros', necessario: 2, alocado: 0, faltam: 2, motivo: 'teste' }],
+      pendencias: [{ setorId: 'setor-1', setor: 'UTI', data: '2026-10-01', turno: '24h', funcao: 'enfermeiros', necessario: 2, alocado: 0, faltam: 2, motivo: 'teste' }],
     });
     expect(parcial).toEqual({ posicoesExigidas: 31, posicoesPreenchidas: 29, percentual: 93 });
     expect(resumirCobertura({ ano: 2026, mes: 10, setores: [], pendencias: [] })).toEqual({

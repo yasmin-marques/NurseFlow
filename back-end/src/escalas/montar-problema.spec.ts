@@ -32,13 +32,14 @@ const prof = (id: string, tipoVinculo: TipoVinculo, extra: Partial<ProfissionalE
   formacao: Formacao.ENFERMEIRO,
   tipoVinculo,
   status: StatusProfissional.ATIVO,
+  setorId: 's1',
   ...extra,
 });
 
 const setor = {
   id: 's1',
   nome: 'UTI',
-  turnos: { diurno: { enfermeiros: 2, tecnicos: 1 }, noturno: { enfermeiros: 2, tecnicos: 1 } },
+  plantao24h: { enfermeiros: 2, tecnicos: 1 },
 };
 
 const dia = (d: number, h = 0, m = 0) => new Date(Date.UTC(2026, 9, d, h, m));
@@ -74,7 +75,7 @@ describe('configurações vigentes → problema de otimização', () => {
     );
     expect(problema.dias_mes).toBe(31);
     const [c, l, r] = problema.profissionais;
-    expect([c.carga_24h, c.carga_12h]).toEqual([6, 1]);
+    expect([c.carga_24h, c.carga_12h]).toEqual([6, 0]);
     expect([l.carga_24h, l.carga_12h]).toEqual([8, 0]);
     expect([r.carga_24h, r.carga_12h]).toEqual([0, 0]); // RPA: sem carga fixa
     expect([c.max_extras, l.max_extras, r.max_extras]).toEqual([2, 2, 2]);
@@ -91,8 +92,8 @@ describe('configurações vigentes → problema de otimização', () => {
     });
     const { problema } = montarProblema(entrada([prof('c', TipoVinculo.CONCURSADO), prof('l', TipoVinculo.CLT)], { configuracao: cfg }));
     const [c, l] = problema.profissionais;
-    expect([c.carga_24h, c.carga_12h, c.max_extras]).toEqual([5, 2, 4]);
-    expect([l.carga_24h, l.carga_12h, l.max_extras]).toEqual([7, 1, 1]);
+    expect([c.carga_24h, c.carga_12h, c.max_extras]).toEqual([5, 0, 4]);
+    expect([l.carga_24h, l.carga_12h, l.max_extras]).toEqual([7, 0, 1]);
     expect(c.max_plantoes).toBe(0);
   });
 
@@ -217,7 +218,7 @@ describe('validação prévia', () => {
   it('rejeita sem setores ativos, sem quantitativo ou sem profissionais ativos', () => {
     const base = entrada([prof('c', TipoVinculo.CLT)]);
     expect(validarEntrada({ ...base, setores: [] })).toHaveLength(1);
-    const zerado = { ...setor, turnos: { diurno: { enfermeiros: 0, tecnicos: 0 }, noturno: { enfermeiros: 0, tecnicos: 0 } } };
+    const zerado = { ...setor, plantao24h: { enfermeiros: 0, tecnicos: 0 } };
     expect(validarEntrada({ ...base, setores: [zerado] }).join(' ')).toMatch(/quantitativo/);
     expect(validarEntrada({ ...base, profissionais: [prof('x', TipoVinculo.CLT, { status: StatusProfissional.AFASTADO })] }).join(' ')).toMatch(/ativos/);
   });
@@ -225,5 +226,43 @@ describe('validação prévia', () => {
   it('avisa quando o efetivo cadastrado é menor que o quantitativo mínimo (RN006)', () => {
     const { avisos } = montarProblema(entrada([prof('c', TipoVinculo.CLT)]));
     expect(avisos.some((a) => a.tipo === 'EFETIVO_INSUFICIENTE')).toBe(true);
+  });
+});
+
+describe('setor fixo do profissional', () => {
+  const setorB = { ...setor, id: 's2', nome: 'Emergência' };
+
+  it('envia ao otimizador o setor fixo de cada profissional', () => {
+    const { problema } = montarProblema({
+      ...entrada([prof('a', TipoVinculo.CLT), prof('b', TipoVinculo.CLT, { setorId: 's2' })]),
+      setores: [setor, setorB],
+    });
+    expect(problema.profissionais.map((p) => [p.id, p.setor_id])).toEqual([['a', 's1'], ['b', 's2']]);
+  });
+
+  it('profissional sem setor não entra na geração e vira conflito informativo', () => {
+    const { problema, conflitos } = montarProblema(entrada([prof('a', TipoVinculo.CLT), prof('b', TipoVinculo.CLT, { setorId: null })]));
+    expect(problema.profissionais.map((p) => p.id)).toEqual(['a']);
+    expect(conflitos).toContainEqual(expect.objectContaining({ tipo: 'PROFISSIONAL_SEM_SETOR', profissionalId: 'b' }));
+  });
+
+  it('profissional cujo setor está fora do escopo da geração não participa', () => {
+    const { problema } = montarProblema(entrada([prof('a', TipoVinculo.CLT), prof('b', TipoVinculo.CLT, { setorId: 's9' })]));
+    expect(problema.profissionais.map((p) => p.id)).toEqual(['a']);
+  });
+
+  it('o aviso de efetivo insuficiente conta apenas profissionais do próprio setor', () => {
+    const { avisos } = montarProblema({
+      ...entrada([prof('a', TipoVinculo.CLT), prof('b', TipoVinculo.CLT), prof('c', TipoVinculo.CLT, { setorId: 's2' })]),
+      setores: [setor, setorB],
+    });
+    const doS2 = avisos.filter((aviso) => aviso.setorId === 's2' && aviso.motivo.includes('enfermeiros'));
+    expect(doS2.length).toBeGreaterThan(0);
+    expect(doS2[0].motivo).toContain('há 1 ativo(s)');
+  });
+
+  it('a validação prévia exige ao menos um profissional ativo com setor', () => {
+    const erros = validarEntrada({ ...entrada([prof('a', TipoVinculo.CLT, { setorId: null })]) });
+    expect(erros).toContainEqual(expect.stringContaining('setor fixo'));
   });
 });

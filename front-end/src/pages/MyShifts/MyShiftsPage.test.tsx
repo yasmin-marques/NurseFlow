@@ -7,6 +7,12 @@ import { MyShiftsPage } from './MyShiftsPage'
 
 const { getMyShifts } = vi.hoisted(() => ({ getMyShifts: vi.fn() }))
 vi.mock('../../services/professionalSchedule', () => ({ getMyShifts }))
+vi.mock('../../services/googleCalendar', () => ({
+  getGoogleCalendarStatus: vi.fn().mockResolvedValue({ configurada: true, estado: 'nao_conectada', ultimaSincronizacaoEm: null, pendentes: 0, reconexaoNecessaria: false, ultimoResultado: null }),
+  startGoogleCalendarConnection: vi.fn(),
+  syncGoogleCalendar: vi.fn(),
+  disableGoogleCalendar: vi.fn(),
+}))
 
 const shift = (overrides: Record<string, unknown> = {}) => ({
   plantaoId: 'p1', data: '2026-11-01', horarioInicio: '07:00', horarioFim: '07:00', duracaoHoras: 24, tipo: 'regular',
@@ -24,7 +30,7 @@ describe('MyShiftsPage', () => {
       Promise.resolve(situacao === 'proximos' ? page([shift()]) : page([shift({ plantaoId: 'p0', data: '2026-10-09', status: 'trabalhado', tipo: 'extra' })])))
   })
 
-  it('shows upcoming shifts with team, status text and a disabled Google Agenda button', async () => {
+  it('shows upcoming shifts with team, status text and the Google Agenda connection', async () => {
     render(<MyShiftsPage />)
     expect(screen.getByRole('heading', { name: 'Meus plantões' })).not.toBeNull()
     expect(await screen.findByText('Setor A')).not.toBeNull()
@@ -34,10 +40,7 @@ describe('MyShiftsPage', () => {
     expect(screen.getByText('Ana Ribeiro · Marina Freitas')).not.toBeNull()
     expect(screen.getByText('Outros técnicos')).not.toBeNull()
     expect(screen.getByText('Bruno Lima · Lívia Reis')).not.toBeNull()
-    const agenda = screen.getByRole('button', { name: /Google Agenda/ }) as HTMLButtonElement
-    expect(agenda.disabled).toBe(true)
-    const user = userEvent.setup()
-    await user.click(agenda)
+    expect(await screen.findByRole('button', { name: 'Conectar Google Agenda' })).not.toBeNull()
     expect(getMyShifts).toHaveBeenCalledTimes(1)
     expect(screen.queryByRole('button', { name: /editar|publicar|gerar|excluir/i })).toBeNull()
   })

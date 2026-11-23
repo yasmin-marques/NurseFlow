@@ -2,6 +2,7 @@ import type { ScaleStatus, ScheduledShift, ShiftBatchChange, ShiftBatchValidatio
 
 export interface ShiftReviewGroup {
   date: string
+  '24h': ScheduledShift[]
   diurno: ScheduledShift[]
   noturno: ScheduledShift[]
   total: number
@@ -44,14 +45,13 @@ export function groupShiftsByDateAndTurn(shifts: readonly ScheduledShift[]): Shi
   for (const shift of shifts) {
     let group = groups.get(shift.data)
     if (!group) {
-      group = { date: shift.data, diurno: [], noturno: [], total: 0 }
+      group = { date: shift.data, '24h': [], diurno: [], noturno: [], total: 0 }
       groups.set(shift.data, group)
     }
 
     group.total += 1
     if (shift.duracaoHoras === 24) {
-      group.diurno.push(shift)
-      group.noturno.push(shift)
+      group['24h'].push(shift)
     } else if (shift.horarioInicio === '07:00') {
       group.diurno.push(shift)
     } else {
@@ -63,6 +63,7 @@ export function groupShiftsByDateAndTurn(shifts: readonly ScheduledShift[]): Shi
     .sort((left, right) => left.date.localeCompare(right.date))
     .map((group) => ({
       ...group,
+      '24h': [...group['24h']].sort((left, right) => left.setor.nome.localeCompare(right.setor.nome)),
       diurno: [...group.diurno].sort((left, right) => left.setor.nome.localeCompare(right.setor.nome)),
       noturno: [...group.noturno].sort((left, right) => left.setor.nome.localeCompare(right.setor.nome)),
     }))
