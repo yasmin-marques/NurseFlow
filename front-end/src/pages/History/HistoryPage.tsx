@@ -85,6 +85,10 @@ function ScaleCard({
 
 function ExchangeRow({ item }: { item: ExchangeHistoryItem }) {
   const approved = item.resultado === 'aprovada'
+  const responsible = item.responsavel.nome
+  const rejectionLabel = responsible.toLowerCase() === 'coordenação'
+    ? 'Recusada pela Coordenação'
+    : `Recusada por ${responsible.trim().split(/\s+/)[0] || responsible}`
   return (
     <li className="grid gap-3 border-b border-border px-5 py-5 last:border-b-0 sm:grid-cols-[72px_minmax(0,1fr)_120px_minmax(140px,0.7fr)] sm:items-center sm:px-6">
       <span className="text-[11px] font-semibold text-text-muted">{dateLabel(item.decididaEm)}</span>
@@ -92,7 +96,7 @@ function ExchangeRow({ item }: { item: ExchangeHistoryItem }) {
         {item.solicitante.nome} <span aria-label="para">→</span> {item.profissionalSolicitado.nome}
       </span>
       <span className={`w-fit rounded-md px-2.5 py-1.5 text-[11px] font-bold ${approved ? 'bg-soft-green text-primary' : 'bg-red-50 text-red-700'}`}>
-        {approved ? 'Aprovada' : 'Recusada'}
+        {approved ? 'Aprovada' : rejectionLabel}
       </span>
       <span className="text-xs text-text-muted">Por {item.responsavel.nome}</span>
     </li>
