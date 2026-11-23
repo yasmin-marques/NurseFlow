@@ -64,7 +64,7 @@ export function validateEnv(env: Env): Env {
   // A integração com o Google Agenda é opcional, mas a configuração parcial é um erro (falha rápida).
   // As credenciais disparam a exigência; redirect/chave sozinhos (sem credenciais) mantêm a integração desligada.
   const definidas = VARIAVEIS_GOOGLE.filter((nome) => typeof env[nome] === 'string' && env[nome] !== '');
-  const comCredenciais = ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET'].some((nome) => definidas.includes(nome));
+  const comCredenciais = (['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET'] as const).some((nome) => definidas.includes(nome));
   if (comCredenciais && definidas.length < VARIAVEIS_GOOGLE.length) {
     const faltantes = VARIAVEIS_GOOGLE.filter((nome) => !definidas.includes(nome));
     throw new Error(`Configuração do Google Agenda incompleta. Defina também: ${faltantes.join(', ')}.`);
