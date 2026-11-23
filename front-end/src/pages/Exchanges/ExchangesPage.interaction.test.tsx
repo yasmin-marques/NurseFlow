@@ -62,7 +62,7 @@ describe('ExchangesPage accessibility and interaction', () => {
     expect(aprovarTroca).not.toHaveBeenCalled()
   })
 
-  it('requires a refusal reason and traps keyboard focus inside the confirmation dialog', async () => {
+  it('allows refusal without a reason and traps keyboard focus inside the confirmation dialog', async () => {
     const user = userEvent.setup()
     render(<ExchangesPage />)
     const reject = await screen.findByRole('button', { name: 'Recusar' })
@@ -71,13 +71,13 @@ describe('ExchangesPage accessibility and interaction', () => {
     expect(within(dialog).getByText('A troca não será realizada.')).not.toBeNull()
     expect(within(dialog).queryByText(/Plantão do solicitante/)).toBeNull()
     expect(within(dialog).queryByText(/Emergência/)).toBeNull()
-    const confirm = within(dialog).getByRole('button', { name: '✕ Sim' })
-    const cancel = within(dialog).getByRole('button', { name: 'Não' })
-    const reason = within(dialog).getByRole('textbox', { name: 'Motivo da recusa' })
-    expect((confirm as HTMLButtonElement).disabled).toBe(true)
+    const confirm = within(dialog).getByRole('button', { name: 'Sim, desejo recusar' })
+    const reason = within(dialog).getByRole('textbox', { name: 'Motivo da recusa (opcional)' })
+    expect((confirm as HTMLButtonElement).disabled).toBe(false)
+    expect(reason.getAttribute('required')).toBeNull()
     reason.focus()
     await user.keyboard('{Shift>}{Tab}{/Shift}')
-    expect(document.activeElement).toBe(cancel)
+    expect(document.activeElement).toBe(confirm)
     await user.type(reason, 'Cobertura insuficiente')
     expect((confirm as HTMLButtonElement).disabled).toBe(false)
     confirm.focus()
@@ -88,6 +88,25 @@ describe('ExchangesPage accessibility and interaction', () => {
     expect((await screen.findByRole('status')).textContent).toContain('Troca recusada e confirmada pelo servidor.')
   })
 
+  it('recuses without a reason and omits empty reason text from details and history', async () => {
+    const user = userEvent.setup()
+    render(<ExchangesPage />)
+    await user.click(await screen.findByRole('button', { name: 'Recusar' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Tem certeza que deseja recusar?' })
+    await user.click(within(dialog).getByRole('button', { name: 'Sim, desejo recusar' }))
+    await waitFor(() => expect(recusarTroca).toHaveBeenCalledWith('exchange-1', expect.objectContaining({ justificativa: undefined })))
+
+    const rejected = { ...request, status: 'recusada_pela_coordenacao', decisaoCoordenacao: { resultado: 'recusada', decididaEm: '2026-11-02T12:00:00Z', justificativa: '' }, historico: [{ resultado: 'recusada', decididaEm: '2026-11-02T12:00:00Z', justificativa: '   ', excecaoLimite: false, responsavel: 'Coordenação', versoesEscala: [] }] }
+    listarTrocas.mockResolvedValue({ ...page, itens: [rejected], contadores: { ...page.contadores, recusadas: 1 } })
+    obterTroca.mockResolvedValueOnce(rejected)
+    await user.click(await screen.findByRole('tab', { name: /^Recusadas/ }))
+    const card = (await screen.findByText('Solicitação recusada')).closest('li')!
+    await user.click(within(card).getByRole('button', { name: 'Detalhes' }))
+    const details = await within(card).findByRole('region', { name: 'Detalhes da troca' })
+    expect(within(details).queryByText(/Motivo da recusa:/)).toBeNull()
+    expect(within(details).queryByText(/^Motivo:$/)).toBeNull()
+    expect(details.textContent).not.toMatch(/undefined|null/)
+  })
   it('loads all final states and applies the selected period', async () => {
     const user = userEvent.setup()
     render(<ExchangesPage />)
@@ -167,6 +186,21 @@ describe('ExchangesPage accessibility and interaction', () => {
       expect(container.querySelector('.sm\\:grid-cols-2')).not.toBeNull()
       expect(container.querySelector('.min-w-0')).not.toBeNull()
     }
+  })
+
+  it('avisa quando há outra solicitação pendente para o mesmo plantão', async () => {
+    const duplicate = {
+      ...request,
+      id: 'exchange-2',
+      solicitante: { nome: 'Patricia Bastos Meireles' },
+      profissionalSolicitado: { nome: 'Outro Colega' },
+    }
+    listarTrocas.mockImplementation(({ status }: { status: 'pendentes' | 'aprovadas' | 'recusadas' }) =>
+      Promise.resolve({ ...page, itens: status === 'pendentes' ? [request, duplicate] : [], contadores: { pendentes: 2, aprovadas: 0, recusadas: 0, aguardandoCoordenacao: 2 } }))
+
+    render(<ExchangesPage />)
+
+    expect(await screen.findAllByText('Há outra solicitação pendente para este plantão')).not.toHaveLength(0)
   })
 
   it('announces list network errors and reloads from the service after retry', async () => {

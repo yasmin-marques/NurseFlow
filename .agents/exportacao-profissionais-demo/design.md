@@ -34,6 +34,6 @@ A tela `front-end/src/pages/Professionals/Professionals.tsx` lista os profission
 - [A planilha depende dos dados em memória; listas muito grandes são processadas no navegador] → Aceito para o volume atual; `exceljs` é carregada sob demanda para não pesar o carregamento inicial.
 - [`exceljs` adiciona uma dependência volumosa ao front-end (`package-lock.json` cresce)] → Mitigado pelo `import()` dinâmico.
 - [Datas são exibidas no fuso do arquivo/Excel a partir de instantes UTC] → O teste valida o instante ISO armazenado; o formato exibido é `dd/mm/yyyy hh:mm`.
-- [`seed-demo.js` mudou de encoding no diff: surgiu um BOM e os acentos de comentários e de uma mensagem aparecem corrompidos (`Ã­`, `Ã§`)] → Observado no diff da branch; afeta comentários e mensagens de log, não os dados (os nomes com acento em `PEOPLE` aparecem íntegros). Recomenda-se revisar a codificação do arquivo antes do merge. Este trabalho de documentação não altera código.
+- [`seed-demo.js` foi corrigido para UTF-8 sem BOM; os comentários e mensagens de log voltaram a usar acentuação correta.] → Corrigido antes do merge. Os nomes em `PEOPLE` permanecem íntegros.
 - [A mensagem de seed desabilitado foi alterada de "não é true" para "true"] → Mudança de texto observada no diff, sem efeito funcional; não é requisito.
 - [A mensagem final do seed informava "12 configurações mensais" e passou a informar "2 configurações mensais"] → Mudança de texto no log observada no diff; a criação das configurações não faz parte desta mudança e não foi verificada aqui.

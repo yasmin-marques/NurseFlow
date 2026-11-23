@@ -13,6 +13,7 @@ vi.mock('./pages/Overview/ProfessionalOverviewPage', () => ({ ProfessionalOvervi
 vi.mock('./pages/GeneralSchedule/GeneralSchedulePage', () => ({ GeneralSchedulePage: () => <h1>Tela Escala geral</h1> }))
 vi.mock('./pages/Scale/ScalePage', () => ({ ScalePage: () => <h1>Gestão de escala</h1> }))
 vi.mock('./pages/Exchanges/ExchangesPage', () => ({ ExchangesPage: () => <h1>Trocas da Coordenação</h1> }))
+vi.mock('./pages/Exchanges/MyExchangesPage', () => ({ MyExchangesPage: () => <h1>Minhas trocas do profissional</h1> }))
 vi.mock('./pages/History/HistoryPage', () => ({ HistoryPage: () => <h1>Histórico administrativo</h1> }))
 
 const session = (perfil: string, nome = 'Camila Souza') => ({ id: 'u1', nome, email: 'c@x.com', perfil })
@@ -40,16 +41,25 @@ describe('App routing by profile', () => {
     expect(screen.queryByText('Esta área ainda está sendo preparada.')).toBeNull()
   })
 
-  it('shows Trocas as upcoming for professionals, with no fabricated counter or data', async () => {
+  it('opens shared Minhas trocas for Enfermeiro', async () => {
     currentUser.mockResolvedValue(session('enfermeiro', 'Ana Ribeiro'))
     const user = userEvent.setup()
     render(<App />)
     const nav = await screen.findByRole('navigation', { name: 'Áreas do profissional' })
     await user.click(within(nav).getByRole('button', { name: 'Trocas' }))
-    expect(screen.getByRole('heading', { name: 'Trocas' })).not.toBeNull()
-    expect(screen.getByText(/ainda está sendo preparada/)).not.toBeNull()
+    expect(screen.getByRole('heading', { name: 'Minhas trocas do profissional' })).not.toBeNull()
     expect(within(nav).getByRole('button', { name: 'Trocas' }).textContent).toBe('Trocas')
     expect(screen.queryByText('Trocas da Coordenação')).toBeNull()
+  })
+
+  it('opens shared Minhas trocas for Técnico', async () => {
+    currentUser.mockResolvedValue(session('tecnico', 'Rafael Martins'))
+    const user = userEvent.setup()
+    render(<App />)
+    const nav = await screen.findByRole('navigation', { name: 'Áreas do profissional' })
+    await user.click(within(nav).getByRole('button', { name: 'Trocas' }))
+    expect(screen.getByRole('heading', { name: 'Minhas trocas do profissional' })).not.toBeNull()
+    expect(screen.queryByText('Esta área ainda está sendo preparada.')).toBeNull()
   })
 
   it('keeps the existing side-menu layout for the Coordenação', async () => {

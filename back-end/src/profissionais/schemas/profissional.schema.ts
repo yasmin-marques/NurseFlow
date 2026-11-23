@@ -33,3 +33,4 @@ export class Profissional {
 
 export type ProfissionalDocument = HydratedDocument<Profissional>;
 export const ProfissionalSchema = SchemaFactory.createForClass(Profissional);
+ProfissionalSchema.index({ formacao: 1, status: 1 });

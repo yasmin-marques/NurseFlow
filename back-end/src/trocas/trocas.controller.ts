@@ -44,7 +44,7 @@ export class TrocasController {
   }
 
   @Post(':id/recusar') @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Recusa uma solicitação aceita, registra o motivo e notifica os dois profissionais' })
+  @ApiOperation({ summary: 'Recusa administrativa pela Coordenação de uma solicitação já aceita; registra motivo obrigatório e notifica ambos os profissionais.' })
   @ApiOkResponse({ description: 'Recusa confirmada; atribuições da escala permanecem inalteradas.' })
   @ApiConflictResponse({ description: 'Solicitação ou versão atualizada por outra operação.' })
   recusar(@Param('id', ParseObjectIdPipe) id: string, @Body() dto: RecusarTrocaDto, @UsuarioAtual() usuario: UsuarioAutenticado) {

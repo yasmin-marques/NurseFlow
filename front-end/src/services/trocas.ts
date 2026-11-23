@@ -37,6 +37,6 @@ export function validarTroca(id: string) { return trocarApi<ValidacaoTroca>(`/tr
 export function aprovarTroca(id: string, input: { revisaoEsperada: number; operacaoId: string; excecaoLimite?: boolean; justificativa?: string }) {
   return trocarApi<Troca>(`/trocas/${id}/aprovar`, { method: 'POST', body: JSON.stringify(input) })
 }
-export function recusarTroca(id: string, input: { revisaoEsperada: number; operacaoId: string; justificativa: string }) {
+export function recusarTroca(id: string, input: { revisaoEsperada?: number; operacaoId: string; justificativa?: string }) {
   return trocarApi<Troca>(`/trocas/${id}/recusar`, { method: 'POST', body: JSON.stringify(input) })
 }

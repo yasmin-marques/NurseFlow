@@ -58,6 +58,6 @@ describe('App', () => {
     expect(await screen.findByRole('heading', { name: 'Olá, Daniela.' })).not.toBeNull()
     expect((await screen.findAllByText('Bloco B')).length).toBeGreaterThan(0)
     expect(getMyShifts).toHaveBeenCalledOnce()
-    expect(getIncomingExchangeCount).toHaveBeenCalledOnce()
+    expect(getIncomingExchangeCount).toHaveBeenCalledTimes(2)
   })
 })

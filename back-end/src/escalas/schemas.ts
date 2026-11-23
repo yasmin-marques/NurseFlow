@@ -57,6 +57,8 @@ export class Plantao {
 }
 export type PlantaoDocument = HydratedDocument<Plantao>;
 export const PlantaoSchema = SchemaFactory.createForClass(Plantao);
+PlantaoSchema.index({ escalaId: 1, data: 1, horarioInicio: 1 });
+PlantaoSchema.index({ data: 1, setorId: 1, horarioInicio: 1 });
 
 /**
  * Vínculo de alocação de um profissional a um plantão na escala.
@@ -84,6 +86,7 @@ export class PlantaoProfissional {
 export type PlantaoProfissionalDocument = HydratedDocument<PlantaoProfissional>;
 export const PlantaoProfissionalSchema = SchemaFactory.createForClass(PlantaoProfissional);
 PlantaoProfissionalSchema.index({ plantaoId: 1, profissionalId: 1 }, { unique: true });
+PlantaoProfissionalSchema.index({ profissionalId: 1, plantaoId: 1 });
 PlantaoProfissionalSchema.index(
   { extraProgramadoId: 1 },
   { unique: true, partialFilterExpression: { extraProgramadoId: { $type: 'objectId' } } },
@@ -140,6 +143,7 @@ export enum StatusTroca {
   RECUSADA_PELO_PROFISSIONAL = 'recusada_pelo_profissional',
   APROVADA = 'aprovada',
   RECUSADA_PELA_COORDENACAO = 'recusada_pela_coordenacao',
+  CANCELADA = 'cancelada',
 }
 
 /** Registro compartilhado com RF015/RF016. Somente o aceite autenticado do destinatário pode colocá-lo na fila administrativa. */
@@ -159,6 +163,12 @@ export class SolicitacaoTroca {
     resultado: 'aprovada' | 'recusada'; usuarioId: Types.ObjectId; decididaEm: Date;
     justificativa?: string; excecaoLimite?: boolean; versoesEscala?: { ano: number; mes: number; numero: number }[];
   } | null;
+  @Prop({ type: MongooseSchema.Types.Mixed }) resumoOriginal?: {
+    versaoOficial: number;
+    vinculoSolicitante: Record<string, unknown>;
+    vinculoSolicitado: Record<string, unknown>;
+  };
+  @Prop({ type: MongooseSchema.Types.Mixed }) cancelamento?: { profissionalId: Types.ObjectId; canceladaEm: Date };
   @Prop({ type: String, default: undefined }) chaveIdempotencia?: string;
   createdAt: Date;
   updatedAt: Date;
@@ -170,6 +180,27 @@ SolicitacaoTrocaSchema.index({ status: 1, ano: 1, mes: 1, criadaEm: -1 });
 SolicitacaoTrocaSchema.index({ vinculoSolicitanteId: 1, status: 1 });
 SolicitacaoTrocaSchema.index({ vinculoSolicitadoId: 1, status: 1 });
 SolicitacaoTrocaSchema.index({ chaveIdempotencia: 1 }, { unique: true, sparse: true });
+SolicitacaoTrocaSchema.index({ solicitanteProfissionalId: 1, status: 1, updatedAt: -1 });
+SolicitacaoTrocaSchema.index({ profissionalSolicitadoId: 1, status: 1, updatedAt: -1 });
+
+@Schema({ collection: 'eventosTrocaProfissional', timestamps: true, versionKey: false })
+export class EventoTrocaProfissional {
+  @Prop({ type: Types.ObjectId, ref: 'SolicitacaoTroca', required: true }) solicitacaoId: Types.ObjectId;
+  @Prop({ type: Types.ObjectId, ref: 'Usuario', required: true }) atorUsuarioId: Types.ObjectId;
+  @Prop({ type: Types.ObjectId, ref: 'Profissional', required: true }) atorProfissionalId: Types.ObjectId;
+  @Prop({ required: true, enum: ['solicitada', 'aceita', 'recusada_pelo_profissional', 'cancelada'] }) acao: string;
+  @Prop({ required: true, enum: ['nova', 'aguardando_resposta', 'aguardando_coordenacao', 'recusada_pelo_profissional', 'cancelada'] }) estadoAnterior: string;
+  @Prop({ required: true, enum: ['aguardando_resposta', 'aguardando_coordenacao', 'recusada_pelo_profissional', 'cancelada'] }) estadoNovo: string;
+  @Prop({ required: true }) operacaoId: string;
+  @Prop({ required: true }) assinaturaOperacao: string;
+  @Prop({ type: MongooseSchema.Types.Mixed, required: true }) resumoSeguro: Record<string, unknown>;
+  @Prop({ required: true, default: () => new Date() }) ocorridoEm: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
+export const EventoTrocaProfissionalSchema = SchemaFactory.createForClass(EventoTrocaProfissional);
+EventoTrocaProfissionalSchema.index({ atorUsuarioId: 1, operacaoId: 1 }, { unique: true });
+EventoTrocaProfissionalSchema.index({ solicitacaoId: 1, ocorridoEm: 1 });
 
 @Schema({ collection: 'auditoriaTrocas', timestamps: true, versionKey: false })
 export class AuditoriaTroca {

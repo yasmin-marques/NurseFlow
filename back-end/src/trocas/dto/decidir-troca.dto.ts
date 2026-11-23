@@ -11,6 +11,8 @@ export class AprovarTrocaDto extends RevisaoTrocaDto {
   @ApiPropertyOptional({ maxLength: 500 }) @IsOptional() @IsString() @MaxLength(500) justificativa?: string;
 }
 
-export class RecusarTrocaDto extends RevisaoTrocaDto {
-  @ApiProperty({ minLength: 1, maxLength: 500 }) @IsString() @MaxLength(500) justificativa: string;
+export class RecusarTrocaDto {
+  @ApiPropertyOptional({ minimum: 0, default: 0 }) @IsOptional() @IsInt() @Min(0) revisaoEsperada?: number;
+  @ApiProperty({ format: 'uuid' }) @IsUUID('4') operacaoId: string;
+  @ApiPropertyOptional({ maxLength: 500 }) @IsOptional() @IsString() @MaxLength(500) justificativa?: string;
 }
