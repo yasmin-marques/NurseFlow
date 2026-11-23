@@ -46,7 +46,7 @@ describe("Restrições e Configurações (e2e)", () => {
     process.env.MONGODB_URI = banco.uri;
     process.env.JWT_SECRET = "segredo-de-teste-com-mais-de-16-caracteres";
 
-    const { AppModule } = await import("../src/app.module");
+    const { AppModule } = await import("../src/app.module.js");
     const modulo = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();

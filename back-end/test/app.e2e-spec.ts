@@ -51,7 +51,7 @@ describe('NurseFlow API (e2e)', () => {
     plantoesFuturos = [];
 
     // Import dinâmico: o ConfigModule lê o ambiente quando app.module é carregado.
-    const { AppModule } = await import('../src/app.module');
+    const { AppModule } = await import('../src/app.module.js');
     const modulo = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(SenhaNotifier)
       .useValue({

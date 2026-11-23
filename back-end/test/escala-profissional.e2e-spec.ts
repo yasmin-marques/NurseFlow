@@ -37,7 +37,7 @@ describe('Escala do profissional (e2e)', () => {
     await aplicarMigrations(banco.uri);
     process.env.MONGODB_URI = banco.uri;
     process.env.JWT_SECRET = 'segredo-de-teste-com-mais-de-16-caracteres';
-    const { AppModule } = await import('../src/app.module');
+    const { AppModule } = await import('../src/app.module.js');
     const modulo = await Test.createTestingModule({ imports: [AppModule] }).compile();
     app = modulo.createNestApplication(); configurarApp(app); await app.init();
     http = request(app.getHttpServer()); mongo = new mongoose.mongo.MongoClient(banco.uri);

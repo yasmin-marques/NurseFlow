@@ -50,11 +50,11 @@ class OtimizadorFalso extends OtimizadorEscala {
       return { versao_contrato: 1, capacidades: [], alocacoes: [], descobertos: [], estatisticas: {} } as unknown as SolucaoOtimizacao;
     }
     const enf = problema.profissionais.find((p) => p.formacao === 'enfermeiro')!;
-    const alocacoes = problema.setores.map((s) => ({
+    const alocacoes: SolucaoOtimizacao['alocacoes'] = problema.setores.map((s) => ({
       profissional_id: enf.id,
       setor_id: s.id,
       dia: 1 + problema.setores.indexOf(s) * 4,
-      opcao: '24h' as const,
+      opcao: '24h',
       extra: false,
     }));
     if (this.duplicarVinculo) alocacoes.push({ ...alocacoes[0] });
@@ -130,7 +130,7 @@ describe('Geração automática de escalas (e2e)', () => {
     process.env.MONGODB_URI = banco.uri;
     process.env.JWT_SECRET = 'segredo-de-teste-com-mais-de-16-caracteres';
 
-    const { AppModule } = await import('../src/app.module');
+    const { AppModule } = await import('../src/app.module.js');
     const modulo = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(OtimizadorEscala)
       .useValue(otimizador)

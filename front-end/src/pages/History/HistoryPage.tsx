@@ -38,7 +38,9 @@ function downloadFile(blob: Blob, filename: string) {
   document.body.appendChild(link)
   link.click()
   link.remove()
-  window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+  window.setTimeout(() => {
+    if (typeof URL.revokeObjectURL === 'function') URL.revokeObjectURL(url)
+  }, 1000)
 }
 
 function ScaleCard({
@@ -51,7 +53,7 @@ function ScaleCard({
   onDownload: (scale: PublishedScaleHistoryItem) => void
 }) {
   return (
-    <article className="flex min-h-52 flex-col rounded-3xl border border-border bg-white p-6 shadow-[var(--shadow-soft)]">
+    <article className="flex min-h-52 flex-col rounded-3xl border border-border bg-white p-6 shadow-(--shadow-soft)">
       <span aria-hidden="true" className="mb-4 flex size-11 items-center justify-center rounded-xl bg-soft-green text-primary">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="size-5">
           <rect x="3.5" y="5" width="17" height="16" rx="2" />
@@ -277,7 +279,7 @@ export function HistoryPage() {
         ) : null}
         {!loading && !loadError && tab === 'trocas' && exchanges.length > 0 ? (
           <>
-            <ul className="overflow-hidden rounded-3xl border border-border bg-white shadow-[var(--shadow-soft)]">
+            <ul className="overflow-hidden rounded-3xl border border-border bg-white shadow-(--shadow-soft)">
               {exchanges.map((exchange) => <ExchangeRow key={exchange.id} item={exchange} />)}
             </ul>
             {exchangeTotalPages > 1 ? (

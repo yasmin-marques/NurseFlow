@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { Configuracao, ConfiguracaoSchema } from '../configuracoes/configuracao.schema';
-import { AuditoriaEscala, AuditoriaEscalaSchema, AuditoriaTroca, AuditoriaTrocaSchema, Escala, EscalaSchema, NotificacaoTroca, NotificacaoTrocaSchema, Plantao, PlantaoProfissional, PlantaoProfissionalSchema, PlantaoSchema, SolicitacaoTroca, SolicitacaoTrocaSchema, VersaoEscala, VersaoEscalaSchema } from '../escalas/schemas';
+import { AuditoriaEscala, AuditoriaEscalaSchema, AuditoriaTroca, AuditoriaTrocaSchema, Escala, EscalaSchema, EventoTrocaProfissional, EventoTrocaProfissionalSchema, NotificacaoTroca, NotificacaoTrocaSchema, Plantao, PlantaoProfissional, PlantaoProfissionalSchema, PlantaoSchema, SolicitacaoTroca, SolicitacaoTrocaSchema, VersaoEscala, VersaoEscalaSchema } from '../escalas/schemas';
 import { Restricao, RestricaoSchema } from '../restricoes/restricao.schema';
 import { Profissional, ProfissionalSchema } from '../profissionais/schemas/profissional.schema';
 import { Setor, SetorSchema } from '../setores/schemas/setor.schema';
@@ -10,6 +10,8 @@ import { Administrador, AdministradorSchema } from '../usuarios/schemas/administ
 import { TrocasController } from './trocas.controller';
 import { MinhasTrocasController } from './minhas-trocas.controller';
 import { TrocasService } from './trocas.service';
+import { MinhasTrocasService } from './minhas-trocas.service';
+import { NotificacoesTrocasController } from './notificacoes-trocas.controller';
 
 @Module({
   imports: [MongooseModule.forFeature([
@@ -17,6 +19,7 @@ import { TrocasService } from './trocas.service';
     { name: AuditoriaTroca.name, schema: AuditoriaTrocaSchema },
     { name: AuditoriaEscala.name, schema: AuditoriaEscalaSchema },
     { name: NotificacaoTroca.name, schema: NotificacaoTrocaSchema },
+    { name: EventoTrocaProfissional.name, schema: EventoTrocaProfissionalSchema },
     { name: VersaoEscala.name, schema: VersaoEscalaSchema },
     { name: PlantaoProfissional.name, schema: PlantaoProfissionalSchema },
     { name: Plantao.name, schema: PlantaoSchema },
@@ -28,7 +31,7 @@ import { TrocasService } from './trocas.service';
     { name: Setor.name, schema: SetorSchema },
     { name: Restricao.name, schema: RestricaoSchema },
   ])],
-  controllers: [TrocasController, MinhasTrocasController],
-  providers: [TrocasService],
+  controllers: [MinhasTrocasController, TrocasController, NotificacoesTrocasController],
+  providers: [TrocasService, MinhasTrocasService],
 })
 export class TrocasModule {}

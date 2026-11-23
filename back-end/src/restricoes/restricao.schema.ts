@@ -65,3 +65,4 @@ export class Restricao {
 
 export type RestricaoDocument = HydratedDocument<Restricao>;
 export const RestricaoSchema = SchemaFactory.createForClass(Restricao);
+RestricaoSchema.index({ profissionalId: 1, inicio: 1, fim: 1 });
