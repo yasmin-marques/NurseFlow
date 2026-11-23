@@ -113,16 +113,14 @@ def test_extra_fixo_nao_satisfaz_carga_regular_nem_e_contado_duas_vezes(vinculo)
             }],
         )
     )
-    assert len(sol.alocacoes) == 2
+    assert len(sol.alocacoes) == 1
     fixa = next(a for a in sol.alocacoes if a.extra_id == f"extra-{vinculo}")
-    regular = next(a for a in sol.alocacoes if a.extra_id is None)
     assert fixa.extra is True
-    assert regular.extra is False
     carga = sol.estatisticas.cargas[0]
-    assert carga.plantoes_24h == 1
+    assert carga.plantoes_24h == 0
     assert carga.plantoes_12h == 1
     assert carga.extras == 1
-    assert carga.faltam_24h == 0
+    assert carga.faltam_24h == 1
 
 
 # ---------- 24x72 ----------
@@ -242,13 +240,13 @@ def test_informa_vagas_descobertas_sem_violar_restricoes():
 
 
 # ---------- carga por vínculo, extras ----------
-def test_carga_regular_por_vinculo_e_marcacao_de_extras():
-    # Sem demanda no setor, cada um cumpre exatamente a própria carga e nenhum plantão é extra.
+def test_nao_completa_carga_regular_sem_demanda_no_setor():
     profs = [prof("conc", c24=6, c12=0, extras=1), prof("clt", c24=8, c12=0)]
     sol = resolver(problema(profs, [setor(dia=(0, 0), noite=(0, 0))], dias=31))
     cargas = {c.profissional_id: c for c in sol.estatisticas.cargas}
-    assert (cargas["conc"].plantoes_24h, cargas["conc"].plantoes_12h) == (6, 0)
-    assert (cargas["clt"].plantoes_24h, cargas["clt"].plantoes_12h) == (8, 0)
+    assert sol.alocacoes == []
+    assert (cargas["conc"].faltam_24h, cargas["conc"].faltam_12h) == (6, 0)
+    assert (cargas["clt"].faltam_24h, cargas["clt"].faltam_12h) == (8, 0)
     assert not any(a.extra for a in sol.alocacoes)
 
 

@@ -73,6 +73,23 @@ function defaultLoads() {
   );
 }
 
+function repartir(total, pesos) {
+  const somaPesos = pesos.reduce((soma, peso) => soma + peso, 0);
+  if (!Number.isInteger(total) || total < 0 || somaPesos <= 0) {
+    throw new Error('Não foi possível distribuir profissionais entre setores.');
+  }
+
+  const cotasExatas = pesos.map((peso) => (total * peso) / somaPesos);
+  const cotas = cotasExatas.map(Math.floor);
+  const restantes = total - cotas.reduce((soma, cota) => soma + cota, 0);
+  const ordemPorResto = cotasExatas
+    .map((cota, indice) => ({ indice, resto: cota - Math.floor(cota) }))
+    .sort((a, b) => b.resto - a.resto || a.indice - b.indice);
+
+  for (let i = 0; i < restantes; i++) cotas[ordemPorResto[i].indice]++;
+  return cotas;
+}
+
 function cpf(base9) {
   const digits = String(base9).padStart(9, '0').split('').map(Number);
   for (let len = 9; len < 11; len++) {

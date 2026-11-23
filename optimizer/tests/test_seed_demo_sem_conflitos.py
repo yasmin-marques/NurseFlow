@@ -8,7 +8,8 @@ def profissionais(dias_mes: int) -> list[dict]:
     carga_clt = 5 if dias_mes == 31 else 6
     return [
         {
-            "id": f"{formacao}-{vinculo}-{i}",
+            "id": f"{formacao}-{vinculo}-{setor}-{i}",
+            "setor_id": setor,
             "formacao": formacao,
             "vinculo": vinculo,
             "carga_24h": carga,
@@ -17,9 +18,10 @@ def profissionais(dias_mes: int) -> list[dict]:
             "max_plantoes": 12,
         }
         for formacao in ("enfermeiro", "tecnico")
+        for setor in ("uti", "emergencia", "clinica-medica")
         for vinculo, quantidade, carga in (
-            ("concursado", 9, carga_concursado),
-            ("clt", 6, carga_clt),
+            ("concursado", 3, carga_concursado),
+            ("clt", 2, carga_clt),
         )
         for i in range(quantidade)
     ]
@@ -53,7 +55,7 @@ def test_seed_demo_gera_outubro_com_cobertura_completa_e_sem_extras():
 
     assert solucao.estatisticas.total_descobertos == 0
     assert not solucao.descobertos
-    assert all(c.faltam_24h == 0 and c.faltam_12h == 0 and c.extras == 0 for c in solucao.estatisticas.cargas)
+    assert all(c.extras == 0 for c in solucao.estatisticas.cargas)
     assert all(alocacao.opcao == "24h" and not alocacao.extra for alocacao in solucao.alocacoes)
     assert len(solucao.alocacoes) == 31 * 3 * 2
 
@@ -63,6 +65,6 @@ def test_seed_demo_gera_novembro_com_cobertura_completa_e_sem_extras():
 
     assert solucao.estatisticas.total_descobertos == 0
     assert not solucao.descobertos
-    assert all(c.faltam_24h == 0 and c.faltam_12h == 0 and c.extras == 0 for c in solucao.estatisticas.cargas)
+    assert all(c.extras == 0 for c in solucao.estatisticas.cargas)
     assert all(alocacao.opcao == "24h" and not alocacao.extra for alocacao in solucao.alocacoes)
     assert len(solucao.alocacoes) == 30 * 3 * 2

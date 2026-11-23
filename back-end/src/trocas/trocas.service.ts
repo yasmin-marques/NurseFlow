@@ -273,7 +273,6 @@ export class TrocasService {
   }
 
   async recusar(id: string, dto: RecusarTrocaDto, usuario: UsuarioAutenticado) {
-    if (!dto.justificativa?.trim()) throw new UnprocessableEntityException('Informe o motivo da recusa.');
     this.exigirTransacoesConfirmadas();
     const existente = await this.trocas.findById(id).lean().exec();
     if (!existente) throw new NotFoundException('Solicitação de troca não encontrada.');
@@ -617,9 +616,9 @@ export class TrocasService {
             for (const funcao of [Formacao.ENFERMEIRO, Formacao.TECNICO]) {
               const chave = `${setorId}|${data}|${turno}|${funcao}`;
               const quantidade = coberturaAposTroca.get(chave) ?? 0;
-              const necessario = turno === 'diurno'
-                ? (funcao === Formacao.ENFERMEIRO ? setor.turnos.diurno.enfermeiros : setor.turnos.diurno.tecnicos)
-                : (funcao === Formacao.ENFERMEIRO ? setor.turnos.noturno.enfermeiros : setor.turnos.noturno.tecnicos);
+              const necessario = funcao === Formacao.ENFERMEIRO
+                ? setor.plantao24h.enfermeiros
+                : setor.plantao24h.tecnicos;
               const quantidadeAntes = contexto.coberturaPorSetorDataTurnoFuncao.get(chave) ?? 0;
               if (quantidade < necessario && quantidade < quantidadeAntes) {
                 impedimentos.push({ codigo: 'COBERTURA_INSUFICIENTE', mensagem: 'Esta troca deixa o turno com menos profissionais. Escolha outra opção.' });
@@ -934,7 +933,7 @@ export class TrocasService {
     const coberturaDepois = await this.comCache(cache, `cobertura-depois:${String(escala._id)}:${idsAfetados.join(',')}`, async () =>
       calcularPendenciasCobertura({ ano: escala.ano, mes: escala.mes,
         setores: setores.map((s) => ({ id: String(s._id), nome: s.nome, plantao24h: s.plantao24h })),
-        alocacoes }));
+        alocacoes: [...existentes, ...candidatas] }));
     if (coberturaDepois.length) {
       const datasAfetadas = new Set([new Date(plantaoA.data).toISOString().slice(0, 10), new Date(plantaoB.data).toISOString().slice(0, 10)]);
       const setorIdsAfetados = new Set([String(plantaoA.setorId), String(plantaoB.setorId)]);

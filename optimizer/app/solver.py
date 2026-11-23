@@ -21,8 +21,9 @@ O quantitativo mínimo é flexibilizado por uma variável de folga: se faltar ge
 devolvida como "descoberta" em vez de violar uma restrição dura. A escala regular não ultrapassa
 esse quantitativo; alocações fixas são preservadas mesmo se excederem a demanda.
 
-Objetivo (em ordem de importância): menos vagas descobertas > menos extras > carga regular
-completa > menos sobra de cobertura > extras distribuídos de forma equilibrada.
+Objetivo (em ordem de importância): menos vagas descobertas > menos extras > menos sobra de
+cobertura > extras distribuídos de forma equilibrada. A carga regular individual não é uma meta
+de alocação: profissionais não são escalados apenas para completar sua carga mensal.
 """
 from __future__ import annotations
 
@@ -41,7 +42,6 @@ INICIO_NOTURNO = 19
 
 PESO_DESCOBERTO = 10_000
 PESO_EXTRA = 100
-PESO_CARGA_FALTANTE = 30
 PESO_SOBRA = 5
 PESO_EQUILIBRIO_EXTRAS = 10
 CANCELAMENTO_TTL_SEGUNDOS = 300
@@ -228,21 +228,16 @@ def resolver(problema: Problema) -> Solucao:
         inferidos12 = modelo.NewIntVar(0, teto, f"inferidos12_{pi}")
         e24 = modelo.NewIntVar(0, teto, f"e24_{pi}")
         e12 = modelo.NewIntVar(0, teto, f"e12_{pi}")
-        f24 = modelo.NewIntVar(0, p.carga_24h, f"f24_{pi}")
-        f12 = modelo.NewIntVar(0, p.carga_12h, f"f12_{pi}")
         modelo.Add(inferidos24 >= n24 - p.carga_24h)
         modelo.Add(inferidos12 >= n12 - p.carga_12h)
         modelo.Add(e24 == inferidos24 + fixas24)
         modelo.Add(e12 == inferidos12 + fixas12)
-        modelo.Add(f24 >= p.carga_24h - n24)
-        modelo.Add(f12 >= p.carga_12h - n12)
         modelo.Add(e24 + e12 <= p.max_extras)
         if p.max_plantoes > 0:
             modelo.Add(n24 + n12 <= p.max_plantoes)
         objetivo.append(PESO_EXTRA * (e24 + e12))
-        objetivo.append(PESO_CARGA_FALTANTE * (f24 + f12))
         extras_vars.append(e24 + e12)
-        contagens[pi] = (e24, e12, inferidos24, inferidos12, f24, f12)
+        contagens[pi] = (e24, e12, inferidos24, inferidos12)
 
     if extras_vars:
         maximo = modelo.NewIntVar(0, max([p.max_extras for p in profs] + [0]), "max_extras")
@@ -278,7 +273,7 @@ def resolver(problema: Problema) -> Solucao:
     extras_marcados: set[tuple[int, int, str]] = set()
     cargas = []
     for pi, p in enumerate(profs):
-        e24, e12, inferidos24, inferidos12, f24, f12 = contagens[pi]
+        e24, e12, inferidos24, inferidos12 = contagens[pi]
         v24, v12 = solver.Value(e24), solver.Value(e12)
         vi24, vi12 = solver.Value(inferidos24), solver.Value(inferidos12)
         lista = sorted(por_prof.get(pi, []))
@@ -295,8 +290,8 @@ def resolver(problema: Problema) -> Solucao:
                 plantoes_24h=len(l24_todos),
                 plantoes_12h=len(l12_todos),
                 extras=v24 + v12,
-                faltam_24h=solver.Value(f24),
-                faltam_12h=solver.Value(f12),
+                faltam_24h=max(0, p.carga_24h - len(l24)),
+                faltam_12h=max(0, p.carga_12h - len(l12)),
             )
         )
 
