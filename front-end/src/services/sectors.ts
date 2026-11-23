@@ -1,5 +1,5 @@
 import { api } from './api'
-import type { Sector, SectorMinimum, SectorShift } from '../pages/Sectors/types'
+import type { Sector, SectorMinimum } from '../pages/Sectors/types'
 
 type Quantitativo = { enfermeiros: number; tecnicos: number }
 type ApiSector = {
@@ -7,7 +7,7 @@ type ApiSector = {
   nome: string
   descricao?: string
   ativo: boolean
-  turnos: { diurno: Quantitativo; noturno: Quantitativo }
+  plantao24h: Quantitativo
 }
 
 const toMinimum = (q: Quantitativo): SectorMinimum => ({ nurses: q.enfermeiros, technicians: q.tecnicos })
@@ -18,16 +18,8 @@ const fromApi = (s: ApiSector): Sector => ({
   name: s.nome,
   description: s.descricao ?? '',
   active: s.ativo,
-  shifts: [
-    { id: 'day', label: 'Diurno', hours: '07h—19h', minimum: toMinimum(s.turnos.diurno) },
-    { id: 'night', label: 'Noturno', hours: '19h—07h', minimum: toMinimum(s.turnos.noturno) },
-  ],
+  minimum: toMinimum(s.plantao24h),
 })
-
-const turnosOf = (shifts: SectorShift[]) => {
-  const find = (id: string) => shifts.find((shift) => shift.id === id)!.minimum
-  return { diurno: toQuantitativo(find('day')), noturno: toQuantitativo(find('night')) }
-}
 
 export const listSectors = async () =>
   (await api<ApiSector[]>('/setores')).map(fromApi)
@@ -36,15 +28,15 @@ export const createSector = async (s: Omit<Sector, 'id' | 'active'>) =>
   fromApi(
     await api<ApiSector>('/setores', {
       method: 'POST',
-      body: JSON.stringify({ nome: s.name, descricao: s.description || undefined, turnos: turnosOf(s.shifts) }),
+      body: JSON.stringify({ nome: s.name, descricao: s.description || undefined, plantao24h: toQuantitativo(s.minimum) }),
     }),
   )
 
-export const updateSectorMinimum = async (sectorId: string, shiftId: SectorShift['id'], minimum: SectorMinimum) =>
+export const updateSectorMinimum = async (sectorId: string, minimum: SectorMinimum) =>
   fromApi(
     await api<ApiSector>(`/setores/${sectorId}`, {
       method: 'PATCH',
-      body: JSON.stringify({ turnos: { [shiftId === 'day' ? 'diurno' : 'noturno']: toQuantitativo(minimum) } }),
+      body: JSON.stringify({ plantao24h: toQuantitativo(minimum) }),
     }),
   )
 

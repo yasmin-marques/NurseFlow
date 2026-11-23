@@ -1,20 +1,18 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Clock, X } from "../../../components/icons";
 import { NumberStepper } from "../../../components/ui/NumberStepper";
-import type { SectorShift } from "./EditSectorMinimumModal";
+import type { SectorMinimum } from "./EditSectorMinimumModal";
 
 type NewSectorModalProps = {
     onClose: () => void;
-    onSave: (sector: { name: string; description: string; shifts: SectorShift[] }) => void | Promise<void>;
+    onSave: (sector: { name: string; description: string; minimum: SectorMinimum }) => void | Promise<void>;
 };
 
 export function NewSectorModal({ onClose, onSave }: NewSectorModalProps) {
     const [name, setName] = useState("");
     const [description, setDescription] = useState("");
-    const [dayNurses, setDayNurses] = useState(2);
-    const [dayTechnicians, setDayTechnicians] = useState(3);
-    const [nightNurses, setNightNurses] = useState(2);
-    const [nightTechnicians, setNightTechnicians] = useState(3);
+    const [nurses, setNurses] = useState(2);
+    const [technicians, setTechnicians] = useState(3);
 
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
@@ -33,12 +31,9 @@ export function NewSectorModal({ onClose, onSave }: NewSectorModalProps) {
         setError("");
         try {
             await onSave({
-            name: name.trim(),
-            description: description.trim(),
-            shifts: [
-                { id: "day", label: "Diurno", hours: "07h—19h", minimum: { nurses: dayNurses, technicians: dayTechnicians } },
-                { id: "night", label: "Noturno", hours: "19h—07h", minimum: { nurses: nightNurses, technicians: nightTechnicians } },
-            ],
+                name: name.trim(),
+                description: description.trim(),
+                minimum: { nurses, technicians },
             });
         } catch (err) {
             setError(err instanceof Error ? err.message : "Não foi possível cadastrar o setor.");
@@ -81,35 +76,17 @@ export function NewSectorModal({ onClose, onSave }: NewSectorModalProps) {
                             <div className="flex items-center gap-2 border-b border-border/70 pb-3">
                                 <span className="flex size-8 items-center justify-center rounded-lg bg-[#e1efd9] text-primary"><Clock className="size-4" /></span>
                                 <div>
-                                    <p className="text-[10px] font-bold text-text">Turno diurno</p>
-                                    <p className="mt-0.5 text-[9px] text-text-muted">07h—19h</p>
+                                    <p className="text-[10px] font-bold text-text">Mínimo por plantão de 24h</p>
+                                    <p className="mt-0.5 text-[9px] text-text-muted">07h às 07h do dia seguinte</p>
                                 </div>
                             </div>
                             <div className="flex min-h-[54px] items-center justify-between gap-3 border-b border-border/70 py-2">
                                 <span className="text-[10px] font-semibold text-text">Enfermeiros</span>
-                                <NumberStepper value={dayNurses} onChange={setDayNurses} label="enfermeiros no turno diurno" />
+                                <NumberStepper value={nurses} onChange={setNurses} label="enfermeiros por plantão de 24 horas" />
                             </div>
                             <div className="flex min-h-[54px] items-center justify-between gap-3 py-2">
                                 <span className="text-[10px] font-semibold text-text">Técnicos</span>
-                                <NumberStepper value={dayTechnicians} onChange={setDayTechnicians} label="técnicos no turno diurno" />
-                            </div>
-                        </section>
-
-                        <section className="rounded-xl bg-[#f3f5f1] px-3.5 py-3">
-                            <div className="flex items-center gap-2 border-b border-border/70 pb-3">
-                                <span className="flex size-8 items-center justify-center rounded-lg bg-[#e1efd9] text-primary"><Clock className="size-4" /></span>
-                                <div>
-                                    <p className="text-[10px] font-bold text-text">Turno noturno</p>
-                                    <p className="mt-0.5 text-[9px] text-text-muted">19h—07h</p>
-                                </div>
-                            </div>
-                            <div className="flex min-h-[54px] items-center justify-between gap-3 border-b border-border/70 py-2">
-                                <span className="text-[10px] font-semibold text-text">Enfermeiros</span>
-                                <NumberStepper value={nightNurses} onChange={setNightNurses} label="enfermeiros no turno noturno" />
-                            </div>
-                            <div className="flex min-h-[54px] items-center justify-between gap-3 py-2">
-                                <span className="text-[10px] font-semibold text-text">Técnicos</span>
-                                <NumberStepper value={nightTechnicians} onChange={setNightTechnicians} label="técnicos no turno noturno" />
+                                <NumberStepper value={technicians} onChange={setTechnicians} label="técnicos por plantão de 24 horas" />
                             </div>
                         </section>
                     </div>

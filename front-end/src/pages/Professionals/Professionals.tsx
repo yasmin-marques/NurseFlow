@@ -124,6 +124,7 @@ export function Professional() {
                         bond: "CLT",
                         status: true,
                         formation: "Enfemeiro",
+                        sectorId: "",
                     }}
                     isCreating={isCreatingProfessional}
                     onClose={() => {

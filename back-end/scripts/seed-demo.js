@@ -151,11 +151,30 @@ async function seed() {
     ];
     for (const [nome, descricao, dia, noite] of setores) {
       await db.collection('setores').updateOne({ nome }, { $setOnInsert: {
-        nome, descricao, turnos: {
-          diurno: { enfermeiros: dia[0], tecnicos: dia[1] },
-          noturno: { enfermeiros: noite[0], tecnicos: noite[1] },
+        nome, descricao, plantao24h: {
+          enfermeiros: Math.max(dia[0], noite[0]),
+          tecnicos: Math.max(dia[1], noite[1]),
         }, ativo: true, createdAt: ts, updatedAt: ts,
       } }, { upsert: true });
+    }
+
+    // Setor fixo: cada profissional demo recebe um unico setor, proporcional a demanda de sua categoria.
+    // So preenche quem ainda nao tem setor (nunca sobrescreve um setor ja definido no cadastro).
+    const setorDocs = await db.collection('setores').find({ nome: { $in: setores.map(([nome]) => nome) } }).toArray();
+    const setorPorNome = new Map(setorDocs.map((s) => [s.nome, s._id]));
+    for (const [formacaoDemo, indiceFuncao] of [['enfermeiro', 0], ['tecnico', 1]]) {
+      const grupo = PEOPLE.filter((pessoa) => pessoa[2] === formacaoDemo);
+      const pesos = setores.map(([, , dia, noite]) => Math.max(dia[indiceFuncao], noite[indiceFuncao]));
+      const cotas = repartir(grupo.length, pesos);
+      let cursor = 0;
+      for (let s = 0; s < setores.length; s++) {
+        for (let k = 0; k < cotas[s]; k++, cursor++) {
+          await profs.updateOne(
+            { _id: identities[grupo[cursor][0]], setorId: { $in: [null] } },
+            { $set: { setorId: setorPorNome.get(setores[s][0]), updatedAt: ts } },
+          );
+        }
+      }
     }
 
     for (const chave of DEMO_CONFIGURATIONS) {

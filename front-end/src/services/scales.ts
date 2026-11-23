@@ -2,6 +2,7 @@ import { api, apiDownload } from './api'
 
 export type ScaleStatus = 'rascunho' | 'em_revisao' | 'validada' | 'publicada' | 'finalizada'
 export type ScaleShift = 'diurno' | 'noturno'
+export type CoverageShift = '24h' | ScaleShift
 export type ShiftOption = '24h' | '12d' | '12n'
 export type ShiftType = 'regular' | 'extra'
 export type ShiftRole = 'enfermeiro' | 'tecnico'
@@ -18,7 +19,7 @@ export interface CoverageVacancy {
   setorId: string
   setor: string
   data: string
-  turno: ScaleShift
+  turno: CoverageShift
   funcao: 'enfermeiros' | 'tecnicos'
   necessario: number
   alocado: number
@@ -56,7 +57,7 @@ export interface ScheduleFinding {
   setorId?: string
   setor?: string
   data?: string
-  turno?: ScaleShift
+  turno?: CoverageShift
 }
 
 export interface ProfessionalWorkload {
@@ -121,12 +122,13 @@ export interface ShiftInput {
   coberturaReconhecida?: boolean
 }
 
-export type ShiftBatchChange = Omit<ShiftInput, 'revisao'> & { plantaoId?: string; coberturaReconhecida?: boolean }
+export type ShiftBatchChange = Omit<ShiftInput, 'revisao'> & { plantaoId?: string; coberturaReconhecida?: boolean; forcarConflitos?: boolean }
 
 export interface ShiftBatchValidation {
   revisao: number
   valida: boolean
   erros: Array<string | { tipo?: string; motivo?: string; [key: string]: unknown }>
+  conflitosForcados?: string[]
   cobertura: CoverageSummary
   pendencias: CoverageVacancy[]
   requerConfirmacaoCobertura: boolean
@@ -137,7 +139,6 @@ export interface GenerateScaleInput {
   mes: number
   operacaoId?: string
   setorIds?: string[]
-  turnos?: ScaleShift[]
   substituirRascunho?: boolean
 }
 
@@ -197,35 +198,41 @@ const toApiShift = (input: ShiftInput) => ({
   })),
 })
 
-const toApiBatch = (revisaoEsperada: number, alteracoes: ShiftBatchChange[]) => ({
+const toApiBatch = (revisaoEsperada: number, alteracoes: ShiftBatchChange[], forcarConflitos = false) => ({
   revisaoEsperada,
-  alteracoes: alteracoes.map(({ plantaoId, coberturaReconhecida, ...input }) => ({
-    ...(plantaoId ? { plantaoId } : {}),
-    ...(coberturaReconhecida ? { coberturaReconhecida: true } : {}),
-    setorId: input.setorId,
-    data: input.data,
-    opcao: input.opcao,
-    tipo: input.tipo,
-    ...(input.motivo ? { motivo: input.motivo } : {}),
-    ...(input.observacao ? { observacao: input.observacao } : {}),
-    equipe: input.equipe.map((person) => ({
-      profissionalId: person.profissionalId,
-      funcao: person.funcao,
-      lideranca: person.lideranca ?? false,
-      origemCobertura: person.origemCobertura ?? 'regular',
-    })),
-  })),
+  ...(forcarConflitos ? { forcarConflitos: true } : {}),
+  alteracoes: alteracoes.map((change) => {
+    const input = { ...change }
+    delete input.forcarConflitos
+    const { plantaoId, coberturaReconhecida, ...shift } = input
+    return {
+      ...(plantaoId ? { plantaoId } : {}),
+      ...(coberturaReconhecida ? { coberturaReconhecida: true } : {}),
+      setorId: shift.setorId,
+      data: shift.data,
+      opcao: shift.opcao,
+      tipo: shift.tipo,
+      ...(shift.motivo ? { motivo: shift.motivo } : {}),
+      ...(shift.observacao ? { observacao: shift.observacao } : {}),
+      equipe: shift.equipe.map((person) => ({
+        profissionalId: person.profissionalId,
+        funcao: person.funcao,
+        lideranca: person.lideranca ?? false,
+        origemCobertura: person.origemCobertura ?? 'regular',
+      })),
+    }
+  }),
 })
 
-export function validateShiftBatch(scaleId: string, revisaoEsperada: number, alteracoes: ShiftBatchChange[]): Promise<ShiftBatchValidation> {
+export function validateShiftBatch(scaleId: string, revisaoEsperada: number, alteracoes: ShiftBatchChange[], forcarConflitos = false): Promise<ShiftBatchValidation> {
   return api<ShiftBatchValidation>(`/escalas/${scaleId}/plantoes/validar-lote`, {
-    method: 'POST', body: JSON.stringify(toApiBatch(revisaoEsperada, alteracoes)),
+    method: 'POST', body: JSON.stringify(toApiBatch(revisaoEsperada, alteracoes, forcarConflitos)),
   })
 }
 
-export async function saveShiftBatch(scaleId: string, revisaoEsperada: number, alteracoes: ShiftBatchChange[]): Promise<ScaleDetail> {
+export async function saveShiftBatch(scaleId: string, revisaoEsperada: number, alteracoes: ShiftBatchChange[], forcarConflitos = false): Promise<ScaleDetail> {
   return fromApi(await api<ApiScaleDetail>(`/escalas/${scaleId}/plantoes/lote`, {
-    method: 'POST', body: JSON.stringify(toApiBatch(revisaoEsperada, alteracoes)),
+    method: 'POST', body: JSON.stringify(toApiBatch(revisaoEsperada, alteracoes, forcarConflitos)),
   }))
 }
 
