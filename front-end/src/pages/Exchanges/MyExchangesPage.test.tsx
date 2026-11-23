@@ -57,6 +57,24 @@ describe('MyExchangesPage', () => {
     expect(executarAcaoTroca).toHaveBeenCalledWith('request-1', 'aceite', 'operation-1')
   })
 
+  it('shows the correct colleague rejection perspective in received, sent, and coordination cases', async () => {
+    vi.mocked(listarMinhasTrocas).mockImplementation(async (tab) => ({
+      itens: tab === 'recebidas'
+        ? [{ ...request, status: 'recusada_pelo_profissional', direcao: 'recebida' as const, solicitante: { nome: 'Karina Alves' }, profissionalSolicitado: { nome: 'Beatriz Lima' } }]
+        : tab === 'enviadas'
+          ? [{ ...request, status: 'recusada_pelo_profissional', direcao: 'enviada' as const, solicitante: { nome: 'Beatriz Lima' }, profissionalSolicitado: { nome: 'Karina Alves' } }]
+          : [{ ...request, status: 'recusada_pela_coordenacao', direcao: 'recebida' as const }],
+      total: 1, pagina: 1, limite: 50, totalPaginas: 1,
+    }))
+    render(<MyExchangesPage />)
+
+    expect(await screen.findByText('Você recusou')).not.toBeNull()
+    await userEvent.setup().click(screen.getByRole('tab', { name: 'Enviadas' }))
+    expect(await screen.findByText('Recusada por Karina')).not.toBeNull()
+    await userEvent.setup().click(screen.getByRole('tab', { name: 'Histórico' }))
+    expect(await screen.findByText('Recusada pela Coordenação')).not.toBeNull()
+  })
+
   it('has no automated WCAG A/AA violations in the initial view', async () => {
     const { container } = render(<MyExchangesPage />)
     await screen.findByRole('tab', { name: 'Recebidas' })

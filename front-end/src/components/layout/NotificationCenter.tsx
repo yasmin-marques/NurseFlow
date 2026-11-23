@@ -18,6 +18,16 @@ import { Drawer } from '../ui/Drawer'
 const formatDateTime = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
 const formatDate = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeZone: 'UTC' })
 
+const exchangeRejectionNotification = (notification: ExchangeNotification) =>
+  /recus|coordenação/i.test(`${notification.eventKey} ${notification.titulo} ${notification.mensagem}`)
+
+const exchangeRejectionLabel = (notification: ExchangeNotification) =>
+  /coordenação/i.test(`${notification.titulo} ${notification.mensagem}`)
+    ? 'Recusada pela Coordenação'
+    : /cancelad/i.test(`${notification.eventKey} ${notification.titulo} ${notification.mensagem}`)
+      ? 'Cancelada pelo solicitante'
+      : 'Recusada'
+
 export function NotificationCenter({ onOpenExchange }: { onOpenExchange?: (id: string) => void }) {
   const [open, setOpen] = useState(false)
   const [list, setList] = useState<ScaleNotificationList>({ notificacoes: [], naoLidas: 0 })
@@ -212,7 +222,7 @@ export function NotificationCenter({ onOpenExchange }: { onOpenExchange?: (id: s
               {!loading && list.notificacoes.length === 0 && exchangeList.notificacoes.length === 0 ? (
                 <p className="px-1 py-5 text-sm text-text-muted">Você não tem notificações de escala.</p>
               ) : null}
-              {exchangeList.notificacoes.length > 0 ? <section aria-labelledby="exchange-notifications-title" className="mb-4"><h3 id="exchange-notifications-title" className="border-b border-border py-2 text-xs font-bold uppercase tracking-wide text-text-muted">Trocas</h3><ul>{exchangeList.notificacoes.map((notification) => <li key={notification.id} className={`border-b border-border px-1 py-3 ${notification.lidaEm ? '' : 'bg-secondary/30'}`}><p className="text-sm font-semibold text-text">{notification.titulo}</p><p className="mt-1 text-xs leading-relaxed text-text-muted">{notification.mensagem}</p><time className="mt-2 block text-[11px] text-text-muted" dateTime={notification.criadaEm}>{formatDateTime.format(new Date(notification.criadaEm))}</time><div className="mt-2 flex flex-wrap gap-3"><button type="button" onClick={() => { onOpenExchange?.(notification.solicitacaoId); setOpen(false) }} className="text-xs font-semibold text-primary hover:underline">Abrir solicitação</button>{!notification.lidaEm ? <button type="button" disabled={pendingId === notification.id} onClick={() => void markExchangeRead(notification)} className="text-xs font-semibold text-text-muted hover:underline">{pendingId === notification.id ? 'Atualizando...' : 'Marcar como lida'}</button> : null}</div></li>)}</ul></section> : null}
+              {exchangeList.notificacoes.length > 0 ? <section aria-labelledby="exchange-notifications-title" className="mb-4"><h3 id="exchange-notifications-title" className="border-b border-border py-2 text-xs font-bold uppercase tracking-wide text-text-muted">Trocas</h3><ul>{exchangeList.notificacoes.map((notification) => <li key={notification.id} className={`border-b border-border px-1 py-3 ${notification.lidaEm ? '' : exchangeRejectionNotification(notification) ? 'bg-danger/10' : 'bg-secondary/30'}`}><p className="text-sm font-semibold text-text">{exchangeRejectionNotification(notification) ? exchangeRejectionLabel(notification) : notification.titulo}</p><p className={`mt-1 text-xs leading-relaxed ${exchangeRejectionNotification(notification) ? 'text-danger' : 'text-text-muted'}`}>{notification.mensagem}</p><time className="mt-2 block text-[11px] text-text-muted" dateTime={notification.criadaEm}>{formatDateTime.format(new Date(notification.criadaEm))}</time><div className="mt-2 flex flex-wrap gap-3"><button type="button" onClick={() => { onOpenExchange?.(notification.solicitacaoId); setOpen(false) }} className="text-xs font-semibold text-primary hover:underline">Abrir solicitação</button>{!notification.lidaEm ? <button type="button" disabled={pendingId === notification.id} onClick={() => void markExchangeRead(notification)} className="text-xs font-semibold text-text-muted hover:underline">{pendingId === notification.id ? 'Atualizando...' : 'Marcar como lida'}</button> : null}</div></li>)}</ul></section> : null}
               <ul>
                 {list.notificacoes.map((notification) => (
                   <li

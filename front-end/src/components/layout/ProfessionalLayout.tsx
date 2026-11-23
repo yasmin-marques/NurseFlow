@@ -47,13 +47,14 @@ export function ProfessionalLayout({ activeTab, onNavigate, onProfileClick, onOp
                   key={tab.id}
                   type="button"
                   aria-current={active ? 'page' : undefined}
+                  aria-label={tab.id === 'trocas' && incomingCount !== null && incomingCount > 0 ? `${tab.label} ${incomingCount}` : tab.label}
                   onClick={() => onNavigate(tab.id)}
                   className={`relative flex h-18.5 shrink-0 items-center px-4 text-[13px] font-semibold transition-colors focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary ${
                     active ? 'text-primary' : 'text-text-muted hover:text-text'
                   }`}
                 >
-                  {tab.id === 'trocas' && incomingCount !== null && incomingCount > 0 ? <span aria-hidden="true" className="ml-1 inline-flex min-w-5 items-center justify-center rounded-full bg-badge-red px-1.5 py-0.5 text-[10px] font-bold text-badge-red-text">{incomingCount}</span> : null}
                   {tab.label}
+                  {tab.id === 'trocas' && incomingCount !== null && incomingCount > 0 ? <span aria-hidden="true" className="ml-1.5 inline-flex min-w-5 shrink-0 items-center justify-center whitespace-nowrap rounded-full bg-badge-red px-1.5 py-0.5 align-middle text-[10px] font-bold leading-none text-badge-red-text">{incomingCount}</span> : null}
                   {tab.id === 'trocas' && countError ? <span className="sr-only">, contagem indisponível</span> : null}
                   {tab.id === 'trocas' && incomingCount === 0 ? <span className="sr-only">, nenhuma solicitação aguardando resposta</span> : null}
                   {active ? <span aria-hidden="true" className="absolute inset-x-0 bottom-0 h-0.75 rounded-t bg-primary" /> : null}

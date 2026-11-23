@@ -100,7 +100,7 @@ describe('ExchangesPage accessibility and interaction', () => {
     listarTrocas.mockResolvedValue({ ...page, itens: [rejected], contadores: { ...page.contadores, recusadas: 1 } })
     obterTroca.mockResolvedValueOnce(rejected)
     await user.click(await screen.findByRole('tab', { name: /^Recusadas/ }))
-    const card = (await screen.findByText('Solicitação recusada')).closest('li')!
+    const card = (await screen.findByText('Recusada pela Coordenação')).closest('li')!
     await user.click(within(card).getByRole('button', { name: 'Detalhes' }))
     const details = await within(card).findByRole('region', { name: 'Detalhes da troca' })
     expect(within(details).queryByText(/Motivo da recusa:/)).toBeNull()
@@ -116,7 +116,7 @@ describe('ExchangesPage accessibility and interaction', () => {
     expect(await screen.findByText('Solicitação aprovada')).not.toBeNull()
     expect(screen.queryByRole('button', { name: 'Aprovar' })).toBeNull()
     await user.click(within(tablist).getByRole('tab', { name: /^Recusadas/ }))
-    expect(await screen.findByText('Solicitação recusada')).not.toBeNull()
+    expect(await screen.findByText('Recusada pela Coordenação')).not.toBeNull()
     expect(screen.queryByRole('button', { name: 'Recusar' })).toBeNull()
     await user.selectOptions(screen.getByLabelText('Mês'), '10')
     await waitFor(() => expect(listarTrocas).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'recusadas', mes: 10 })))
@@ -173,7 +173,7 @@ describe('ExchangesPage accessibility and interaction', () => {
 
     await user.click(within(screen.getByRole('tablist')).getByRole('tab', { name: /^Recusadas/ }))
     obterTroca.mockResolvedValueOnce({ ...request, status: 'recusada_pela_coordenacao', decisaoCoordenacao: { resultado: 'recusada', decididaEm: '2026-11-02T12:00:00Z', justificativa: 'Cobertura necessária no setor.' } })
-    const rejectedCard = (await screen.findByText('Solicitação recusada')).closest('li')!
+    const rejectedCard = (await screen.findByText('Recusada pela Coordenação')).closest('li')!
     await user.click(within(rejectedCard).getByRole('button', { name: 'Detalhes' }))
     const rejectedDetails = await within(rejectedCard).findByRole('region', { name: 'Detalhes da troca' })
     expect(within(rejectedDetails).getByText((_, element) => element?.textContent?.replace(/\s+/g, ' ').trim() === 'Motivo da recusa: Cobertura necessária no setor.')).not.toBeNull()
