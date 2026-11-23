@@ -299,7 +299,7 @@ FAIL test/seed-demo.e2e-spec.ts
     console.error
       ◇ injected env (19) from .env
 
-      1 | ﻿/** Dados fictÃ­cios e idempotentes. Uso EXCLUSIVO em ambiente de desenvolvimento. */
+      1 | /** Dados fictícios e idempotentes. Uso EXCLUSIVO em ambiente de desenvolvimento. */
     > 2 | require('dotenv').config();
         |                   ^
       3 | const { MongoClient, ObjectId } = require('mongodb');

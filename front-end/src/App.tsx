@@ -21,6 +21,7 @@ import { GeneralSchedulePage } from './pages/GeneralSchedule/GeneralSchedulePage
 import { api } from './services/api'
 import { ExtrasPage } from './pages/Extras/ExtrasPage'
 import { HistoryPage } from './pages/History/HistoryPage'
+import { MyExchangesPage } from './pages/Exchanges/MyExchangesPage'
 
 function App() {
   const [user, setUser] = useState<SessionUser | null>(null)
@@ -34,6 +35,7 @@ function App() {
   const [professionalTab, setProfessionalTab] = useState<ProfessionalTabId>(() =>
     new URLSearchParams(window.location.search).has('google_agenda') ? 'meus-plantoes' : 'inicio',
   )
+  const [exchangeIdToOpen, setExchangeIdToOpen] = useState<string | null>(null)
   const lastNonProfileItem = useRef<NavItemId>('visao-geral')
   const activePage = NAV_ITEMS.find((item) => item.id === activeItem)
 
@@ -99,25 +101,26 @@ function App() {
       <ProfessionalLayout
         activeTab={professionalTab}
         onNavigate={setProfessionalTab}
+        onOpenExchange={(id) => { setExchangeIdToOpen(id); setProfessionalTab('trocas') }}
         onProfileClick={() => navigate('perfil')}
         user={{ name: user.nome, role, initials }}
       >
         {professionalTab === 'inicio' ? (
           <ProfessionalOverviewPage
             userName={user.nome.split(/\s+/)[0]}
-            onNavigate={navigate}
+            onNavigate={(id) => id === 'trocas' ? setProfessionalTab('trocas') : navigate(id)}
             onOpenGoogleCalendar={() => setProfessionalTab('meus-plantoes')}
           />
         ) : professionalTab === 'meus-plantoes' ? (
           <MyShiftsPage />
         ) : professionalTab === 'escala-geral' ? (
           <GeneralSchedulePage />
+        ) : professionalTab === 'trocas' && ['enfermeiro', 'tecnico'].includes(user.perfil) ? (
+          <MyExchangesPage exchangeId={exchangeIdToOpen} />
         ) : professionalTab === 'trocas' ? (
           <section className="mx-auto w-full max-w-5xl px-5 py-10 sm:px-8">
             <h1 className="text-3xl font-bold tracking-tight text-text">Trocas</h1>
-            <p className="mt-3 max-w-xl text-base leading-relaxed text-text-muted">
-              Esta área ainda está sendo preparada. Em breve você poderá solicitar e acompanhar trocas de plantão por aqui.
-            </p>
+            <p className="mt-3 max-w-xl text-base leading-relaxed text-text-muted">Esta área ainda está sendo preparada.</p>
           </section>
         ) : (
           <OverviewPage />
@@ -140,7 +143,7 @@ function App() {
       {activeItem === 'configuracoes' && isCoordination ? (
         <SettingsPage searchQuery={searchQuery} />
       ) : activeItem === 'visao-geral' && ['enfermeiro', 'tecnico'].includes(user.perfil) ? (
-        <ProfessionalOverviewPage userName={user.nome.split(/\s+/)[0]} onNavigate={navigate} />
+        <ProfessionalOverviewPage userName={user.nome.split(/\s+/)[0]} onNavigate={(id) => id === 'trocas' ? setProfessionalTab('trocas') : navigate(id)} />
       ) : activeItem === 'visao-geral' && isCoordination ? (
         <CoordinationOverviewPage userName={user.nome.split(/\s+/)[0]} onNavigate={navigate} />
       ) : activeItem === 'visao-geral' ? (

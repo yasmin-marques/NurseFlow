@@ -31,7 +31,7 @@ describe('Extras programados (e2e)', () => {
     process.env.MONGODB_URI = banco.uri;
     process.env.JWT_SECRET = 'segredo-de-teste-com-mais-de-16-caracteres';
 
-    const { AppModule } = await import('../src/app.module');
+    const { AppModule } = await import('../src/app.module.js');
     const modulo = await Test.createTestingModule({ imports: [AppModule] }).compile();
     app = modulo.createNestApplication();
     configurarApp(app);
@@ -60,7 +60,6 @@ describe('Extras programados (e2e)', () => {
       })
       .expect(201);
     setorId = setorResp.body.id;
-
     const enfermeiroResp = await http
       .post('/profissionais')
       .set(auth(tokenCoord))
@@ -93,6 +92,7 @@ describe('Extras programados (e2e)', () => {
       })
       .expect(201);
     _profissionalTecnicoId = tecnicoResp.body.id;
+
   });
 
   afterAll(async () => {

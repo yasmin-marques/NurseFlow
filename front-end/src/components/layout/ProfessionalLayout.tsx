@@ -1,23 +1,36 @@
-import type { ReactNode } from 'react'
+import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import logo from '../../assets/logo.png'
 import { NotificationCenter } from './NotificationCenter'
 import { PROFESSIONAL_TABS, type ProfessionalTabId } from './professionalTabs'
+import { getIncomingExchangeCount } from '../../services/my-shifts'
 
 
 type ProfessionalLayoutProps = {
   activeTab: ProfessionalTabId
   onNavigate: (id: ProfessionalTabId) => void
   onProfileClick: () => void
+  onOpenExchange?: (id: string) => void
   user: { name: string; role: string; initials: string }
   children: ReactNode
 }
 
 /** Shell do Enfermeiro/Técnico: navegação no topo, sem as áreas de gestão da Coordenação. */
-export function ProfessionalLayout({ activeTab, onNavigate, onProfileClick, user, children }: ProfessionalLayoutProps) {
+export function ProfessionalLayout({ activeTab, onNavigate, onProfileClick, onOpenExchange, user, children }: ProfessionalLayoutProps) {
+  const [incomingCount, setIncomingCount] = useState<number | null>(null)
+  const [countError, setCountError] = useState(false)
+  const refreshCount = useCallback(() => {
+    getIncomingExchangeCount().then(({ recebidas }) => { setIncomingCount(recebidas); setCountError(false) }).catch(() => { setIncomingCount(null); setCountError(true) })
+  }, [])
+  useEffect(() => {
+    refreshCount()
+    window.addEventListener('nurseflow:professional-exchanges-updated', refreshCount)
+    window.addEventListener('focus', refreshCount)
+    return () => { window.removeEventListener('nurseflow:professional-exchanges-updated', refreshCount); window.removeEventListener('focus', refreshCount) }
+  }, [refreshCount])
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-page text-text">
       <header className="shrink-0 border-b border-border bg-surface">
-        <div className="mx-auto flex min-h-[74px] w-full max-w-[1280px] flex-wrap items-center gap-x-6 gap-y-2 px-5 py-2 sm:px-8">
+        <div className="mx-auto flex min-h-18.5 w-full max-w-7xl flex-wrap items-center gap-x-6 gap-y-2 px-5 py-2 sm:px-8">
           <div className="flex items-center gap-3">
             <img src={logo} alt="" className="size-10 rounded-xl" />
             <div className="leading-tight">
@@ -26,7 +39,7 @@ export function ProfessionalLayout({ activeTab, onNavigate, onProfileClick, user
             </div>
           </div>
 
-          <nav aria-label="Áreas do profissional" className="order-last -mb-2 flex w-full gap-1 overflow-x-auto md:order-none md:mb-0 md:w-auto md:flex-1 md:justify-center">
+          <nav aria-label="Áreas do profissional" className="order-last -mb-2 flex w-full gap-1 overflow-x-auto md:order-0 md:mb-0 md:w-auto md:flex-1 md:justify-center">
             {PROFESSIONAL_TABS.map((tab) => {
               const active = tab.id === activeTab
               return (
@@ -34,20 +47,24 @@ export function ProfessionalLayout({ activeTab, onNavigate, onProfileClick, user
                   key={tab.id}
                   type="button"
                   aria-current={active ? 'page' : undefined}
+                  aria-label={tab.id === 'trocas' && incomingCount !== null && incomingCount > 0 ? `${tab.label} ${incomingCount}` : tab.label}
                   onClick={() => onNavigate(tab.id)}
-                  className={`relative flex h-[74px] shrink-0 items-center px-4 text-[13px] font-semibold transition-colors focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary ${
+                  className={`relative flex h-18.5 shrink-0 items-center px-4 text-[13px] font-semibold transition-colors focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary ${
                     active ? 'text-primary' : 'text-text-muted hover:text-text'
                   }`}
                 >
                   {tab.label}
-                  {active ? <span aria-hidden="true" className="absolute inset-x-0 bottom-0 h-[3px] rounded-t bg-primary" /> : null}
+                  {tab.id === 'trocas' && incomingCount !== null && incomingCount > 0 ? <span aria-hidden="true" className="ml-1.5 inline-flex min-w-5 shrink-0 items-center justify-center whitespace-nowrap rounded-full bg-badge-red px-1.5 py-0.5 align-middle text-[10px] font-bold leading-none text-badge-red-text">{incomingCount}</span> : null}
+                  {tab.id === 'trocas' && countError ? <span className="sr-only">, contagem indisponível</span> : null}
+                  {tab.id === 'trocas' && incomingCount === 0 ? <span className="sr-only">, nenhuma solicitação aguardando resposta</span> : null}
+                  {active ? <span aria-hidden="true" className="absolute inset-x-0 bottom-0 h-0.75 rounded-t bg-primary" /> : null}
                 </button>
               )
             })}
           </nav>
 
           <div className="ml-auto flex items-center gap-3">
-            <NotificationCenter />
+            <NotificationCenter onOpenExchange={onOpenExchange} />
             <button
               type="button"
               onClick={onProfileClick}

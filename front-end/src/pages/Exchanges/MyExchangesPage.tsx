@@ -1,0 +1,86 @@
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { executarAcaoTroca, listarCandidatosTroca, listarMeusPlantoes, listarMinhasTrocas, obterMinhaTroca, criarMinhaTroca, type MyExchange, type MyExchangeTab, type ShiftChoice } from '../../services/my-exchanges'
+
+const tabs: { id: MyExchangeTab; label: string }[] = [{ id: 'recebidas', label: 'Recebidas' }, { id: 'enviadas', label: 'Enviadas' }, { id: 'historico', label: 'Histórico' }]
+const firstName = (name: string) => name.trim().split(/\s+/)[0] || name
+const statusLabel = (item: MyExchange) => {
+  if (item.status === 'recusada_pelo_profissional') {
+    return item.direcao === 'recebida' ? 'Você recusou' : `Recusada por ${firstName(item.profissionalSolicitado.nome)}`
+  }
+  if (item.status === 'recusada_pela_coordenacao') return 'Recusada pela Coordenação'
+  if (item.status === 'cancelada') return 'Cancelada pelo solicitante'
+  if (item.status === 'aguardando_resposta') return 'Aguardando colega'
+  if (item.status === 'aguardando_coordenacao') return 'Aguardando Coordenação'
+  if (item.status === 'aprovada') return 'Aprovada'
+  return item.status
+}
+const statusClasses = (item: MyExchange) => {
+  if (item.status.startsWith('recusada') || item.status === 'cancelada') return 'bg-danger/10 text-danger'
+  return 'bg-secondary text-primary'
+}
+const date = (value: string) => new Intl.DateTimeFormat('pt-BR', { weekday: 'short', day: '2-digit', month: 'short', timeZone: 'UTC' }).format(new Date(value))
+function Shift({ title, value }: { title: string; value: ShiftChoice | null }) {
+  return <div className="min-w-0 rounded-xl bg-neutral p-4"><p className="text-[11px] font-bold uppercase tracking-wide text-text-muted">{title}</p>{value ? <><p className="mt-1 font-semibold text-text">{date(value.data)} · {value.horarioInicio}–{value.horarioFim}</p><p className="mt-1 truncate text-xs text-text-muted">{value.setor ?? value.setorId} · {value.funcao === 'enfermeiro' ? 'Enfermagem' : 'Técnico'}</p></> : <p className="mt-1 text-sm text-text-muted">Resumo do plantão indisponível</p>}</div>
+}
+function ConfirmDialog({ action, name, busy, onClose, onConfirm }: { action: 'aceitar' | 'recusar' | 'cancelar'; name: string; busy: boolean; onClose: () => void; onConfirm: () => void }) {
+  const descriptions = { aceitar: 'Você aceitará a troca de plantão. A escala só muda após a decisão da Coordenação.', recusar: 'A solicitação será recusada e o solicitante será avisado.', cancelar: 'Você pode solicitar outra troca.' }
+  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget && !busy) onClose() }}><section role="dialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-description" onKeyDown={(e) => { if (e.key === 'Escape' && !busy) { e.preventDefault(); onClose() } if (e.key === 'Tab') { const buttons = e.currentTarget.querySelectorAll<HTMLButtonElement>('button:not(:disabled)'); const first = buttons[0]; const last = buttons[buttons.length - 1]; if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last?.focus() } else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first?.focus() } } }} className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"><h2 id="confirm-title" className="text-lg font-bold text-text">{action === 'aceitar' ? 'Aceitar solicitação?' : action === 'recusar' ? 'Recusar solicitação?' : 'Cancelar solicitação?'}</h2><p id="confirm-description" className="mt-2 text-sm leading-relaxed text-text-muted">{action === 'aceitar' ? descriptions[action] : `${descriptions[action]} ${name}`}</p><div className="mt-6 flex justify-end gap-3"><button autoFocus type="button" disabled={busy} onClick={onClose} className="min-h-11 rounded-lg border border-border px-4 text-sm font-semibold text-text">Não</button><button type="button" disabled={busy} onClick={onConfirm} className={`min-h-11 rounded-lg px-4 text-sm font-bold text-white disabled:opacity-60 ${action === 'recusar' ? 'bg-danger' : action === 'cancelar' ? 'bg-text' : 'bg-primary'}`}>{busy ? 'Processando…' : action === 'aceitar' ? 'Sim, quero aceitar' : action === 'recusar' ? 'Sim, quero recusar' : 'Sim, quero cancelar'}</button></div></section></div>
+}
+function ShiftLabel({ value }: { value: ShiftChoice }) { return <span>{date(value.data)} · {value.horarioInicio}–{value.horarioFim} · {value.setor ?? value.setorId} · {value.funcao}</span> }
+
+export function MyExchangesPage({ exchangeId }: { exchangeId?: string | null }) {
+  const [tab, setTab] = useState<MyExchangeTab>('recebidas')
+  const [items, setItems] = useState<MyExchange[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
+  const [dialog, setDialog] = useState<{ item: MyExchange; action: 'aceitar' | 'recusar' | 'cancelar' } | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [step, setStep] = useState(0)
+  const [myShifts, setMyShifts] = useState<ShiftChoice[]>([])
+  const [myShift, setMyShift] = useState<ShiftChoice | null>(null)
+  const [candidates, setCandidates] = useState<ShiftChoice[]>([])
+  const [candidate, setCandidate] = useState<ShiftChoice | null>(null)
+  const [candidateLoading, setCandidateLoading] = useState(false)
+  const [openedExchange, setOpenedExchange] = useState<MyExchange | null>(null)
+  const dialogOpener = useRef<HTMLButtonElement | null>(null)
+
+  const reload = useCallback(async () => {
+    setLoading(true); setError(null)
+    try { setItems((await listarMinhasTrocas(tab)).itens) } catch (reason) { setError(reason instanceof Error ? reason.message : 'Não foi possível carregar suas trocas.') } finally { setLoading(false) }
+  }, [tab])
+  useEffect(() => { void reload() }, [reload])
+  useEffect(() => { let active = true; listarMeusPlantoes().then((result) => { if (active) setMyShifts(result.itens) }).catch(() => { if (active) setMyShifts([]) }); return () => { active = false } }, [])
+  useEffect(() => { if (!exchangeId) return; let active = true; obterMinhaTroca(exchangeId).then((result) => { if (active) setOpenedExchange(result) }).catch((reason) => { if (active) setError(reason instanceof Error ? reason.message : 'Não foi possível abrir esta troca.') }); return () => { active = false } }, [exchangeId])
+  useEffect(() => { if (!dialog) dialogOpener.current?.focus() }, [dialog])
+
+  const startRequest = () => { setStep(1); setMyShift(null); setCandidate(null); setCandidates([]); setError(null); setNotice(null) }
+  const chooseShift = async (value: ShiftChoice) => {
+    setMyShift(value); setCandidate(null); setStep(2); setCandidateLoading(true); setError(null)
+    try { setCandidates((await listarCandidatosTroca(value.vinculoId)).itens) } catch (reason) { setError(reason instanceof Error ? reason.message : 'Não foi possível carregar os colegas e plantões.') } finally { setCandidateLoading(false) }
+  }
+  const send = async () => {
+    if (!myShift || !candidate) return
+    setBusy(true); setError(null)
+    try { await criarMinhaTroca({ vinculoSolicitanteId: myShift.vinculoId, vinculoSolicitadoId: candidate.vinculoId, versaoOficialEsperada: myShift.versaoOficialEsperada, operacaoId: crypto.randomUUID() }); setNotice('Solicitação enviada. A escala oficial permanece inalterada.'); window.dispatchEvent(new Event('nurseflow:professional-exchanges-updated')); setStep(0); setTab('enviadas') } catch (reason) { setError(reason instanceof Error ? reason.message : 'Não foi possível enviar. Atualize e tente novamente.') } finally { setBusy(false) }
+  }
+  const confirm = async () => {
+    if (!dialog) return
+    setBusy(true); setError(null)
+    try { await executarAcaoTroca(dialog.item.id, dialog.action === 'aceitar' ? 'aceite' : dialog.action === 'recusar' ? 'recusar' : 'cancelar', crypto.randomUUID()); setNotice(dialog.action === 'aceitar' ? 'Solicitação aceita. Aguardando Coordenação.' : dialog.action === 'recusar' ? 'Solicitação recusada.' : 'Solicitação cancelada.'); window.dispatchEvent(new Event('nurseflow:professional-exchanges-updated')); setDialog(null); await reload() } catch (reason) { setError(reason instanceof Error ? reason.message : 'Não foi possível concluir. Atualize e tente novamente.') } finally { setBusy(false) }
+  }
+
+  return <main className="mx-auto min-h-full w-full max-w-6xl px-5 py-7 sm:px-8 sm:py-9">
+    <header className="flex flex-wrap items-end justify-between gap-4"><div><p className="text-xs font-bold uppercase tracking-[0.13em] text-primary">Área do profissional</p><h1 className="mt-1 text-3xl font-bold tracking-tight text-text">Minhas trocas</h1><p className="mt-2 text-sm text-text-muted">Combine a troca com um colega. A escala só muda após decisão da Coordenação.</p></div>{step === 0 ? <button type="button" onClick={startRequest} className="min-h-11 rounded-lg bg-primary px-5 text-sm font-bold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">Nova solicitação</button> : <button type="button" onClick={() => setStep(0)} disabled={busy} className="min-h-11 rounded-lg border border-border px-4 text-sm font-semibold text-text">Voltar às trocas</button>}</header>
+    {notice ? <p role="status" className={`mt-5 rounded-xl px-4 py-3 text-sm font-semibold ${notice === 'Solicitação recusada.' ? 'bg-danger/10 text-danger' : 'bg-secondary text-primary'}`}>{notice}</p> : null}{error ? <div role="alert" className="mt-5 rounded-xl bg-danger/10 px-4 py-3 text-sm text-danger">{error}<button type="button" onClick={() => step === 0 ? void reload() : undefined} className="ml-2 font-bold underline">{step === 0 ? 'Tentar novamente' : ''}</button></div> : null}
+    {openedExchange ? <section aria-label="Solicitação aberta pela notificação" className="mt-5 rounded-2xl border-2 border-primary bg-white p-5"><div className="flex items-start justify-between gap-3"><div><p className="text-sm font-bold">Solicitação de {openedExchange.solicitante.nome} · {statusLabel(openedExchange)}</p><p className="mt-1 text-xs text-text-muted">{openedExchange.profissionalSolicitado.nome}</p></div><button type="button" onClick={() => setOpenedExchange(null)} aria-label="Fechar solicitação aberta" className="rounded-lg px-2 py-1 text-sm font-semibold text-text-muted focus-visible:outline-2 focus-visible:outline-primary">Fechar</button></div><div className="mt-4 grid gap-3 sm:grid-cols-2"><Shift title={openedExchange.direcao === 'recebida' ? 'Você assume' : 'Seu plantão'} value={openedExchange.plantaoSolicitante} /><Shift title={openedExchange.direcao === 'recebida' ? `${openedExchange.solicitante.nome} assume` : 'Plantão desejado'} value={openedExchange.plantaoSolicitado} /></div>{openedExchange.decisaoCoordenacao?.justificativa ? <p className="mt-3 text-sm text-text-muted">Motivo da Coordenação: {openedExchange.decisaoCoordenacao.justificativa}</p> : null}</section> : null}
+    {step > 0 ? <section aria-labelledby="new-exchange-title" className="mt-7 rounded-2xl border border-border bg-white p-5 shadow-(--shadow-soft) sm:p-7"><h2 id="new-exchange-title" className="text-xl font-bold text-text">Nova solicitação <span className="text-sm font-medium text-text-muted">· Etapa {step} de 3</span></h2><ol className="mt-4 flex gap-2 text-xs font-semibold"><li aria-current={step === 1 ? 'step' : undefined} className={step === 1 ? 'text-primary' : 'text-text-muted'}>1. Seu plantão</li><li className="text-text-muted">→</li><li aria-current={step === 2 ? 'step' : undefined} className={step === 2 ? 'text-primary' : 'text-text-muted'}>2. Colega e plantão</li><li className="text-text-muted">→</li><li aria-current={step === 3 ? 'step' : undefined} className={step === 3 ? 'text-primary' : 'text-text-muted'}>3. Revisão</li></ol>
+      {step === 1 ? <div className="mt-5 grid gap-3 sm:grid-cols-2">{myShifts.length ? myShifts.map((s) => <button key={s.vinculoId} type="button" onClick={() => void chooseShift(s)} className="rounded-xl border border-border p-4 text-left hover:border-primary focus-visible:outline-2 focus-visible:outline-primary"><ShiftLabel value={s} /></button>) : <p className="text-sm text-text-muted">Nenhum plantão futuro disponível na escala publicada.</p>}</div> : null}
+      {step === 2 ? <div className="mt-5">{candidateLoading ? <p role="status" className="text-sm text-text-muted">Buscando colegas e plantões…</p> : candidates.length ? <div className="grid gap-3 sm:grid-cols-2">{candidates.map((s) => <button key={s.vinculoId} type="button" aria-pressed={candidate?.vinculoId === s.vinculoId} onClick={() => { setCandidate(s); setStep(3) }} className="rounded-xl border border-border p-4 text-left hover:border-primary focus-visible:outline-2 focus-visible:outline-primary"><span className="mb-1 block font-bold">{s.profissional?.nome ?? 'Colega'}</span><ShiftLabel value={s} /></button>)}</div> : <p className="text-sm text-text-muted">Não há pares colega–plantão disponíveis para esta competência.</p>}</div> : null}
+      {step === 3 && myShift && candidate ? <div className="mt-5"><div className="grid gap-3 sm:grid-cols-2"><Shift title="Seu plantão" value={myShift} /><Shift title={`Plantão desejado · ${candidate.profissional?.nome ?? 'Colega'}`} value={candidate} /></div><p className="mt-4 text-sm text-text-muted">A aptidão será validada novamente pelo servidor antes do envio e do aceite. A escala oficial não muda com o aceite do colega.</p><div className="mt-5 flex justify-end gap-3"><button type="button" onClick={() => { setStep(2); setCandidate(null) }} className="min-h-11 rounded-lg border border-border px-4 text-sm font-semibold">Alterar plantão</button><button type="button" disabled={busy} onClick={() => void send()} className="min-h-11 rounded-lg bg-primary px-5 text-sm font-bold text-white disabled:opacity-60">{busy ? 'Enviando…' : 'Enviar solicitação'}</button></div></div> : null}</section> : <>
+      <div role="tablist" aria-label="Minhas solicitações" className="mt-7 flex gap-2 overflow-x-auto border-b border-border">{tabs.map((item) => <button key={item.id} type="button" role="tab" aria-selected={tab === item.id} onClick={() => setTab(item.id)} className={`min-h-12 shrink-0 border-b-2 px-4 text-sm font-semibold ${tab === item.id ? 'border-primary text-primary' : 'border-transparent text-text-muted'}`}>{item.label}</button>)}</div>
+      {loading ? <p role="status" className="py-10 text-center text-sm text-text-muted">Carregando solicitações…</p> : error ? null : items.length === 0 ? <div className="mt-6 rounded-2xl border border-dashed border-border bg-white px-6 py-12 text-center"><p className="font-semibold text-text">Nenhuma solicitação nesta aba</p><p className="mt-2 text-sm text-text-muted">Suas trocas aparecerão aqui.</p></div> : <ul className="mt-5 grid gap-4">{items.map((item) => <li key={item.id} className="rounded-2xl border border-border bg-white p-5 shadow-(--shadow-soft) sm:p-6"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-sm font-bold text-text">{tab === 'recebidas' ? `${item.solicitante.nome} enviou uma solicitação` : `${item.solicitante.nome} ↔ ${item.profissionalSolicitado.nome}`}</p><p className="mt-1 text-xs text-text-muted">{new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short' }).format(new Date(item.criadaEm))}</p></div><span className={`rounded-full px-3 py-1 text-xs font-bold ${statusClasses(item)}`}>{statusLabel(item)}</span></div><div className="mt-4 grid gap-3 sm:grid-cols-2">{tab === 'recebidas' || (tab === 'historico' && item.direcao === 'recebida') ? <><Shift title="Você assume" value={item.plantaoSolicitante} /><Shift title={`${item.solicitante.nome} assume`} value={item.plantaoSolicitado} /></> : <><Shift title="Seu plantão" value={item.plantaoSolicitante} /><Shift title="Plantão desejado" value={item.plantaoSolicitado} /></>}</div>{item.decisaoCoordenacao?.justificativa ? <p className="mt-3 rounded-lg bg-neutral p-3 text-sm text-text-muted">Motivo da Coordenação: {item.decisaoCoordenacao.justificativa}</p> : null}<div className="mt-4 flex flex-wrap justify-end gap-2">{tab === 'recebidas' && item.status === 'aguardando_resposta' ? <><button type="button" onClick={(event) => { dialogOpener.current = event.currentTarget; setDialog({ item, action: 'recusar' }) }} className="min-h-10 rounded-lg border border-danger px-4 text-sm font-bold text-danger">Recusar</button><button type="button" onClick={(event) => { dialogOpener.current = event.currentTarget; setDialog({ item, action: 'aceitar' }) }} className="min-h-10 rounded-lg bg-primary px-4 text-sm font-bold text-white">Aceitar</button></> : null}{tab === 'enviadas' && ['aguardando_resposta', 'aguardando_coordenacao'].includes(item.status) ? <button type="button" onClick={(event) => { dialogOpener.current = event.currentTarget; setDialog({ item, action: 'cancelar' }) }} className="min-h-10 rounded-lg border border-danger px-4 text-sm font-bold text-danger">Cancelar solicitação</button> : null}</div></li>)}</ul>}
+    </>}
+    {dialog ? <ConfirmDialog action={dialog.action} name={dialog.item.profissionalSolicitado.nome} busy={busy} onClose={() => setDialog(null)} onConfirm={() => void confirm()} /> : null}
+  </main>
+}

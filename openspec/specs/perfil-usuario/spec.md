@@ -1,4 +1,4 @@
-﻿# Perfil do usuário
+# Perfil do usuário
 
 ## ADDED Requirements
 

@@ -286,12 +286,11 @@ def test_teto_total_de_plantoes_no_mes():
 
 # ---------- setores ----------
 def test_cada_plantao_ocupa_um_unico_setor():
-    profs = [prof(f"e{i}", c24=7, c12=0, setor_id="a" if i % 2 else "b") for i in range(6)]
+    profs = [prof(f"e{i}", c24=7, c12=0) for i in range(6)]
     sol = resolver(problema(profs, [setor("a", dia=(1, 0), noite=(1, 0)), setor("b", dia=(1, 0), noite=(1, 0))]))
     vistos = Counter((a.profissional_id, a.dia, a.opcao) for a in sol.alocacoes)
     assert all(v == 1 for v in vistos.values())
-
-
+ 
 # ---------- setor fixo (restrição obrigatória) ----------
 def test_nunca_aloca_profissional_fora_do_seu_setor_fixo():
     profs = [prof(f"a{i}", c24=7, c12=0, setor_id="a") for i in range(5)] + [

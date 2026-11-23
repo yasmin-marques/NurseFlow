@@ -101,7 +101,6 @@ describe('ExtrasService — Validações de Elegibilidade, Disponibilidade, Desc
     });
   }
 
-  /** Setor fixo padrão das fixtures: profissionais e o setor criado por padrão compartilham este id. */
   const SETOR_PADRAO_ID = new Types.ObjectId();
 
   async function criarProfissional(dados: Partial<Profissional> = {}) {
@@ -241,8 +240,7 @@ describe('ExtrasService — Validações de Elegibilidade, Disponibilidade, Desc
     ).rejects.toThrow(UnprocessableEntityException);
   });
 
-  // Setor fixo: o substituto só pode ser escalado no setor do seu cadastro
-  it('rejeita extra em setor diferente do setor fixo do substituto (ou sem setor fixo)', async () => {
+  it('rejeita extra fora do setor fixo do substituto', async () => {
     const setorDoSubstituto = await criarSetor();
     const outroSetor = await criarSetor({ _id: new Types.ObjectId(), nome: 'Emergência' });
     const substituto = await criarProfissional();
@@ -257,7 +255,7 @@ describe('ExtrasService — Validações de Elegibilidade, Disponibilidade, Desc
     );
     await expect(
       service.validar({ ...base, setorId: setorDoSubstituto._id, substitutoId: substituto._id }),
-    ).resolves.not.toThrow();
+    ).resolves.toBeDefined();
   });
 
   // 4. Substituto igual ao coberto
@@ -965,7 +963,7 @@ describe('ExtrasService — Validações de Elegibilidade, Disponibilidade, Desc
         },
         { validar: true },
       ),
-    ).resolves.not.toThrow();
+    ).resolves.toBeDefined();
 
     // Porém, tentar criar um 2º extra para outro dia deve ser rejeitado (1 extra já existe)
     await expect(
@@ -1206,4 +1204,3 @@ describe('ExtrasService — Validações de Elegibilidade, Disponibilidade, Desc
     expect(extraNoBanco.revisao).toBe(1);
   });
 });
-

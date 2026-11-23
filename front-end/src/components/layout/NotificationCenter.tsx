@@ -7,6 +7,10 @@ import {
   type NotifiedScaleVersion,
   type ScaleNotification,
   type ScaleNotificationList,
+  listExchangeNotifications,
+  markExchangeNotificationRead,
+  type ExchangeNotification,
+  type ExchangeNotificationList,
 } from '../../services/notifications'
 import { getNotificationIndicator } from './notificationIndicator'
 import { Drawer } from '../ui/Drawer'
@@ -14,9 +18,20 @@ import { Drawer } from '../ui/Drawer'
 const formatDateTime = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
 const formatDate = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeZone: 'UTC' })
 
-export function NotificationCenter() {
+const exchangeRejectionNotification = (notification: ExchangeNotification) =>
+  /recus|coordenação/i.test(`${notification.eventKey} ${notification.titulo} ${notification.mensagem}`)
+
+const exchangeRejectionLabel = (notification: ExchangeNotification) =>
+  /coordenação/i.test(`${notification.titulo} ${notification.mensagem}`)
+    ? 'Recusada pela Coordenação'
+    : /cancelad/i.test(`${notification.eventKey} ${notification.titulo} ${notification.mensagem}`)
+      ? 'Cancelada pelo solicitante'
+      : 'Recusada'
+
+export function NotificationCenter({ onOpenExchange }: { onOpenExchange?: (id: string) => void }) {
   const [open, setOpen] = useState(false)
   const [list, setList] = useState<ScaleNotificationList>({ notificacoes: [], naoLidas: 0 })
+  const [exchangeList, setExchangeList] = useState<ExchangeNotificationList>({ notificacoes: [], naoLidas: 0 })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [pendingId, setPendingId] = useState<string | null>(null)
@@ -27,7 +42,9 @@ export function NotificationCenter() {
     setLoading(true)
     setError(null)
     try {
-      setList(await listScaleNotifications())
+      const [scales, exchanges] = await Promise.all([listScaleNotifications(), listExchangeNotifications()])
+      setList(scales)
+      setExchangeList(exchanges)
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Não foi possível carregar as notificações.')
     } finally {
@@ -37,9 +54,9 @@ export function NotificationCenter() {
 
   useEffect(() => {
     let active = true
-    listScaleNotifications()
-      .then((result) => {
-        if (active) setList(result)
+    Promise.all([listScaleNotifications(), listExchangeNotifications()])
+      .then(([scales, exchanges]) => {
+        if (active) { setList(scales); setExchangeList(exchanges) }
       })
       .catch((reason: unknown) => {
         if (active) setError(reason instanceof Error ? reason.message : 'Não foi possível carregar as notificações.')
@@ -68,6 +85,15 @@ export function NotificationCenter() {
     }
   }
 
+  const markExchangeRead = async (notification: ExchangeNotification) => {
+    setPendingId(notification.id)
+    setError(null)
+    try {
+      const result = await markExchangeNotificationRead(notification.id)
+      setExchangeList((current) => ({ ...current, naoLidas: Math.max(0, current.naoLidas - (notification.lidaEm ? 0 : 1)), notificacoes: current.notificacoes.map((item) => item.id === notification.id ? { ...item, lidaEm: result.lidaEm } : item) }))
+    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Não foi possível atualizar a notificação.') } finally { setPendingId(null) }
+  }
+
   const markAllRead = async () => {
     if (pendingId) return
     setPendingId('all')
@@ -80,6 +106,10 @@ export function NotificationCenter() {
           naoLidas: Math.max(0, current.naoLidas - 1),
           notificacoes: current.notificacoes.map((item) => item.id === notification.id ? { ...item, lidaEm: result.lidaEm } : item),
         }))
+      }
+      for (const notification of exchangeList.notificacoes.filter((item) => !item.lidaEm)) {
+        const result = await markExchangeNotificationRead(notification.id)
+        setExchangeList((current) => ({ ...current, naoLidas: Math.max(0, current.naoLidas - 1), notificacoes: current.notificacoes.map((item) => item.id === notification.id ? { ...item, lidaEm: result.lidaEm } : item) }))
       }
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Não foi possível marcar todas as notificações como lidas.')
@@ -108,7 +138,7 @@ export function NotificationCenter() {
   }
 
   const visualizacao = selectedVersion?.snapshot.visualizacao
-  const indicator = getNotificationIndicator(list.naoLidas)
+  const indicator = getNotificationIndicator(list.naoLidas + exchangeList.naoLidas)
 
   return (
     <div className="relative">
@@ -133,7 +163,7 @@ export function NotificationCenter() {
           title={selectedVersion ? 'Escala publicada' : 'Notificações'}
           description={selectedVersion ? `Versão ${selectedVersion.versao.numero}` : 'Veja as informações e escolha o próximo passo'}
           onClose={() => setOpen(false)}
-          footer={!selectedVersion ? <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><button type="button" onClick={() => setOpen(false)} className="rounded-xl border border-border px-4 py-2.5 text-sm font-semibold text-text hover:bg-neutral">Cancelar</button><button type="button" disabled={loading || pendingId !== null || list.naoLidas === 0} onClick={() => void markAllRead()} className="rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50">{pendingId === 'all' ? 'Atualizando...' : 'Marcar como lidas'}</button></div> : undefined}
+          footer={!selectedVersion ? <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><button type="button" onClick={() => setOpen(false)} className="rounded-xl border border-border px-4 py-2.5 text-sm font-semibold text-text hover:bg-neutral">Cancelar</button><button type="button" disabled={loading || pendingId !== null || list.naoLidas + exchangeList.naoLidas === 0} onClick={() => void markAllRead()} className="rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50">{pendingId === 'all' ? 'Atualizando...' : 'Marcar como lidas'}</button></div> : undefined}
         >
         <div id="scale-notifications-panel">
           {selectedVersion ? (
@@ -189,9 +219,10 @@ export function NotificationCenter() {
                 </div>
               ) : null}
               {loading ? <p className="px-1 py-5 text-sm text-text-muted">Carregando notificações...</p> : null}
-              {!loading && list.notificacoes.length === 0 ? (
+              {!loading && list.notificacoes.length === 0 && exchangeList.notificacoes.length === 0 ? (
                 <p className="px-1 py-5 text-sm text-text-muted">Você não tem notificações de escala.</p>
               ) : null}
+              {exchangeList.notificacoes.length > 0 ? <section aria-labelledby="exchange-notifications-title" className="mb-4"><h3 id="exchange-notifications-title" className="border-b border-border py-2 text-xs font-bold uppercase tracking-wide text-text-muted">Trocas</h3><ul>{exchangeList.notificacoes.map((notification) => <li key={notification.id} className={`border-b border-border px-1 py-3 ${notification.lidaEm ? '' : exchangeRejectionNotification(notification) ? 'bg-danger/10' : 'bg-secondary/30'}`}><p className="text-sm font-semibold text-text">{exchangeRejectionNotification(notification) ? exchangeRejectionLabel(notification) : notification.titulo}</p><p className={`mt-1 text-xs leading-relaxed ${exchangeRejectionNotification(notification) ? 'text-danger' : 'text-text-muted'}`}>{notification.mensagem}</p><time className="mt-2 block text-[11px] text-text-muted" dateTime={notification.criadaEm}>{formatDateTime.format(new Date(notification.criadaEm))}</time><div className="mt-2 flex flex-wrap gap-3"><button type="button" onClick={() => { onOpenExchange?.(notification.solicitacaoId); setOpen(false) }} className="text-xs font-semibold text-primary hover:underline">Abrir solicitação</button>{!notification.lidaEm ? <button type="button" disabled={pendingId === notification.id} onClick={() => void markExchangeRead(notification)} className="text-xs font-semibold text-text-muted hover:underline">{pendingId === notification.id ? 'Atualizando...' : 'Marcar como lida'}</button> : null}</div></li>)}</ul></section> : null}
               <ul>
                 {list.notificacoes.map((notification) => (
                   <li

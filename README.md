@@ -94,7 +94,7 @@ npm run setup
 - `MONGODB_URI`: o modelo aponta para `mongodb://localhost:27017/nurseflow?replicaSet=rs0` (MongoDB de `db/docker-compose.yml`, sem autenticação, publicado apenas em `127.0.0.1`). O host `mongo` só vale dentro do Docker Compose da raiz.
 - `JWT_SECRET`: chave aleatória com 16 caracteres ou mais, por exemplo `node -e "console.log(require('crypto').randomBytes(24).toString('hex'))"`.
 - `SEED_COORDENACAO_NOME`, `_EMAIL`, `_CPF` (CPF válido) e `_SENHA` (de 8 a 72 caracteres): dados da primeira conta de Coordenação.
-- `DEMO_SEED_ENABLED=true`, `DEMO_ADMIN_PASSWORD` e `DEMO_PRO_PASSWORD` (de 8 a 72 caracteres) para criar todos os dados fictícios, incluindo os profissionais e o cenário de trocas.
+- `DEMO_SEED_ENABLED=true`, `DEMO_ADMIN_PASSWORD` e `DEMO_PRO_PASSWORD` (de 8 a 72 caracteres) para criar os dados fictícios de profissionais e demais conteúdo demo.
 
 As demais variáveis (`CORS_ORIGINS`, `JWT_EXPIRES_IN_SECONDS`, `LOGIN_MAX_ATTEMPTS`, ...) estão documentadas em [back-end/README.md](back-end/README.md). Os `.env` reais **não** são versionados (apenas os `.env.example`).
 
@@ -113,34 +113,13 @@ npm run db:setup   # migrations + Coordenação + todos os dados demo, incluindo
 npm --prefix back-end run migrate:up
 npm --prefix back-end run migrate:status   # opcional: lista o que foi aplicado
 npm --prefix back-end run seed:coordenacao # cria a Coordenação (não faz nada se já existir)
-npm --prefix back-end run seed:demo        # profissionais demo + cenário de trocas (DEMO_SEED_ENABLED=true)
+npm --prefix back-end run seed:demo        # profissionais e demais dados demo (DEMO_SEED_ENABLED=true)
 npm run db:seed                            # Coordenação e todas as seeds demo
 ```
 
 Os seeds são **idempotentes**: só criam o que não existe, nunca sobrescrevem nem apagam registros e não redefinem senhas. Pode executá-los de novo com segurança.
 
-O cenário de trocas é executado junto com a seed demo geral, apenas em `NODE_ENV=development` e com MongoDB local. Ele usa a competência 2027-01, IDs determinísticos identificáveis como demo, e não altera escala ou profissional preexistente. Cria uma escala publicada e 7 solicitações; as duas aprovações atualizam vínculos, snapshots versionados, auditoria e notificações. Se 2027-01 já estiver ocupada, o comando aborta sem escrever.
 
-
-### Seed de 40 profissionais fictícios (sem dados demo)
-
-```bash
-npm run db:setup:profissionais   # migrations + Coordenação + seed de 40 profissionais (NÃO roda a seed demo)
-```
-
-- **Pré-requisitos:** MongoDB no ar (`npm run db:up`), `back-end/.env` com `SEED_COORDENACAO_*` e **setores ativos já cadastrados** (pela tela de Setores, ou por `npm run db:setup`, que cria os setores demo). Sem setores a seed aborta com mensagem clara e não grava nada.
-- **Resultado esperado:** exatamente 40 profissionais (16 enfermeiros e 24 técnicos, concursado/CLT, todos ativos), cada um com **um único setor fixo**, distribuídos entre os setores ativos proporcionalmente ao quantitativo exigido por categoria. Não cria setores, escalas, plantões, restrições, trocas nem extras. Identificadores estáveis (`prof.seed.NN@nurseflow.test`, COREN `CE-200NN`) e idempotente: a 2ª execução não altera nada, e cadastros que não são da seed nunca são tocados. Conflito de CPF/COREN/e-mail com cadastro alheio aborta tudo-ou-nada.
-- `npm run db:setup` segue igual (`db:prepare` + seed demo); `db:prepare` = `db:migrate` + Coordenação.
-
-### Setor fixo do profissional
-
-Cada profissional tem **um único setor fixo** (`profissionaisDaSaude.setorId`, obrigatório no cadastro/edição, validado no backend e no formulário). O otimizador (contrato **v3**) só aloca o profissional em vagas do seu setor — restrição dura, nunca preferência — e a persistência (geração, plantões manuais, extras e trocas) recusa qualquer alocação fora do setor. Profissional sem setor não entra na geração.
-
-**Migração em etapas para cadastros já existentes** (nenhum setor é inferido, pois não havia vínculo cadastral prévio):
-
-1. `npm run db:migrate` aplica `20261119000011-profissionais-setor-fixo` (campo opcional + índice). Os legados ficam com `setorId: null` e fora da geração.
-2. `npm run db:setor-fixo:pendencias` lista quem está sem setor; defina o setor de cada um na tela de Profissionais (ou `PATCH /profissionais/:id` com `{ "setorId": "..." }`; `GET /profissionais?semSetor=true` filtra as pendências).
-3. Com zero pendências, `npm run db:setor-fixo:exigir` torna `setorId` obrigatório no validator do banco (recusa se ainda houver pendência).
 
 ## Execução (desenvolvimento local)
 
@@ -337,7 +316,7 @@ Resposta: `escala`, `resumo`, `configuracaoUtilizada`, `plantoes` (com profissio
 ```bash
 npm run db:up                              # MongoDB + otimizador (http://localhost:8000/docs)
 npm --prefix back-end run migrate:up       # inclui a migration das coleções de escala
-npm run db:seed                            # coordenação + profissionais demo + cenário de trocas
+npm run db:seed                            # coordenação + profissionais e demais dados demo
 npm run dev:back                           # API em http://localhost:3000
 
 TOKEN=$(curl -s -X POST localhost:3000/auth/login -H 'content-type: application/json' \

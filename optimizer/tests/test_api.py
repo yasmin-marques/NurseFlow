@@ -13,7 +13,7 @@ def corpo(**extra):
         "capacidades": ["alocacoes_fixas"],
         "mes": 9,
         "dias_mes": 30,
-        "profissionais": [{"id": "e1", "setor_id": "s1", "formacao": "enfermeiro", "carga_24h": 2, "carga_12h": 0}],
+        "profissionais": [{"id": "e1", "formacao": "enfermeiro", "carga_24h": 2, "carga_12h": 0}],
         "setores": [
             {
                 "id": "s1",

@@ -1,4 +1,9 @@
 import { api } from './api'
+
+export type ExchangeNotification = { id: string; solicitacaoId: string; eventKey: string; titulo: string; mensagem: string; criadaEm: string; lidaEm: string | null }
+export type ExchangeNotificationList = { notificacoes: ExchangeNotification[]; naoLidas: number }
+export function listExchangeNotifications() { return api<ExchangeNotificationList>('/notificacoes/trocas') }
+export function markExchangeNotificationRead(id: string) { return api<{ id: string; lidaEm: string }>(`/notificacoes/trocas/${id}/lida`, { method: 'PATCH' }) }
 import type { ScaleDetail } from './scales'
 
 export interface ScaleNotification {

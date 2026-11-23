@@ -16,8 +16,6 @@ export interface TurnoBloqueadoOtimizacao {
 
 export interface ProfissionalOtimizacao {
   id: string;
-  /** Setor fixo (cadastro). O profissional só pode ser alocado em vagas deste setor. */
-  setor_id: string;
   formacao: 'enfermeiro' | 'tecnico';
   vinculo: string;
   carga_24h: number;

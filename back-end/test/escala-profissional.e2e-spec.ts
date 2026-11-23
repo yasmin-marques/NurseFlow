@@ -37,7 +37,7 @@ describe('Escala do profissional (e2e)', () => {
     await aplicarMigrations(banco.uri);
     process.env.MONGODB_URI = banco.uri;
     process.env.JWT_SECRET = 'segredo-de-teste-com-mais-de-16-caracteres';
-    const { AppModule } = await import('../src/app.module');
+    const { AppModule } = await import('../src/app.module.js');
     const modulo = await Test.createTestingModule({ imports: [AppModule] }).compile();
     app = modulo.createNestApplication(); configurarApp(app); await app.init();
     http = request(app.getHttpServer()); mongo = new mongoose.mongo.MongoClient(banco.uri);
@@ -47,7 +47,6 @@ describe('Escala do profissional (e2e)', () => {
     await usuarios.criarAdministrador(coord._id);
     tokenCoord = await login('coord-ep@nurseflow.com', 'coordenacao');
     const setor = await http.post('/setores').set(auth(tokenCoord)).send({ nome: 'Setor A', plantao24h: { enfermeiros: 0, tecnicos: 0 } }).expect(201);
-    const setorId = new ObjectId(setor.body.id);
     const criar = async (nome: string, cpf: string, coren: string, formacao: string, email: string) =>
       new ObjectId((await http.post('/profissionais').set(auth(tokenCoord)).send({ nome, cpf, coren, formacao, tipoVinculo: 'clt', email, senha: SENHA, setorId: setor.body.id }).expect(201)).body.id);
     const ana = await criar('Ana Ribeiro', '529.982.247-25', 'COREN-CE 710001', 'enfermeiro', 'ana-ep@nurseflow.com');
@@ -59,6 +58,7 @@ describe('Escala do profissional (e2e)', () => {
     const db = mongo.db();
     const admin = await db.collection('administradores').findOne({ usuarioId: new ObjectId(coord.id) });
     const administradorId = admin!._id as mongoose.Types.ObjectId;
+    const setorId = new ObjectId(setor.body.id);
 
     const publicar = async (periodo: { ano: number; mes: number }, status: string, numero: number | null, plantoes: Record<string, unknown>[], vinculos: Record<string, unknown>[]) => {
       const escalaId = new ObjectId();
