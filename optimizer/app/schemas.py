@@ -8,7 +8,7 @@ Opcao = Literal["24h", "12d", "12n"]
 Turno = Literal["diurno", "noturno"]
 Funcao = Literal["enfermeiros", "tecnicos"]
 CAPACIDADE_ALOCACOES_FIXAS = "alocacoes_fixas"
-VERSAO_CONTRATO = 4
+VERSAO_CONTRATO = 2
 
 
 class Quantitativo(BaseModel):
@@ -16,10 +16,15 @@ class Quantitativo(BaseModel):
     tecnicos: int = Field(ge=0)
 
 
+class TurnosSetor(BaseModel):
+    diurno: Quantitativo
+    noturno: Quantitativo
+
+
 class Setor(BaseModel):
     id: str
     nome: str = ""
-    plantao24h: Quantitativo
+    turnos: TurnosSetor
 
 
 class TurnoBloqueado(BaseModel):
@@ -29,9 +34,6 @@ class TurnoBloqueado(BaseModel):
 
 class Profissional(BaseModel):
     id: str
-    # Setor fixo do cadastro: restrição obrigatória. O profissional só pode ser alocado em vagas deste
-    # setor; sem setor (ou com setor fora do problema) ele não é elegível a nenhuma alocação.
-    setor_id: str | None = None
     formacao: Formacao
     vinculo: str = ""
     # Carga regular esperada no mês (vinda das configurações). O que exceder vira "extra".
@@ -66,6 +68,7 @@ class Problema(BaseModel):
     dias_mes: int = Field(ge=28, le=31)
     profissionais: list[Profissional]
     setores: list[Setor]
+    turnos_selecionados: list[Turno] = Field(default_factory=lambda: ["diurno", "noturno"], min_length=1)
     parametros: Parametros = Field(default_factory=Parametros)
     alocacoes_fixas: list["AlocacaoFixa"] = Field(default_factory=list)
 
@@ -97,11 +100,6 @@ class Problema(BaseModel):
                 raise ValueError(f"profissional inexistente em alocacao_fixa: {alocacao.profissional_id}")
             if alocacao.setor_id not in ids_setores:
                 raise ValueError(f"setor inexistente em alocacao_fixa: {alocacao.setor_id}")
-            setor_fixo = next(p.setor_id for p in self.profissionais if p.id == alocacao.profissional_id)
-            if setor_fixo != alocacao.setor_id:
-                raise ValueError(
-                    f"alocacao_fixa {alocacao.extra_id} fora do setor fixo do profissional {alocacao.profissional_id}"
-                )
         for p in self.profissionais:
             if any(d < 1 or d > self.dias_mes for d in p.dias_bloqueados):
                 raise ValueError(f"dias_bloqueados fora do mês para o profissional {p.id}")
@@ -138,7 +136,7 @@ class Alocacao(BaseModel):
 class Descoberto(BaseModel):
     setor_id: str
     dia: int
-    turno: Literal["24h"]
+    turno: Turno
     funcao: Funcao
     necessario: int
     alocado: int

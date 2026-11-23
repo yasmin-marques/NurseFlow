@@ -325,15 +325,17 @@ export class ExtrasService {
       setores: setoresDoEscopo.map((item) => ({
         id: String(item._id),
         nome: item.nome,
-        plantao24h: item.plantao24h,
+        turnos: item.turnos,
       })),
       alocacoes,
+      turnos: escopoAtualizado.turnos,
     });
 
     const cobertura = resumirCobertura({
       ano: escala.ano,
       mes: escala.mes,
       setores: setoresDoEscopo,
+      turnos: escopoAtualizado.turnos,
       pendencias,
     });
 
@@ -528,16 +530,6 @@ export class ExtrasService {
       throw new UnprocessableEntityException({
         message: msg,
         erros: [{ regra: 'setor_inativo', campo: 'setorId', mensagem: msg }],
-      });
-    }
-    // Setor fixo: o substituto só pode ser escalado no setor do seu cadastro.
-    if (!substituto.setorId || !setor._id.equals(substituto.setorId)) {
-      const msg = substituto.setorId
-        ? 'O substituto pertence a outro setor e não pode ser escalado neste setor (setor fixo).'
-        : 'O substituto não possui setor fixo cadastrado e não pode ser escalado.';
-      throw new UnprocessableEntityException({
-        message: msg,
-        erros: [{ regra: 'setor_fixo', campo: 'setorId', mensagem: msg }],
       });
     }
 

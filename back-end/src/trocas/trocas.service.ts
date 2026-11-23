@@ -15,7 +15,6 @@ import type { UsuarioAutenticado } from '../common/auth/usuario-autenticado';
 import type { AprovarTrocaDto, RecusarTrocaDto } from './dto/decidir-troca.dto';
 import { Setor } from '../setores/schemas/setor.schema';
 import { Usuario } from '../usuarios/schemas/usuario.schema';
-import { GoogleAgendaSincronizacaoService } from '../google-agenda/google-agenda-sincronizacao.service';
 import { ListarHistoricoTrocasDto } from './dto/listar-historico-trocas.dto';
 import { FiltroTroca, ListarTrocasDto } from './dto/listar-trocas.dto';
 
@@ -71,7 +70,6 @@ export class TrocasService {
     @InjectModel(Restricao.name) private readonly restricoes: Model<Restricao>,
     @InjectModel(Administrador.name) private readonly administradores: Model<Administrador>,
     @InjectModel(Configuracao.name) private readonly configuracoes: Model<Configuracao>,
-    private readonly googleAgenda: GoogleAgendaSincronizacaoService,
   ) {}
 
   async contarTrocasRecebidas(profissionalId: string) {
@@ -260,20 +258,16 @@ export class TrocasService {
       const profissionais = await this.profissionais.find({ _id: { $in: [troca.solicitanteProfissionalId, troca.profissionalSolicitadoId] } }).select('usuarioId').session(session).lean().exec();
       const userIds = [...new Set(profissionais.map((p) => String(p.usuarioId)))];
       await this.notificacoes.insertMany(userIds.map((destinatarioId) => ({ solicitacaoId: troca._id, destinatarioId: new Types.ObjectId(destinatarioId), eventKey: chaveDecisao,
-        titulo: 'Troca de plantão aprovada', mensagem: `A troca foi aprovada. Plantão ${plantaoA.data.toISOString().slice(0, 10)} (${plantaoA.horarioInicio}–${plantaoA.horarioFim}) e plantão ${plantaoB.data.toISOString().slice(0, 10)} (${plantaoB.horarioInicio}–${plantaoB.horarioFim}) foram permutados na versão ${numero}.` })), { session });
-      // Mesma transação da aprovação: sincroniza os dois profissionais afetados sem depender do Google.
-      await this.googleAgenda.enfileirar([troca.solicitanteProfissionalId, troca.profissionalSolicitadoId], 'troca', session);
+        titulo: 'Troca de plantão aprovada', mensagem: 'A Coordenação aprovou a troca.' })), { session });
     }); } catch (erro) {
       const resultado = await this.trocas.findById(id).lean().exec();
       if (resultado?.status === StatusTroca.APROVADA && resultado.chaveIdempotencia === dto.operacaoId) return this.detalhe(id);
       throw erro;
     }
-    this.googleAgenda.acionarProcessamento();
     return this.detalhe(id);
   }
 
   async recusar(id: string, dto: RecusarTrocaDto, usuario: UsuarioAutenticado) {
-    if (!dto.justificativa?.trim()) throw new UnprocessableEntityException('Informe o motivo da recusa.');
     this.exigirTransacoesConfirmadas();
     const existente = await this.trocas.findById(id).lean().exec();
     if (!existente) throw new NotFoundException('Solicitação de troca não encontrada.');
@@ -929,12 +923,15 @@ export class TrocasService {
       mensagem: this.mensagemRegraEscala(mensagem),
     }));
     const coberturaAntes = await this.comCache(cache, `cobertura:${String(escala._id)}`, async () => calcularPendenciasCobertura({ ano: escala.ano, mes: escala.mes,
-      setores: setores.map((s) => ({ id: String(s._id), nome: s.nome, plantao24h: s.plantao24h })),
+      setores: setores.map((s) => ({ id: String(s._id), nome: s.nome, turnos: s.turnos })),
       alocacoes: vinculosMes.flatMap((v) => { const p = plantoesMes.find((x) => String(x._id) === String(v.plantaoId)); const prof = profPorId.get(String(v.profissionalId)); if (!p || !prof) return []; return [{ profissional: profEntrada(String(v.profissionalId)), funcao: v.funcao as Formacao, data: p.data, horarioInicio: p.horarioInicio, duracaoHoras: p.duracaoHoras, tipo: p.tipo, setorId: String(p.setorId) }]; }) }));
-    const coberturaDepois = await this.comCache(cache, `cobertura-depois:${String(escala._id)}:${idsAfetados.join(',')}`, async () =>
-      calcularPendenciasCobertura({ ano: escala.ano, mes: escala.mes,
-        setores: setores.map((s) => ({ id: String(s._id), nome: s.nome, plantao24h: s.plantao24h })),
-        alocacoes }));
+    // A permuta altera somente os titulares dos vínculos; setor, data, turno e função do posto permanecem fixos.
+    const coberturaDepois = calcularPendenciasCobertura({
+      ano: escala.ano,
+      mes: escala.mes,
+      setores: setores.map((s) => ({ id: String(s._id), nome: s.nome, turnos: s.turnos })),
+      alocacoes: [...existentes, ...candidatas],
+    });
     if (coberturaDepois.length) {
       const datasAfetadas = new Set([new Date(plantaoA.data).toISOString().slice(0, 10), new Date(plantaoB.data).toISOString().slice(0, 10)]);
       const setorIdsAfetados = new Set([String(plantaoA.setorId), String(plantaoB.setorId)]);
@@ -947,12 +944,8 @@ export class TrocasService {
         const chave = `${pendencia.setorId}|${pendencia.data}|${pendencia.turno}|${pendencia.funcao}`;
         return pendencia.faltam > (faltantesAntes.get(chave) ?? 0);
       });
-      for (const falta of coberturaDepois) {
-        const chave = `${falta.setorId}|${falta.data}|${falta.turno}|${falta.funcao}`;
-        const antes = faltantesAntes.get(chave) ?? 0;
-        if (falta.faltam > antes) {
-          impedimentos.push({ codigo: 'COBERTURA_AGRAVADA', mensagem: `${falta.setor}, ${falta.data} (${falta.turno}/${falta.funcao}): a falta aumentaria de ${antes} para ${falta.faltam}.` });
-        }
+      if (agravouCobertura) {
+        impedimentos.push({ codigo: 'COBERTURA_INSUFICIENTE', mensagem: 'Esta troca deixa o turno com menos profissionais. Escolha outra opção.' });
       }
     }
     const limiteTrocas = configuracao?.limiteTrocas;

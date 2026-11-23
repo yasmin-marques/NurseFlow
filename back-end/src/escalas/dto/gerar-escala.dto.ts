@@ -1,5 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { ArrayMinSize, ArrayUnique, IsArray, IsBoolean, IsInt, IsMongoId, IsOptional, IsUUID, Max, Min } from 'class-validator';
+import { ArrayMinSize, ArrayUnique, IsArray, IsBoolean, IsIn, IsInt, IsMongoId, IsOptional, IsUUID, Max, Min } from 'class-validator';
+
+export const TURNOS_ESCALA = ['diurno', 'noturno'] as const;
+export type TurnoEscala = (typeof TURNOS_ESCALA)[number];
 
 export class GerarEscalaDto {
   @ApiProperty({ minimum: 1, maximum: 12, example: 11 })
@@ -24,4 +27,12 @@ export class GerarEscalaDto {
   @ApiPropertyOptional({ type: [String], format: 'objectId', description: 'Setores ativos a incluir. Omitido significa todos os setores ativos.' })
   @IsOptional() @IsArray() @ArrayMinSize(1) @ArrayUnique() @IsMongoId({ each: true })
   setorIds?: string[];
+
+  @ApiPropertyOptional({
+    enum: TURNOS_ESCALA,
+    isArray: true,
+    description: 'Turnos a otimizar. Omitido significa diurno e noturno.',
+  })
+  @IsOptional() @IsArray() @ArrayMinSize(1) @ArrayUnique() @IsIn(TURNOS_ESCALA, { each: true })
+  turnos?: TurnoEscala[];
 }

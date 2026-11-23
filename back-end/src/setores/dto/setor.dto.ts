@@ -19,6 +19,20 @@ export class QuantitativoDto {
   tecnicos: number;
 }
 
+export class TurnosDto {
+  @ApiProperty({ type: QuantitativoDto, description: 'Turno diurno (07h–19h).' })
+  @IsDefined({ message: 'diurno é obrigatório' })
+  @ValidateNested()
+  @Type(() => QuantitativoDto)
+  diurno: QuantitativoDto;
+
+  @ApiProperty({ type: QuantitativoDto, description: 'Turno noturno (19h–07h).' })
+  @IsDefined({ message: 'noturno é obrigatório' })
+  @ValidateNested()
+  @Type(() => QuantitativoDto)
+  noturno: QuantitativoDto;
+}
+
 export class CreateSetorDto {
   @ApiProperty({ example: 'Emergência' })
   @Transform(({ value }) => normalizarEspacos(value))
@@ -33,16 +47,30 @@ export class CreateSetorDto {
   @MaxLength(255)
   descricao?: string;
 
-  @ApiProperty({ type: QuantitativoDto, description: 'Mínimo simultâneo por plantão de 24 horas.' })
-  @IsDefined({ message: 'plantao24h é obrigatório' })
+  @ApiProperty({ type: TurnosDto })
+  @IsDefined({ message: 'turnos é obrigatório' })
   @ValidateNested()
-  @Type(() => QuantitativoDto)
-  plantao24h: QuantitativoDto;
+  @Type(() => TurnosDto)
+  turnos: TurnosDto;
 }
 
 class QuantitativoParcialDto extends PartialType(QuantitativoDto) {}
 
-/** Edição parcial do quantitativo por plantão de 24 horas. */
+class TurnosParcialDto {
+  @ApiPropertyOptional({ type: QuantitativoParcialDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => QuantitativoParcialDto)
+  diurno?: QuantitativoParcialDto;
+
+  @ApiPropertyOptional({ type: QuantitativoParcialDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => QuantitativoParcialDto)
+  noturno?: QuantitativoParcialDto;
+}
+
+/** Edição parcial (DA08 permite alterar apenas um turno/função). */
 export class UpdateSetorDto {
   @ApiPropertyOptional({ example: 'Emergência' })
   @IsOptional()
@@ -58,11 +86,11 @@ export class UpdateSetorDto {
   @MaxLength(255)
   descricao?: string;
 
-  @ApiPropertyOptional({ type: QuantitativoParcialDto })
+  @ApiPropertyOptional({ type: TurnosParcialDto })
   @IsOptional()
   @ValidateNested()
-  @Type(() => QuantitativoParcialDto)
-  plantao24h?: QuantitativoParcialDto;
+  @Type(() => TurnosParcialDto)
+  turnos?: TurnosParcialDto;
 }
 
 export class ListSetoresQueryDto {
@@ -85,7 +113,7 @@ export class SetorResponseDto {
   @ApiProperty() nome: string;
   @ApiPropertyOptional() descricao?: string;
   @ApiProperty() ativo: boolean;
-  @ApiProperty({ type: QuantitativoDto }) plantao24h: QuantitativoDto;
+  @ApiProperty({ type: TurnosDto }) turnos: TurnosDto;
   @ApiProperty() createdAt: Date;
   @ApiProperty() updatedAt: Date;
 }

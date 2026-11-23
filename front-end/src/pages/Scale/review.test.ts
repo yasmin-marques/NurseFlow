@@ -15,7 +15,7 @@ const shift = (overrides: Partial<ScheduledShift>): ScheduledShift => ({
 })
 
 describe('groupShiftsByDateAndTurn', () => {
-  it('agrupa plantões de 24h e de 12h sem duplicar os de 24h', () => {
+  it('agrupa por data e associa cada duração aos turnos que atende', () => {
     const groups = groupShiftsByDateAndTurn([
       shift({ id: 'night', data: '2026-10-02', horarioInicio: '19:00', horarioFim: '07:00' }),
       shift({ id: 'day' }),
@@ -26,9 +26,8 @@ describe('groupShiftsByDateAndTurn', () => {
     expect(groups[0]).toMatchObject({
       date: '2026-10-01',
       total: 2,
-      '24h': [{ id: 'full-day' }],
-      diurno: [{ id: 'day' }],
-      noturno: [],
+      diurno: [{ id: 'day' }, { id: 'full-day' }],
+      noturno: [{ id: 'full-day' }],
     })
 
     expect(groups[1]).toMatchObject({

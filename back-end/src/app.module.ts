@@ -15,7 +15,6 @@ import { SetoresModule } from './setores/setores.module';
 import { UsuariosModule } from './usuarios/usuarios.module';
 import { TrocasModule } from './trocas/trocas.module';
 import { ExtrasModule } from './extras/extras.module';
-import { GoogleAgendaModule } from './google-agenda/google-agenda.module';
 
 @Module({
   imports: [
@@ -38,7 +37,6 @@ import { GoogleAgendaModule } from './google-agenda/google-agenda.module';
     EscalasModule,
     TrocasModule,
     ExtrasModule,
-    GoogleAgendaModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: AllExceptionsFilter },

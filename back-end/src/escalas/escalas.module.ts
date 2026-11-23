@@ -16,7 +16,6 @@ import { EscalaProfissionalService } from './escala-profissional.service';
 import { MinhaEscalaController } from './minha-escala.controller';
 import { OtimizadorEscala, OtimizadorHttp } from './otimizador/otimizador';
 import { NotificacoesModule } from '../notificacoes/notificacoes.module';
-import { GoogleAgendaModule } from '../google-agenda/google-agenda.module';
 import {
   AuditoriaEscala,
   AuditoriaEscalaSchema,
@@ -36,7 +35,6 @@ import {
     ConfiguracoesModule,
     EscalaSnapshotsModule,
     NotificacoesModule,
-    GoogleAgendaModule,
     MongooseModule.forFeature([
       { name: AuditoriaEscala.name, schema: AuditoriaEscalaSchema },
       { name: Escala.name, schema: EscalaSchema },

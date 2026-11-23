@@ -90,62 +90,111 @@ export class EscalaPdfService {
   }
 
   private async gerarPdf(dados: DadosEscalaPdf, setorId?: string): Promise<Buffer> {
-    const doc = new PDFDocument({ size: 'A4', layout: 'landscape', margin: 30, compress: false, info: { Author: 'NurseFlow', Subject: 'Calendário mensal de escala' } });
+    const doc = new PDFDocument({ size: 'A4', margin: 42, compress: false, info: { Author: 'NurseFlow', Subject: 'Escala oficial' } });
     const partes: Buffer[] = [];
     const buffer = new Promise<Buffer>((resolve, reject) => {
       doc.on('data', (parte: Buffer) => partes.push(parte));
       doc.on('end', () => resolve(Buffer.concat(partes)));
       doc.on('error', reject);
     });
-    const setores = this.setores(dados).filter((setor) => !setorId || setor.id === setorId);
-    const primeiroDia = new Date(Date.UTC(dados.escala.ano, dados.escala.mes - 1, 1)).getUTCDay();
-    const totalDias = new Date(Date.UTC(dados.escala.ano, dados.escala.mes, 0)).getUTCDate();
-    const linhas = Math.ceil((primeiroDia + totalDias) / 7);
-    const larguraCalendario = doc.page.width - doc.page.margins.left - doc.page.margins.right;
-    const larguraCelula = larguraCalendario / 7;
-    const alturaCelula = 59;
+    const setor = setorId ? this.setores(dados).find((item) => item.id === setorId) : undefined;
+    const plantoes = dados.plantoes.filter((item) => !setorId || item.setor.id === setorId);
+    const pendencias = dados.pendencias.filter((item) => !setorId || item.setorId === setorId);
+    const conflitos = dados.conflitos.filter((item) => !setorId || !item.setorId || item.setorId === setorId);
+    const avisos = dados.avisos.filter((item) => !setorId || !item.setorId || item.setorId === setorId);
 
-    setores.forEach((setor, setorIndex) => {
-      if (setorIndex > 0) doc.addPage();
-      const plantoes = dados.plantoes.filter((plantao) => plantao.setor.id === setor.id);
-      doc.font('Helvetica-Bold').fontSize(17).fillColor('#000000')
-        .text(`ESCALA ${String(dados.escala.mes).padStart(2, '0')}/${dados.escala.ano}`, doc.page.margins.left, 27, { width: larguraCalendario, align: 'center' });
-      doc.font('Helvetica-Bold').fontSize(11).fillColor('#222222')
-        .text(setor.nome, doc.page.margins.left, 49, { width: larguraCalendario, align: 'center' });
+    const escreverCabecalho = () => {
+      doc.font('Helvetica-Bold').fontSize(18).fillColor('#000000').text('ESCALA MENSAL');
+      doc.font('Helvetica-Bold').fontSize(13).text(`${String(dados.escala.mes).padStart(2, '0')}/${dados.escala.ano}`);
+      if (setor) doc.font('Helvetica-Bold').fontSize(11).text(`Setor: ${setor.nome}`);
+      doc.font('Helvetica').fontSize(9).fillColor('#222222');
+      doc.text(`Versão oficial ${dados.numero} · Publicada em ${this.dataHora(dados.publicadoEm)}`);
+      const cobertura = dados.cobertura;
+      const rotuloCobertura = cobertura?.percentual == null
+        ? 'Indisponível (sem quantitativos exigidos)'
+        : `${cobertura.percentual}% (${cobertura.posicoesPreenchidas} de ${cobertura.posicoesExigidas} posições)`;
+      doc.font('Helvetica-Bold').fontSize(10).fillColor('#000000').text(`Cobertura geral: ${rotuloCobertura}`);
+      doc.moveDown(0.8);
+    };
+    const novaPagina = () => {
+      doc.addPage();
+      escreverCabecalho();
+    };
+    const garantirEspaco = (altura: number) => {
+      if (doc.y + altura > doc.page.height - doc.page.margins.bottom) novaPagina();
+    };
 
-      const calendarioTop = 70;
-      doc.font('Helvetica-Bold').fontSize(7).fillColor('#333333');
-      ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB'].forEach((dia, index) => {
-        doc.text(dia, doc.page.margins.left + index * larguraCelula + 3, calendarioTop, { width: larguraCelula - 6, align: 'left' });
-      });
-      for (let slot = 0; slot < linhas * 7; slot++) {
-        const dia = slot - primeiroDia + 1;
-        const coluna = slot % 7;
-        const linha = Math.floor(slot / 7);
-        const x = doc.page.margins.left + coluna * larguraCelula;
-        const y = calendarioTop + 14 + linha * alturaCelula;
-        doc.rect(x, y, larguraCelula, alturaCelula).lineWidth(0.4).strokeColor('#b8c2b5').stroke();
-        if (dia < 1 || dia > totalDias) continue;
-        doc.font('Helvetica-Bold').fontSize(8).fillColor('#175b32').text(String(dia), x + 3, y + 3);
-        const data = `${dados.escala.ano}-${String(dados.escala.mes).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
-        const doDia = plantoes.filter((plantao) => plantao.data === data).sort((a, b) => a.horarioInicio.localeCompare(b.horarioInicio));
-        const linhasEquipe = doDia.map((plantao) => `${plantao.horarioInicio}–${plantao.horarioFim}\n${plantao.profissionais.map((profissional) => profissional.nome).join(', ') || 'Sem equipe'}`).join('\n');
-        doc.font('Helvetica').fontSize(5.5).fillColor('#222222')
-          .text(linhasEquipe || 'Sem plantão', x + 3, y + 14, { width: larguraCelula - 6, height: alturaCelula - 16, ellipsis: true });
+    escreverCabecalho();
+    if (pendencias.length > 0) {
+      doc.font('Helvetica-Bold').fontSize(11).fillColor('#000000').text('PENDÊNCIAS DE COBERTURA');
+      doc.font('Helvetica').fontSize(9);
+      for (const pendencia of pendencias) {
+        garantirEspaco(30);
+        doc.text(
+          `${pendencia.setor} · ${this.data(pendencia.data)} · ${pendencia.turno} · ${pendencia.funcao}: necessário ${pendencia.necessario}, alocado ${pendencia.alocado}, faltam ${pendencia.faltam}.`,
+          { width: doc.page.width - doc.page.margins.left - doc.page.margins.right },
+        );
       }
+      doc.moveDown(0.8);
+    } else {
+      doc.font('Helvetica-Bold').fontSize(10).fillColor('#000000').text('Cobertura sem vagas descobertas.');
+      doc.moveDown(0.8);
+    }
 
-      const esquerda = doc.page.margins.left;
-      const larguraAssinatura = (larguraCalendario - 50) / 2;
-      const yAssinatura = calendarioTop + 14 + linhas * alturaCelula + 22;
-      doc.moveTo(esquerda, yAssinatura).lineTo(esquerda + larguraAssinatura, yAssinatura).lineWidth(0.7).strokeColor('#000000').stroke();
-      doc.moveTo(esquerda + larguraAssinatura + 50, yAssinatura).lineTo(esquerda + larguraCalendario, yAssinatura).stroke();
-      doc.font('Helvetica').fontSize(9).fillColor('#000000');
-      doc.text('Coordenação', esquerda, yAssinatura + 6, { width: larguraAssinatura, align: 'center' });
-      doc.text('Diretoria', esquerda + larguraAssinatura + 50, yAssinatura + 6, { width: larguraAssinatura, align: 'center' });
-    });
+    if (conflitos.length > 0 || avisos.length > 0) {
+      doc.font('Helvetica-Bold').fontSize(11).fillColor('#000000').text('ALERTAS REGISTRADOS');
+      doc.font('Helvetica').fontSize(9);
+      for (const alerta of [...conflitos, ...avisos]) {
+        garantirEspaco(28);
+        doc.text(`${alerta.tipo}: ${alerta.motivo}`);
+      }
+      doc.moveDown(0.8);
+    }
+
+    doc.font('Helvetica-Bold').fontSize(11).fillColor('#000000').text('PLANTÕES');
+    const ordenados = [...plantoes].sort((a, b) => a.data.localeCompare(b.data) || a.horarioInicio.localeCompare(b.horarioInicio));
+    if (ordenados.length === 0) {
+      doc.font('Helvetica').fontSize(9).text('Nenhum plantão alocado para este documento.');
+    }
+    for (const plantao of ordenados) {
+      garantirEspaco(42);
+      doc.moveDown(0.35);
+      doc.font('Helvetica-Bold').fontSize(9).fillColor('#000000').text(
+        `${this.data(plantao.data)} · ${plantao.setor.nome} · ${plantao.horarioInicio}–${plantao.horarioFim} · ${plantao.tipo === 'extra' ? 'PLANTÃO EXTRA' : 'Plantão regular'}`,
+      );
+      doc.font('Helvetica').fontSize(9).text(
+        plantao.profissionais.map((profissional) => `${profissional.nome} (${profissional.formacao})`).join(', ') || 'Sem profissionais alocados',
+      );
+      doc.moveTo(doc.page.margins.left, doc.y + 4)
+        .lineTo(doc.page.width - doc.page.margins.right, doc.y + 4)
+        .lineWidth(0.35)
+        .strokeColor('#777777')
+        .stroke();
+      doc.moveDown(0.5);
+    }
+
+    garantirEspaco(90);
+    doc.moveDown(1.5);
+    const esquerda = doc.page.margins.left;
+    const largura = (doc.page.width - doc.page.margins.left - doc.page.margins.right - 36) / 2;
+    const yAssinatura = doc.y + 24;
+    doc.moveTo(esquerda, yAssinatura).lineTo(esquerda + largura, yAssinatura).lineWidth(0.7).strokeColor('#000000').stroke();
+    doc.moveTo(esquerda + largura + 36, yAssinatura).lineTo(esquerda + 2 * largura + 36, yAssinatura).stroke();
+    doc.font('Helvetica').fontSize(9).fillColor('#000000');
+    doc.text('Coordenação', esquerda, yAssinatura + 6, { width: largura, align: 'center' });
+    doc.text('Diretoria', esquerda + largura + 36, yAssinatura + 6, { width: largura, align: 'center' });
 
     doc.end();
     return buffer;
+  }
+
+  private data(data: string): string {
+    const [ano, mes, dia] = data.split('-');
+    return `${dia}/${mes}/${ano}`;
+  }
+
+  private dataHora(data: Date): string {
+    return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(data);
   }
 
   private nomeArquivo(nome: string): string {

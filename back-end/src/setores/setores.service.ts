@@ -5,19 +5,20 @@ import { COLLATION_PT, regexSemAcentos } from '../common/utils/text';
 import type { CreateSetorDto, ListSetoresQueryDto, SetorResponseDto, UpdateSetorDto } from './dto/setor.dto';
 import { Setor, type SetorDocument } from './schemas/setor.schema';
 
+const TURNOS = ['diurno', 'noturno'] as const;
 const FUNCOES = ['enfermeiros', 'tecnicos'] as const;
 
 @Injectable()
 export class SetoresService {
   constructor(@InjectModel(Setor.name) private readonly setorModel: Model<Setor>) {}
 
-  /** DA07: cadastro com quantitativo mínimo inicial por plantão de 24h. */
+  /** DA07: cadastro com quantitativo mínimo inicial por turno. */
   async criar(dto: CreateSetorDto): Promise<SetorResponseDto> {
     await this.garantirNomeLivre(dto.nome);
     const setor = await this.setorModel.create({
       nome: dto.nome,
       descricao: dto.descricao,
-      plantao24h: dto.plantao24h,
+      turnos: dto.turnos,
       ativo: true,
     });
     return this.paraResposta(setor);
@@ -36,16 +37,18 @@ export class SetoresService {
     return this.paraResposta(await this.carregar(id));
   }
 
-  /** DA07/DA08: edita dados do setor e/ou o quantitativo mínimo por plantão de 24h. */
+  /** DA07/DA08: edita dados do setor e/ou o quantitativo mínimo de um ou mais turnos/funções. */
   async atualizar(id: string, dto: UpdateSetorDto): Promise<SetorResponseDto> {
     const setor = await this.carregar(id);
     if (dto.nome !== undefined) await this.garantirNomeLivre(dto.nome, setor);
 
     if (dto.nome !== undefined) setor.nome = dto.nome;
     if (dto.descricao !== undefined) setor.descricao = dto.descricao;
-    for (const funcao of FUNCOES) {
-      const valor = dto.plantao24h?.[funcao];
-      if (valor !== undefined) setor.plantao24h[funcao] = valor;
+    for (const turno of TURNOS) {
+      for (const funcao of FUNCOES) {
+        const valor = dto.turnos?.[turno]?.[funcao];
+        if (valor !== undefined) setor.turnos[turno][funcao] = valor;
+      }
     }
     await setor.save();
     return this.paraResposta(setor);
@@ -87,12 +90,16 @@ export class SetoresService {
   }
 
   private paraResposta(setor: SetorDocument): SetorResponseDto {
+    const { diurno, noturno } = setor.turnos;
     return {
       id: setor._id.toString(),
       nome: setor.nome,
       descricao: setor.descricao,
       ativo: setor.ativo,
-      plantao24h: { enfermeiros: setor.plantao24h.enfermeiros, tecnicos: setor.plantao24h.tecnicos },
+      turnos: {
+        diurno: { enfermeiros: diurno.enfermeiros, tecnicos: diurno.tecnicos },
+        noturno: { enfermeiros: noturno.enfermeiros, tecnicos: noturno.tecnicos },
+      },
       createdAt: setor.createdAt,
       updatedAt: setor.updatedAt,
     };

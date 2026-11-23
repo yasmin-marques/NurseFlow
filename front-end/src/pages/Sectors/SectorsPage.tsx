@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Building2, ChevronRight, Plus } from "../../components/icons";
-import { EditSectorMinimumModal, type SectorMinimum } from "./components/EditSectorMinimumModal";
+import { EditSectorMinimumModal, type SectorMinimum, type SectorShift } from "./components/EditSectorMinimumModal";
 import { NewSectorModal } from "./components/NewSectorModal";
 import { EditSectorModal } from "./components/EditSectorModal";
 import { createSector, listSectors, setSectorActive, updateSectorDetails, updateSectorMinimum } from "../../services/sectors";
@@ -28,7 +28,7 @@ export function SectorsPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
     const [expandedSectors, setExpandedSectors] = useState<string[]>([]);
-    const [editingMinimum, setEditingMinimum] = useState<Sector | null>(null);
+    const [editingMinimum, setEditingMinimum] = useState<{ sector: Sector; shift: SectorShift } | null>(null);
     const [isNewSectorModalOpen, setIsNewSectorModalOpen] = useState(false);
     const [editingSector, setEditingSector] = useState<Sector | null>(null);
     const [togglingId, setTogglingId] = useState<string | null>(null);
@@ -48,7 +48,7 @@ export function SectorsPage() {
 
     const saveMinimum = async (minimum: SectorMinimum) => {
         if (!editingMinimum) return;
-        const updated = await updateSectorMinimum(editingMinimum.id, minimum);
+        const updated = await updateSectorMinimum(editingMinimum.sector.id, editingMinimum.shift.id, minimum);
         setSectors((current) => current.map((sector) => sector.id === updated.id ? updated : sector));
         setEditingMinimum(null);
     };
@@ -86,7 +86,7 @@ export function SectorsPage() {
             <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                     <h2 className="text-[28px] font-bold leading-tight tracking-[-0.04em] text-text">Setores</h2>
-                    <p className="mt-2 text-sm text-text-muted">Defina o quantitativo mínimo por plantão de 24 horas e função.</p>
+                    <p className="mt-2 text-sm text-text-muted">Defina equipes e quantitativos mínimos por turno e função.</p>
                 </div>
                 <button
                     type="button"
@@ -119,19 +119,21 @@ export function SectorsPage() {
 
                         {expandedSectors.includes(sector.id) ? (
                             <div className="border-t border-border px-5 sm:pl-[76px] sm:pr-5">
-                                <div className="flex min-h-[68px] items-center justify-between gap-4 border-b border-border py-3">
-                                    <div>
-                                        <p className="text-[9px] font-bold tracking-wide text-text-muted">PLANTÃO DE 24H · 07H ÀS 07H</p>
-                                        <p className="mt-1.5 text-xs font-semibold text-text">{sector.minimum.nurses} enfermeiros · {sector.minimum.technicians} técnicos</p>
+                                {sector.shifts.map((shift) => (
+                                    <div key={shift.id} className="flex min-h-[68px] items-center justify-between gap-4 border-b border-border py-3 last:border-b-0">
+                                        <div>
+                                            <p className="text-[9px] font-bold tracking-wide text-text-muted">{shift.label.toLocaleUpperCase("pt-BR")} · {shift.hours}</p>
+                                            <p className="mt-1.5 text-xs font-semibold text-text">{shift.minimum.nurses} enfermeiros · {shift.minimum.technicians} técnicos</p>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => setEditingMinimum({ sector, shift })}
+                                            className="shrink-0 rounded-xl border border-border px-3.5 py-2.5 text-[10px] font-semibold text-text-muted transition-colors hover:bg-card-header"
+                                        >
+                                            Editar mínimo
+                                        </button>
                                     </div>
-                                    <button
-                                        type="button"
-                                        onClick={() => setEditingMinimum(sector)}
-                                        className="shrink-0 rounded-xl border border-border px-3.5 py-2.5 text-[10px] font-semibold text-text-muted transition-colors hover:bg-card-header"
-                                    >
-                                        Editar mínimo
-                                    </button>
-                                </div>
+                                ))}
                                 <div className="flex flex-wrap justify-end gap-2 py-3">
                                     <button
                                         type="button"
@@ -156,8 +158,8 @@ export function SectorsPage() {
             </section>
             {editingMinimum ? (
                 <EditSectorMinimumModal
-                    sectorName={editingMinimum.name}
-                    minimum={editingMinimum.minimum}
+                    sectorName={editingMinimum.sector.name}
+                    shift={editingMinimum.shift}
                     onClose={() => setEditingMinimum(null)}
                     onSave={saveMinimum}
                 />

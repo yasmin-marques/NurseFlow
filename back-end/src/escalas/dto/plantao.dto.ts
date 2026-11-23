@@ -82,8 +82,4 @@ export class LotePlantoesDto {
   @IsArray() @ArrayMinSize(1)
   @ValidateNested({ each: true }) @Type(() => PlantaoAlteracaoDto)
   alteracoes: PlantaoAlteracaoDto[];
-
-  @ApiPropertyOptional({ description: 'Autoriza salvar plantões com conflito de descanso/sobreposição em situação emergencial.' })
-  @IsOptional() @IsBoolean()
-  forcarConflitos?: boolean;
 }

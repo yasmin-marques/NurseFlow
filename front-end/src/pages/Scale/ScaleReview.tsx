@@ -1,5 +1,5 @@
 import { canEditScale, groupShiftsByDateAndTurn } from './review'
-import type { CoverageShift, ScaleDetail, ScheduledShift } from '../../services/scales'
+import type { ScaleDetail, ScheduledShift, ScaleShift } from '../../services/scales'
 
 interface ScaleReviewProps {
   scale: ScaleDetail
@@ -11,8 +11,7 @@ function shiftLabel(shift: ScheduledShift) {
   return shift.horarioInicio === '07:00' ? '12h diurno' : '12h noturno'
 }
 
-function turnLabel(turn: CoverageShift) {
-  if (turn === '24h') return 'Plantão de 24h · 07h–07h'
+function turnLabel(turn: ScaleShift) {
   return turn === 'diurno' ? 'Diurno · 07h–19h' : 'Noturno · 19h–07h'
 }
 
@@ -40,8 +39,8 @@ export function ScaleReview({ scale, onEdit }: ScaleReviewProps) {
                   </span>
                 </span>
               </summary>
-              <div className="grid gap-4 border-t border-border bg-page/50 p-4 lg:grid-cols-3">
-                {(['24h', 'diurno', 'noturno'] as const).map((turn) => {
+              <div className="grid gap-4 border-t border-border bg-page/50 p-4 lg:grid-cols-2">
+                {(['diurno', 'noturno'] as const).map((turn) => {
                   const shifts = group[turn]
                   const vacancies = scale.pendencias.filter((vacancy) => vacancy.data === group.date && vacancy.turno === turn)
                   return (

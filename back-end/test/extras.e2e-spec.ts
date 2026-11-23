@@ -51,15 +51,6 @@ describe('Extras programados (e2e)', () => {
     await usuarios.criarAdministrador(coord._id);
     tokenCoord = await login('coord-extras@nurseflow.com', 'coordenacao');
 
-    const setorResp = await http
-      .post('/setores')
-      .set(auth(tokenCoord))
-      .send({
-        nome: 'UTI Pediátrica Extras',
-        plantao24h: { enfermeiros: 2, tecnicos: 4 },
-      })
-      .expect(201);
-    setorId = setorResp.body.id;
     const enfermeiroResp = await http
       .post('/profissionais')
       .set(auth(tokenCoord))
@@ -71,7 +62,6 @@ describe('Extras programados (e2e)', () => {
         tipoVinculo: 'clt',
         email: 'carla-extras@nurseflow.com',
         senha: SENHA,
-        setorId,
       })
       .expect(201);
     profissionalEnfermeiroId = enfermeiroResp.body.id;
@@ -88,11 +78,22 @@ describe('Extras programados (e2e)', () => {
         tipoVinculo: 'rpa',
         email: 'diego-extras@nurseflow.com',
         senha: SENHA,
-        setorId,
       })
       .expect(201);
     _profissionalTecnicoId = tecnicoResp.body.id;
 
+    const setorResp = await http
+      .post('/setores')
+      .set(auth(tokenCoord))
+      .send({
+        nome: 'UTI Pediátrica Extras',
+        turnos: {
+          diurno: { enfermeiros: 2, tecnicos: 4 },
+          noturno: { enfermeiros: 1, tecnicos: 2 },
+        },
+      })
+      .expect(201);
+    setorId = setorResp.body.id;
   });
 
   afterAll(async () => {

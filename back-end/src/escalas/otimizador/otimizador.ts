@@ -6,7 +6,7 @@ import type { AppConfig } from '../../config/configuration';
 export type OpcaoPlantao = '24h' | '12d' | '12n';
 
 /** Versão do contrato que precisa ser implantada junto com o optimizer. */
-export const VERSAO_CONTRATO_OTIMIZADOR = 4;
+export const VERSAO_CONTRATO_OTIMIZADOR = 2;
 export const CAPACIDADE_ALOCACOES_FIXAS = 'alocacoes_fixas' as const;
 
 export interface TurnoBloqueadoOtimizacao {
@@ -30,7 +30,10 @@ export interface ProfissionalOtimizacao {
 export interface SetorOtimizacao {
   id: string;
   nome: string;
-  plantao24h: { enfermeiros: number; tecnicos: number };
+  turnos: {
+    diurno: { enfermeiros: number; tecnicos: number };
+    noturno: { enfermeiros: number; tecnicos: number };
+  };
 }
 
 export interface ProblemaOtimizacao {
@@ -42,6 +45,7 @@ export interface ProblemaOtimizacao {
   dias_mes: number;
   profissionais: ProfissionalOtimizacao[];
   setores: SetorOtimizacao[];
+  turnos_selecionados?: ('diurno' | 'noturno')[];
   parametros: { tempo_limite_segundos: number };
   alocacoes_fixas: AlocacaoFixaOtimizacao[];
 }
@@ -67,7 +71,7 @@ export interface AlocacaoOtimizada {
 export interface DescobertoOtimizado {
   setor_id: string;
   dia: number;
-  turno: '24h';
+  turno: 'diurno' | 'noturno';
   funcao: 'enfermeiros' | 'tecnicos';
   necessario: number;
   alocado: number;

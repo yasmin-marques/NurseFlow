@@ -9,6 +9,7 @@ import {
   calcularBloqueiosDoProfissional,
   diasDoMes,
 } from './montar-problema';
+import type { TurnoEscala } from './dto/gerar-escala.dto';
 import { TipoPlantao } from './schemas';
 import { utcDate } from '../common/utils/date';
 
@@ -25,7 +26,7 @@ export interface PendenciaCobertura {
   setorId: string;
   setor: string;
   data: string;
-  turno: '24h' | 'diurno' | 'noturno';
+  turno: 'diurno' | 'noturno';
   funcao: 'enfermeiros' | 'tecnicos';
   necessario: number;
   alocado: number;
@@ -152,37 +153,46 @@ export function calcularPendenciasCobertura(input: {
   setores: {
     id: string;
     nome: string;
-    plantao24h: { enfermeiros: number; tecnicos: number };
+    turnos: {
+      diurno: { enfermeiros: number; tecnicos: number };
+      noturno: { enfermeiros: number; tecnicos: number };
+    };
   }[];
   alocacoes: (AlocacaoPlantaoValidacao & { setorId: string })[];
+  turnos?: TurnoEscala[];
 }): PendenciaCobertura[] {
   const contagem = new Map<string, number>();
   for (const alocacao of input.alocacoes) {
-    if (alocacao.duracaoHoras < 24) continue;
+    const turnos = alocacao.duracaoHoras >= 24 ? ['diurno', 'noturno'] : [alocacao.horarioInicio === '07:00' ? 'diurno' : 'noturno'];
     const funcao = alocacao.funcao === Formacao.ENFERMEIRO ? 'enfermeiros' : 'tecnicos';
-    const chave = `${alocacao.setorId}|${alocacao.data.toISOString().slice(0, 10)}|24h|${funcao}`;
-    contagem.set(chave, (contagem.get(chave) ?? 0) + 1);
+    for (const turno of turnos) {
+      const chave = `${alocacao.setorId}|${alocacao.data.toISOString().slice(0, 10)}|${turno}|${funcao}`;
+      contagem.set(chave, (contagem.get(chave) ?? 0) + 1);
+    }
   }
 
   const pendencias: PendenciaCobertura[] = [];
   for (const setor of input.setores) {
     for (let dia = 1; dia <= diasDoMes(input.ano, input.mes); dia++) {
       const data = utcDate(input.ano, input.mes - 1, dia).toISOString().slice(0, 10);
-      for (const funcao of ['enfermeiros', 'tecnicos'] as const) {
-        const necessario = setor.plantao24h[funcao];
-        const alocado = contagem.get(`${setor.id}|${data}|24h|${funcao}`) ?? 0;
-        if (necessario > alocado) {
-          pendencias.push({
-            setorId: setor.id,
-            setor: setor.nome,
-            data,
-            turno: '24h',
-            funcao,
-            necessario,
-            alocado,
-            faltam: necessario - alocado,
-            motivo: 'Quantitativo mínimo não atingido sem violar as restrições obrigatórias.',
-          });
+      for (const turno of ['diurno', 'noturno'] as const) {
+        if (input.turnos && !input.turnos.includes(turno)) continue;
+        for (const funcao of ['enfermeiros', 'tecnicos'] as const) {
+          const necessario = setor.turnos[turno][funcao];
+          const alocado = contagem.get(`${setor.id}|${data}|${turno}|${funcao}`) ?? 0;
+          if (necessario > alocado) {
+            pendencias.push({
+              setorId: setor.id,
+              setor: setor.nome,
+              data,
+              turno,
+              funcao,
+              necessario,
+              alocado,
+              faltam: necessario - alocado,
+              motivo: 'Quantitativo mínimo não atingido sem violar as restrições obrigatórias.',
+            });
+          }
         }
       }
     }
@@ -194,15 +204,20 @@ export function resumirCobertura(input: {
   ano: number;
   mes: number;
   setores: {
-    plantao24h: { enfermeiros: number; tecnicos: number };
+    turnos: {
+      diurno: { enfermeiros: number; tecnicos: number };
+      noturno: { enfermeiros: number; tecnicos: number };
+    };
   }[];
+  turnos?: TurnoEscala[];
   pendencias: PendenciaCobertura[];
 }): ResumoCobertura {
+  const turnos = input.turnos ?? ['diurno', 'noturno'];
   const posicoesExigidas = input.setores.reduce(
     (total, setor) =>
       total +
       diasDoMes(input.ano, input.mes) *
-        (setor.plantao24h.enfermeiros + setor.plantao24h.tecnicos),
+        turnos.reduce((subtotal, turno) => subtotal + setor.turnos[turno].enfermeiros + setor.turnos[turno].tecnicos, 0),
     0,
   );
   const vagas = input.pendencias.reduce((total, item) => total + item.faltam, 0);

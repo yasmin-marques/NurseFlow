@@ -7,7 +7,6 @@ import { Profissional, ProfissionalSchema } from '../profissionais/schemas/profi
 import { Setor, SetorSchema } from '../setores/schemas/setor.schema';
 import { Usuario, UsuarioSchema } from '../usuarios/schemas/usuario.schema';
 import { Administrador, AdministradorSchema } from '../usuarios/schemas/administrador.schema';
-import { GoogleAgendaModule } from '../google-agenda/google-agenda.module';
 import { TrocasController } from './trocas.controller';
 import { MinhasTrocasController } from './minhas-trocas.controller';
 import { TrocasService } from './trocas.service';
@@ -15,7 +14,7 @@ import { MinhasTrocasService } from './minhas-trocas.service';
 import { NotificacoesTrocasController } from './notificacoes-trocas.controller';
 
 @Module({
-  imports: [GoogleAgendaModule, MongooseModule.forFeature([
+  imports: [MongooseModule.forFeature([
     { name: SolicitacaoTroca.name, schema: SolicitacaoTrocaSchema },
     { name: AuditoriaTroca.name, schema: AuditoriaTrocaSchema },
     { name: AuditoriaEscala.name, schema: AuditoriaEscalaSchema },

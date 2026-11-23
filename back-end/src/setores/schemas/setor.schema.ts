@@ -1,7 +1,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import type { HydratedDocument } from 'mongoose';
 
-/** Quantitativo mínimo de profissionais por função em um plantão de 24h. O chefe conta entre os enfermeiros. */
+/** Quantitativo mínimo de profissionais por função em um turno (DA08). O chefe do plantão conta entre os enfermeiros. */
 @Schema({ _id: false })
 export class Quantitativo {
   @Prop({ required: true, min: 0 })
@@ -12,6 +12,16 @@ export class Quantitativo {
 }
 const QuantitativoSchema = SchemaFactory.createForClass(Quantitativo);
 
+@Schema({ _id: false })
+export class TurnosSetor {
+  @Prop({ type: QuantitativoSchema, required: true })
+  diurno: Quantitativo;
+
+  @Prop({ type: QuantitativoSchema, required: true })
+  noturno: Quantitativo;
+}
+const TurnosSetorSchema = SchemaFactory.createForClass(TurnosSetor);
+
 @Schema({ collection: 'setores', timestamps: true, versionKey: false })
 export class Setor {
   @Prop({ required: true, trim: true })
@@ -20,8 +30,8 @@ export class Setor {
   @Prop()
   descricao?: string;
 
-  @Prop({ type: QuantitativoSchema, required: true })
-  plantao24h: Quantitativo;
+  @Prop({ type: TurnosSetorSchema, required: true })
+  turnos: TurnosSetor;
 
   @Prop({ required: true, default: true })
   ativo: boolean;

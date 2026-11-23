@@ -22,9 +22,10 @@ describe('validateGenerationSelection', () => {
     startDate: '2026-10-01',
     endDate: '2026-10-31',
     sectorIds: ['sector-1'],
+    shifts: ['diurno'] as const,
   }
 
-  it('aceita período com setor selecionado', () => {
+  it('aceita período com setor e turno selecionados', () => {
     expect(validateGenerationSelection(valid)).toBeNull()
   })
 
@@ -50,7 +51,8 @@ describe('validateGenerationSelection', () => {
     expect(validateGenerationSelection({ ...valid, endDate: '2026-11-01' })).toMatch(/mês completo/i)
   })
 
-  it('exige ao menos um setor', () => {
+  it('exige ao menos um setor e um turno', () => {
     expect(validateGenerationSelection({ ...valid, sectorIds: [] })).toMatch(/setor/i)
+    expect(validateGenerationSelection({ ...valid, shifts: [] })).toMatch(/turno/i)
   })
 })

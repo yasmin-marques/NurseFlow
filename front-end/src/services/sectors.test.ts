@@ -8,36 +8,39 @@ const apiSector = {
   id: 's1',
   nome: 'UTI',
   ativo: true,
-  plantao24h: { enfermeiros: 2, tecnicos: 4 },
+  turnos: { diurno: { enfermeiros: 2, tecnicos: 4 }, noturno: { enfermeiros: 1, tecnicos: 3 } },
 }
 
 describe('services/sectors', () => {
-  it('lista e mapeia quantitativo único por plantão de 24h', async () => {
+  it('lista e mapeia setores com turnos diurno e noturno', async () => {
     mockBackend(() => ({ body: [apiSector] }))
     const [sector] = await listSectors()
     expect(sector).toMatchObject({ id: 's1', name: 'UTI', description: '', active: true })
-    expect(sector.minimum).toEqual({ nurses: 2, technicians: 4 })
+    expect(sector.shifts.map((s) => [s.id, s.minimum])).toEqual([
+      ['day', { nurses: 2, technicians: 4 }],
+      ['night', { nurses: 1, technicians: 3 }],
+    ])
   })
 
   it('cadastra setor convertendo quantitativos para o formato da API', async () => {
     mockBackend(() => ({ body: [apiSector] }))
     const [existing] = await listSectors()
     const { calls } = mockBackend(() => ({ body: apiSector }))
-    await createSector({ name: 'UTI', description: '', minimum: existing.minimum })
+    await createSector({ name: 'UTI', description: '', shifts: existing.shifts })
     expect(calls[0]).toMatchObject({ url: '/api/setores', method: 'POST' })
     expect(calls[0].body).toEqual({
       nome: 'UTI',
-      plantao24h: { enfermeiros: 2, tecnicos: 4 },
+      turnos: { diurno: { enfermeiros: 2, tecnicos: 4 }, noturno: { enfermeiros: 1, tecnicos: 3 } },
     })
   })
 
-  it('atualiza o quantitativo único de 24h (DA08)', async () => {
+  it('edita apenas o turno informado (DA08)', async () => {
     const { calls } = mockBackend(() => ({ body: apiSector }))
-    await updateSectorMinimum('s1', { nurses: 5, technicians: 6 })
+    await updateSectorMinimum('s1', 'night', { nurses: 5, technicians: 6 })
     expect(calls[0]).toMatchObject({
       url: '/api/setores/s1',
       method: 'PATCH',
-      body: { plantao24h: { enfermeiros: 5, tecnicos: 6 } },
+      body: { turnos: { noturno: { enfermeiros: 5, tecnicos: 6 } } },
     })
   })
 

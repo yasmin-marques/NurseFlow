@@ -58,7 +58,6 @@ As migrations são idempotentes e funcionam tanto em um banco criado por `db/mon
 | `20261013000006-escalas-plantoes` | Validators e índices das escalas, plantões e profissionais relacionados |
 | `20261014000007-ciclo-vida-escalas` | Estados e revisões de escala, snapshots oficiais, auditoria, notificações e índices únicos para período, versões e eventos por destinatário |
 | `20261030000008-anos-escalas-independentes` | Permite escalas e versões em qualquer ano civil de quatro dígitos |
-| `20261119000012-setores-minimo-plantao-24h` | Consolida os quantitativos de diurno/noturno no maior mínimo por função em `plantao24h`; escalas automáticas regulares usam o regime 24x72 |
 
 ### Primeira conta de Coordenação
 
@@ -91,9 +90,8 @@ Swagger/OpenAPI: **http://localhost:3000/docs** (use *Authorize* com o `accessTo
 
 ## Contrato e implantação do otimizador
 
-O backend e o serviço Python usam o contrato versionado **v4** (v4 acrescenta `profissionais[].setor_id`, o setor fixo
-obrigatório, e `plantao24h` por setor; contratos anteriores não são compatíveis). Toda requisição de geração
-envia `versao_contrato: 4`, `capacidades: ["alocacoes_fixas"]` e `alocacoes_fixas`.
+O backend e o serviço Python usam o contrato versionado **v2**. Toda requisição de geração
+envia `versao_contrato: 2`, `capacidades: ["alocacoes_fixas"]` e `alocacoes_fixas`.
 Cada alocação fixa contém `extra_id`, `profissional_id`, `setor_id`, `dia`, `opcao` (`12d`,
 `12n` ou `24h`) e `tipo: "extra"`. A resposta mantém a versão/capacidade e identifica a
 alocação efetiva por `extra_id` quando ela é um extra programado.
@@ -158,14 +156,14 @@ Se `senha` for omitida, o sistema gera uma senha aleatória descartável (`senha
 
 | Método | Rota | Acesso | Descrição |
 |---|---|---|---|
-| POST | `/setores` | Coordenação | Cadastro com quantitativo mínimo por plantão de 24h (DA07). 409 para nome duplicado |
+| POST | `/setores` | Coordenação | Cadastro com quantitativo por turno (DA07). 409 para nome duplicado |
 | GET | `/setores`, `/setores/:id` | qualquer perfil autenticado | Query da lista: `busca`, `ativo` |
-| PATCH | `/setores/:id` | Coordenação | Edita nome/descrição e/ou uma função do mínimo por plantão de 24h (DA08) |
+| PATCH | `/setores/:id` | Coordenação | Edita nome/descrição e/ou apenas um turno/função (DA08) |
 | PATCH | `/setores/:id/inativar`, `/setores/:id/ativar` | Coordenação | Inativação lógica |
 
 ```json
 { "nome": "Emergência", "descricao": "…",
-  "plantao24h": { "enfermeiros": 2, "tecnicos": 3 } }
+  "turnos": { "diurno": { "enfermeiros": 2, "tecnicos": 3 }, "noturno": { "enfermeiros": 2, "tecnicos": 3 } } }
 ```
 
 O chefe do plantão é contabilizado entre os enfermeiros (DA08).
@@ -177,7 +175,7 @@ O chefe do plantão é contabilizado entre os enfermeiros (DA08).
 | GET | `/escalas?ano=&mes=` | Consulta a escala do período; retorna lista vazia quando não existe |
 | GET | `/escalas/historico?ano=` | Lista a versão oficial mais recente de cada mês publicado no ano (Coordenação) |
 | POST | `/escalas` | Cria rascunho para montagem manual |
-| POST | `/escalas/gerar` | Gera a escala mensal automaticamente; aceita setores e identificador da operação |
+| POST | `/escalas/gerar` | Gera a escala mensal automaticamente; aceita setores, turnos e identificador da operação |
 | DELETE | `/escalas/gerar/:operacaoId` | Solicita cancelamento da geração ativa |
 | GET | `/escalas/:id` | Consulta escala, plantões, cobertura, pendências, conflitos, avisos e cargas |
 | POST | `/escalas/:id/plantoes` | Inclui plantão e equipe no rascunho; exige `revisaoEsperada` |
@@ -225,7 +223,7 @@ src/
   usuarios/       identidade: schemas usuarios, administradores e UsuariosService
   profissionais/  cadastro/consulta/edição/desativação (+ porta PlantoesFuturosChecker)
   escalas/        geração, edição, revisão, validação, publicação, notificações e PDF
-  setores/        cadastro/consulta/edição/inativação com quantitativo por plantão de 24h
+  setores/        cadastro/consulta/edição/inativação com quantitativo por turno
   common/         enums, decorators (@Public, @Perfis), guards, filtro global de erros, utilitários
   config/         leitura e validação do ambiente
 migrations/       migrate-mongo
@@ -244,7 +242,7 @@ O front-end consome a API autenticada para cadastro e ciclo de vida das escalas.
 | `bond`: `CLT`\|`RPA`\|`Concursado` | `tipoVinculo`: `clt`\|`rpa`\|`concursado` |
 | `status: boolean` | `status`: `ativo` ⇒ `true`; os demais (`desativado`, `afastado`, `ferias`) ⇒ `false` |
 | filtros `all`/`active`/`inactive`, `sort` `asc`/`desc` | `status` (omitir = todos), `ordem` |
-| Setor: `minimum:{nurses,technicians}` | `plantao24h.{enfermeiros,tecnicos}` |
+| Setor: `shifts[{id:'day'\|'night', minimum:{nurses,technicians}}]` | `turnos.diurno\|noturno.{enfermeiros,tecnicos}` |
 | Login `profile`: `coordenação`\|`enfermeiro`\|`técnico` | `perfil` (aceito com acento) |
 
 ## Limitações conhecidas

@@ -302,10 +302,12 @@ export function ScalePage() {
     setSavingBatch(true)
     setBatchError('')
     try {
-      const forceConflicts = pending.some((change) => change.forcarConflitos === true)
-      const validation = await validateShiftBatch(matchingScale.escala.id, matchingScale.escala.revisao, pending, forceConflicts)
+      const validation = await validateShiftBatch(matchingScale.escala.id, matchingScale.escala.revisao, pending)
       if (!validation.valida) throw new Error(formatValidationErrors(validation.erros))
-      const updated = await saveShiftBatch(matchingScale.escala.id, matchingScale.escala.revisao, pending, forceConflicts)
+      if (validation.requerConfirmacaoCobertura && pending.some((change) => change.coberturaReconhecida !== true)) {
+        throw new Error('Reconheça as pendências de cobertura antes de salvar as alterações.')
+      }
+      const updated = await saveShiftBatch(matchingScale.escala.id, matchingScale.escala.revisao, pending)
       replaceScale(updated)
       setStagedChanges([])
       setChangesSaved(true)
@@ -415,17 +417,7 @@ export function ScalePage() {
             <button type="button" aria-label={view === 'week' ? 'Semana anterior' : 'Mês anterior'} onClick={() => changePeriod(-1)} className={`flex items-center justify-center rounded-lg border border-border font-semibold hover:bg-page ${view === 'week' ? 'px-3 py-2 text-xs' : 'size-9 text-lg'}`}>
               {view === 'week' ? '‹ Semana anterior' : '‹'}
             </button>
-            <div className="flex items-center gap-2">
-              <h3 aria-live="polite" className="min-w-[180px] text-center text-base font-bold text-text">{calendarTitle}</h3>
-              <label className="sr-only" htmlFor="scale-year">Ano da escala</label>
-              <select id="scale-year" aria-label="Ano da escala" value={year} onChange={(event) => {
-                const next = new Date(selectedDate)
-                next.setFullYear(Number(event.target.value))
-                setLoading(true); setError(''); setSelectedDate(next)
-              }} className="rounded-lg border border-border bg-white px-2 py-2 text-xs font-semibold text-text">
-                {Array.from({ length: 11 }, (_, index) => year - 5 + index).filter((item) => item >= 1 && item <= 9999).map((item) => <option key={item} value={item}>{item}</option>)}
-              </select>
-            </div>
+            <h3 aria-live="polite" className="min-w-[180px] text-center text-base font-bold text-text">{calendarTitle}</h3>
             <button type="button" aria-label={view === 'week' ? 'Próxima semana' : 'Próximo mês'} onClick={() => changePeriod(1)} className={`flex items-center justify-center rounded-lg border border-border font-semibold hover:bg-page ${view === 'week' ? 'px-3 py-2 text-xs' : 'size-9 text-lg'}`}>
               {view === 'week' ? 'Próxima semana ›' : '›'}
             </button>
@@ -470,8 +462,6 @@ export function ScalePage() {
                       setError('')
                     }
                     setSelectedDate(date)
-                    const dayScale = scales.find((item) => item.escala.ano === date.getFullYear() && item.escala.mes === date.getMonth() + 1)
-                    if (dayScale) setShowShiftDialog(true)
                   }}
                 />
               </div>
