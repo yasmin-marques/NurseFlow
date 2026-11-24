@@ -155,24 +155,43 @@ async function seed() {
       }, { upsert: true, returnDocument: 'after' });
       if (usuario.tipoUsuario !== 'profissionalDaSaude') throw new Error(`Conflito de perfil para ${email}`);
       const profissional = await profs.findOneAndUpdate({ usuarioId: usuario._id }, {
-        $setOnInsert: { usuarioId: usuario._id, coren, formacao, tipoVinculo, status,
+        $setOnInsert: { usuarioId: usuario._id, coren, formacao, tipoVinculo, status, subsetorId: null,
           sincronizaAgenda: false, desativadoEm: status === 'desativado' ? ts : null, createdAt: ts, updatedAt: ts },
       }, { upsert: true, returnDocument: 'after' });
       identities[slug] = profissional._id;
     }
 
+    // [nome, descrição, [enf dia, téc dia], [enf noite, téc noite], subsetores]. Setor com subsetores não tem mínimo
+    // próprio de técnicos: cada subsetor tem o seu (UTI: 2 + 1 = 3, a mesma demanda total de antes).
     const setores = [
-      ['UTI', 'Unidade de Terapia Intensiva', [2, 3], [2, 2]],
-      ['Emergência', 'Pronto atendimento', [2, 3], [1, 2]],
-      ['Clínica Médica', 'Internação clínica', [1, 2], [1, 1]],
+      ['Internamento', 'Unidade de Terapia Intensiva', [1, 3], [1, 3], [['Setor A', 'Leitos de terapia intensiva adulto', 3], ['Setor B', 'Cuidados semi-intensivos', 3]]],
+      ['Emergência', 'Pronto atendimento', [1, 3], [1, 3], []],
     ];
-    for (const [nome, descricao, dia, noite] of setores) {
+    for (const [nome, descricao, dia, noite, subsetores] of setores) {
+      const possuiSubsetores = subsetores.length > 0;
+      const tecnicos = possuiSubsetores
+        ? subsetores.reduce((soma, [, , minimo]) => soma + minimo, 0)
+        : Math.max(dia[1], noite[1]);
       await db.collection('setores').updateOne({ nome }, { $setOnInsert: {
         nome, descricao, plantao24h: {
           enfermeiros: Math.max(dia[0], noite[0]),
-          tecnicos: Math.max(dia[1], noite[1]),
-        }, ativo: true, createdAt: ts, updatedAt: ts,
+          tecnicos,
+        }, possuiSubsetores, ativo: true, createdAt: ts, updatedAt: ts,
       } }, { upsert: true });
+      if (possuiSubsetores) {
+        // Demo já existente (setor criado antes dos subsetores): adota subsetores e mínimo derivado, sem tocar no resto.
+        await db.collection('setores').updateOne(
+          { nome, possuiSubsetores: { $ne: true } },
+          { $set: { possuiSubsetores: true, 'plantao24h.tecnicos': tecnicos, updatedAt: ts } },
+        );
+        const setorDoc = await db.collection('setores').findOne({ nome });
+        for (const [nomeSubsetor, descricaoSubsetor, minimo] of subsetores) {
+          await db.collection('subsetores').updateOne({ setorId: setorDoc._id, nome: nomeSubsetor }, { $setOnInsert: {
+            setorId: setorDoc._id, nome: nomeSubsetor, descricao: descricaoSubsetor,
+            plantao24h: { tecnicos: minimo }, ativo: true, createdAt: ts, updatedAt: ts,
+          } }, { upsert: true });
+        }
+      }
     }
 
     // Setor fixo: cada profissional demo recebe um unico setor, proporcional a demanda de sua categoria.
@@ -190,6 +209,33 @@ async function seed() {
             { _id: identities[grupo[cursor][0]], setorId: { $in: [null] } },
             { $set: { setorId: setorPorNome.get(setores[s][0]), updatedAt: ts } },
           );
+        }
+      }
+    }
+
+    // Subsetor dos técnicos de setores com subsetores: repartido proporcionalmente ao mínimo de cada subsetor.
+    // Só preenche quem ainda não tem subsetor. Enfermeiros e técnicos de setor sem subsetores ficam sem subsetor.
+    {
+      const tecnicos = PEOPLE.filter((pessoa) => pessoa[2] === 'tecnico');
+      const cotasTecnicos = repartir(tecnicos.length, setores.map(([, , dia, noite]) => Math.max(dia[1], noite[1])));
+      let cursor = 0;
+      for (let s = 0; s < setores.length; s++) {
+        const [nomeSetor, , , , subsetores] = setores[s];
+        const grupoDoSetor = tecnicos.slice(cursor, cursor + cotasTecnicos[s]);
+        cursor += cotasTecnicos[s];
+        if (subsetores.length === 0) continue;
+        const subsetorDocs = await db.collection('subsetores')
+          .find({ setorId: setorPorNome.get(nomeSetor), nome: { $in: subsetores.map(([nomeSubsetor]) => nomeSubsetor) } }).toArray();
+        const subsetorPorNome = new Map(subsetorDocs.map((sub) => [sub.nome, sub._id]));
+        const cotasSubsetores = repartir(grupoDoSetor.length, subsetores.map(([, , minimo]) => minimo));
+        let posicao = 0;
+        for (let k = 0; k < subsetores.length; k++) {
+          for (let n = 0; n < cotasSubsetores[k]; n++, posicao++) {
+            await profs.updateOne(
+              { _id: identities[grupoDoSetor[posicao][0]], setorId: setorPorNome.get(nomeSetor), subsetorId: { $in: [null] } },
+              { $set: { subsetorId: subsetorPorNome.get(subsetores[k][0]), updatedAt: ts } },
+            );
+          }
         }
       }
     }
@@ -233,7 +279,7 @@ async function seed() {
           observacao, createdAt: ts, updatedAt: ts },
       }, { upsert: true });
     }
-    console.log(`Seed concluído: 1 coordenação, ${PEOPLE.length} profissionais, 3 setores, 2 configurações mensais e ${restrictions.length} restrições.`);
+    console.log(`Seed concluído: 1 coordenação, ${PEOPLE.length} profissionais, 3 setores (UTI com 2 subsetores), 2 configurações mensais e ${restrictions.length} restrições.`);
     console.log('Logins: admin@nurseflow.test e <nome>@nurseflow.test; senhas conforme DEMO_ADMIN_PASSWORD/DEMO_PRO_PASSWORD.');
   } finally {
     await client.close();

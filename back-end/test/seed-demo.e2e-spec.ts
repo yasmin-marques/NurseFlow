@@ -144,6 +144,56 @@ describe("seed de demonstração (e2e)", () => {
     }
   });
 
+  it("setores e vínculos refletem as regras de subsetores (mínimos, setor/subsetor dos profissionais)", async () => {
+    const setores = await db.collection("setores").find().toArray();
+    const subsetores = await db.collection("subsetores").find().toArray();
+    const profs = await db.collection("profissionaisDaSaude").find().toArray();
+    const porNome = new Map(setores.map((s) => [s.nome, s]));
+
+    // Setor com subsetores: mínimo de enfermeiros no setor; técnicos por subsetor (derivado = soma, mesma demanda de antes).
+    const uti = porNome.get("UTI")!;
+    expect(uti).toMatchObject({ possuiSubsetores: true, plantao24h: { enfermeiros: 2, tecnicos: 3 } });
+    const subsDaUti = subsetores.filter((s) => String(s.setorId) === String(uti._id));
+    expect(subsDaUti.map((s) => [s.nome, s.plantao24h.tecnicos]).sort()).toEqual([
+      ["UTI Adulto", 2],
+      ["UTI Intermediária", 1],
+    ]);
+    // Setores sem subsetores: os dois mínimos no setor.
+    expect(porNome.get("Emergência")).toMatchObject({ possuiSubsetores: false, plantao24h: { enfermeiros: 2, tecnicos: 3 } });
+    expect(porNome.get("Clínica Médica")).toMatchObject({ possuiSubsetores: false, plantao24h: { enfermeiros: 1, tecnicos: 2 } });
+    expect(subsetores).toHaveLength(2);
+
+    // Todos os profissionais têm setor; subsetor só para técnicos de setor com subsetores, sempre do próprio setor.
+    const subPorId = new Map(subsetores.map((s) => [String(s._id), s]));
+    expect(profs.every((p) => p.setorId && porNome.size && [...porNome.values()].some((s) => String(s._id) === String(p.setorId)))).toBe(true);
+    for (const p of profs) {
+      const doUti = String(p.setorId) === String(uti._id);
+      if (p.formacao === "tecnico" && doUti) {
+        expect(subPorId.get(String(p.subsetorId))?.setorId).toEqual(uti._id);
+      } else {
+        expect(p.subsetorId).toBeNull();
+      }
+    }
+    // Os técnicos do UTI se repartem proporcionalmente ao mínimo de cada subsetor (2:1).
+    const tecnicosUti = profs.filter((p) => p.formacao === "tecnico" && String(p.setorId) === String(uti._id));
+    const contagem = (nome: string) => tecnicosUti.filter((p) => subPorId.get(String(p.subsetorId))?.nome === nome).length;
+    expect(contagem("UTI Adulto") + contagem("UTI Intermediária")).toBe(tecnicosUti.length);
+    expect(contagem("UTI Adulto")).toBeGreaterThan(contagem("UTI Intermediária"));
+  });
+
+  it("o diagnóstico de vínculos não encontra pendências na demo", async () => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { diagnosticar } = requireSeed("../scripts/diagnosticar-vinculos.js") as {
+      diagnosticar: (d: object) => { pendencias: unknown[]; divergencias: unknown[] };
+    };
+    const resultado = diagnosticar({
+      setores: await db.collection("setores").find().toArray(),
+      subsetores: await db.collection("subsetores").find().toArray(),
+      profissionais: await db.collection("profissionaisDaSaude").find().toArray(),
+    });
+    expect(resultado).toEqual({ pendencias: [], divergencias: [] });
+  });
+
   it("é idempotente: executar de novo não duplica nem altera registros", async () => {
     const antes = await db
       .collection("profissionaisDaSaude")
@@ -155,6 +205,7 @@ describe("seed de demonstração (e2e)", () => {
       await contar("profissionaisDaSaude"),
       await contar("restricoes"),
       await contar("setores"),
+      await contar("subsetores"),
       await contar("configuracoes"),
     ];
     const totais = await contagens();

@@ -365,15 +365,15 @@ describe('NurseFlow API (e2e)', () => {
 
     it('lista, busca, consulta, inativa e reativa sem excluir', async () => {
       const lista = await http.get('/setores').set(auth(tokenCoordenacao)).expect(200);
-      expect(lista.body.map((s: { nome: string }) => s.nome)).toEqual(['Bloco A', 'Emergência']);
+      expect(lista.body.map((s: { nome: string }) => s.nome)).toEqual(['Bloco A', 'Emergência', 'Setor inativo', 'UTI']);
       expect((await http.get('/setores?busca=emergencia').set(auth(tokenCoordenacao))).body).toHaveLength(1);
       await http.get(`/setores/${setorId}`).set(auth(tokenCoordenacao)).expect(200);
       await http.get('/setores/64b7f0c2a1b2c3d4e5f60718').set(auth(tokenCoordenacao)).expect(404);
 
       const inativo = await http.patch(`/setores/${setorId}/inativar`).set(auth(tokenCoordenacao)).expect(200);
       expect(inativo.body.ativo).toBe(false);
-      expect((await http.get('/setores?ativo=false').set(auth(tokenCoordenacao))).body).toHaveLength(1);
-      expect((await http.get('/setores?ativo=true').set(auth(tokenCoordenacao))).body).toHaveLength(1);
+      expect((await http.get('/setores?ativo=false').set(auth(tokenCoordenacao))).body).toHaveLength(2);
+      expect((await http.get('/setores?ativo=true').set(auth(tokenCoordenacao))).body).toHaveLength(2);
       await http.get('/setores?ativo=talvez').set(auth(tokenCoordenacao)).expect(400);
 
       const ativo = await http.patch(`/setores/${setorId}/ativar`).set(auth(tokenCoordenacao)).expect(200);

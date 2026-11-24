@@ -74,8 +74,13 @@ function repartir(total, pesos) {
   return cotas;
 }
 
-/** Atribui um setor a cada profissional do plano conforme a demanda de cada categoria por setor. */
-function distribuir(plano, setores) {
+/**
+ * Atribui um setor a cada profissional do plano conforme a demanda de cada categoria por setor.
+ * Técnicos de setor COM subsetores também recebem um subsetor ativo desse setor (proporcional ao mínimo de cada um);
+ * enfermeiros e técnicos de setor sem subsetores ficam só com o setor.
+ * `subsetoresPorSetor`: Map(String(setor._id) -> subsetores ativos [{ _id, plantao24h: { tecnicos } }]).
+ */
+function distribuir(plano, setores, subsetoresPorSetor = new Map()) {
   const porSetor = new Map(setores.map((s) => [String(s._id), 0]));
   for (const [formacao, funcao] of [['enfermeiro', 'enfermeiros'], ['tecnico', 'tecnicos']]) {
     const grupo = plano.filter((p) => p.formacao === formacao);
@@ -83,7 +88,19 @@ function distribuir(plano, setores) {
     const cotas = repartir(grupo.length, pesos);
     let cursor = 0;
     setores.forEach((setor, idx) => {
-      for (let k = 0; k < cotas[idx]; k++) grupo[cursor++].setorId = setor._id;
+      const subsetores = formacao === 'tecnico' ? (subsetoresPorSetor.get(String(setor._id)) ?? []) : [];
+      const cotasSubsetores = subsetores.length > 0 ? repartir(cotas[idx], subsetores.map((sub) => sub.plantao24h.tecnicos)) : [];
+      let posicaoSubsetor = 0;
+      for (let k = 0; k < cotas[idx]; k++) {
+        const profissional = grupo[cursor++];
+        profissional.setorId = setor._id;
+        profissional.subsetorId = null;
+        if (subsetores.length > 0) {
+          while (cotasSubsetores[posicaoSubsetor] === 0) posicaoSubsetor++;
+          profissional.subsetorId = subsetores[posicaoSubsetor]._id;
+          if (--cotasSubsetores[posicaoSubsetor] === 0) posicaoSubsetor++;
+        }
+      }
       porSetor.set(String(setor._id), porSetor.get(String(setor._id)) + cotas[idx]);
     });
   }
@@ -113,8 +130,18 @@ async function main() {
       );
     }
 
+    const subsetoresAtivos = await db.collection('subsetores').find({ ativo: true }).sort({ nome: 1 }).toArray();
+    const subsetoresPorSetor = new Map();
+    for (const setor of setores.filter((item) => item.possuiSubsetores)) {
+      const doSetor = subsetoresAtivos.filter((sub) => String(sub.setorId) === String(setor._id));
+      if (doSetor.length === 0) {
+        throw new Error(`Pré-requisito não atendido: o setor "${setor.nome}" possui subsetores, mas nenhum está ativo. Nada foi gravado.`);
+      }
+      subsetoresPorSetor.set(String(setor._id), doSetor);
+    }
+
     const plano = planoDeProfissionais();
-    const porSetor = distribuir(plano, setores);
+    const porSetor = distribuir(plano, setores, subsetoresPorSetor);
 
     // Pré-validação (tudo-ou-nada): detecta conflitos com registros que NÃO são da seed antes de gravar.
     const existentes = new Map();
@@ -156,7 +183,7 @@ async function main() {
         }, { session });
         const { insertedId } = await profissionais.insertOne({
           usuarioId, coren: item.coren, formacao: item.formacao, tipoVinculo: item.tipoVinculo, status: 'ativo',
-          setorId: item.setorId, sincronizaAgenda: false, desativadoEm: null, createdAt: agora, updatedAt: agora,
+          setorId: item.setorId, subsetorId: item.subsetorId ?? null, sincronizaAgenda: false, desativadoEm: null, createdAt: agora, updatedAt: agora,
         }, { session });
         criados.push({ usuarioId, profissionalId: insertedId });
       }

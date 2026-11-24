@@ -41,6 +41,15 @@ export class CreateProfissionalDto {
   @IsMongoId({ message: 'Setor inválido' })
   setorId: string;
 
+  @ApiPropertyOptional({
+    nullable: true,
+    description:
+      'Subsetor do técnico (deve pertencer ao setor). Obrigatório para técnico de setor com subsetores; não informar para técnico de setor sem subsetores nem para enfermeiro.',
+  })
+  @IsOptional()
+  @IsMongoId({ message: 'Subsetor inválido' })
+  subsetorId?: string | null;
+
   @ApiPropertyOptional({ enum: StatusProfissional, default: StatusProfissional.ATIVO })
   @IsOptional()
   @IsEnum(StatusProfissional, { message: 'Status inválido' })

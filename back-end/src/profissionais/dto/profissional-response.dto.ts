@@ -12,6 +12,8 @@ export class ProfissionalResponseDto {
   @ApiProperty({ enum: StatusProfissional }) status: StatusProfissional;
   @ApiProperty({ nullable: true, type: String, description: 'Setor fixo; nulo em cadastros legados pendentes.' }) setorId: string | null;
   @ApiProperty({ nullable: true, type: String }) setorNome: string | null;
+  @ApiProperty({ nullable: true, type: String, description: 'Subsetor do técnico; nulo para enfermeiros e técnicos de setor sem subsetores.' }) subsetorId: string | null;
+  @ApiProperty({ nullable: true, type: String }) subsetorNome: string | null;
   @ApiProperty() createdAt: Date;
   @ApiProperty() updatedAt: Date;
 }

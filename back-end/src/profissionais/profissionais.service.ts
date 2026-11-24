@@ -12,8 +12,9 @@ import { type ListProfissionaisQueryDto, Ordem } from './dto/list-profissionais-
 import type { ProfissionalListaDto, ProfissionalResponseDto } from './dto/profissional-response.dto';
 import type { UpdateProfissionalDto } from './dto/update-profissional.dto';
 import { PlantoesFuturosChecker } from './plantoes-futuros.checker';
-import { StatusProfissional } from './profissionais.enums';
+import { Formacao, StatusProfissional } from './profissionais.enums';
 import { Setor } from '../setores/schemas/setor.schema';
+import { Subsetor } from '../setores/schemas/subsetor.schema';
 import { Profissional, type ProfissionalDocument } from './schemas/profissional.schema';
 
 /** Remove chaves `undefined` (em `doc.set`, undefined apagaria o campo). */
@@ -22,13 +23,14 @@ function semUndefined<T extends object>(obj: T): Partial<T> {
 }
 
 type UsuarioPublico = Pick<Usuario, 'nome' | 'cpf' | 'email'>;
-type ProfissionalAgregado = Omit<Profissional, 'usuarioId'> & { _id: Types.ObjectId; usuario: UsuarioPublico; setor?: { nome: string } };
+type ProfissionalAgregado = Omit<Profissional, 'usuarioId'> & { _id: Types.ObjectId; usuario: UsuarioPublico; setor?: { nome: string }; subsetor?: { nome: string } };
 
 @Injectable()
 export class ProfissionaisService {
   constructor(
     @InjectModel(Profissional.name) private readonly profissionalModel: Model<Profissional>,
     @InjectModel(Setor.name) private readonly setorModel: Model<Setor>,
+    @InjectModel(Subsetor.name) private readonly subsetorModel: Model<Subsetor>,
     private readonly usuariosService: UsuariosService,
     private readonly plantoesFuturos: PlantoesFuturosChecker,
   ) {}
@@ -37,6 +39,7 @@ export class ProfissionaisService {
   async criar(dto: CreateProfissionalDto): Promise<ProfissionalResponseDto> {
     await this.garantirNaoCadastrado({ cpf: dto.cpf, coren: dto.coren, email: dto.email });
     const setor = await this.exigirSetorAtivo(dto.setorId);
+    const subsetorId = await this.resolverSubsetor(dto.formacao, setor, dto.subsetorId);
 
     const senhaTemporaria = !dto.senha;
     const senha = await AuthService.gerarHashSenha(dto.senha ?? randomBytes(24).toString('base64url'));
@@ -57,10 +60,11 @@ export class ProfissionaisService {
         formacao: dto.formacao,
         tipoVinculo: dto.tipoVinculo,
         setorId: setor._id,
+        subsetorId,
         status,
         desativadoEm: status === StatusProfissional.DESATIVADO ? new Date() : null,
       });
-      return this.paraResposta(profissional, usuario, setor.nome);
+      return this.paraResposta(profissional, usuario, setor.nome, await this.nomeDoSubsetor(subsetorId));
     } catch (erro) {
       // Mongo standalone não tem transações: desfaz o usuário criado na primeira etapa.
       await this.usuariosService.removerCriacaoParcial(usuario._id);
@@ -76,6 +80,7 @@ export class ProfissionaisService {
     if (query.tipoVinculo) filtro.tipoVinculo = query.tipoVinculo;
     if (query.setorId) filtro.setorId = new Types.ObjectId(query.setorId);
     if (query.semSetor === true) filtro.setorId = null;
+    if (query.subsetorId) filtro.subsetorId = new Types.ObjectId(query.subsetorId);
 
     const pipeline: PipelineStage[] = [
       { $match: filtro },
@@ -96,11 +101,26 @@ export class ProfissionaisService {
           localField: 'setorId',
           foreignField: '_id',
           as: 'setor',
-          pipeline: [{ $project: { nome: 1 } }],
+          pipeline: [{ $project: { nome: 1, possuiSubsetores: 1 } }],
         },
       },
       { $unwind: { path: '$setor', preserveNullAndEmptyArrays: true } },
+      {
+        $lookup: {
+          from: 'subsetores',
+          localField: 'subsetorId',
+          foreignField: '_id',
+          as: 'subsetor',
+          pipeline: [{ $project: { nome: 1 } }],
+        },
+      },
+      { $unwind: { path: '$subsetor', preserveNullAndEmptyArrays: true } },
     ];
+
+    // Pendência de adequação: técnico de setor que passou a ter subsetores e ainda não tem subsetor.
+    if (query.semSubsetor === true) {
+      pipeline.push({ $match: { formacao: Formacao.TECNICO, subsetorId: null, 'setor.possuiSubsetores': true } });
+    }
 
     if (query.busca) {
       const condicoes: Record<string, unknown>[] = [
@@ -142,7 +162,7 @@ export class ProfissionaisService {
 
   async obter(id: string): Promise<ProfissionalResponseDto> {
     const { profissional, usuario } = await this.carregar(id);
-    return this.paraResposta(profissional, usuario, await this.nomeDoSetor(profissional.setorId));
+    return this.paraResposta(profissional, usuario, await this.nomeDoSetor(profissional.setorId), await this.nomeDoSubsetor(profissional.subsetorId));
   }
 
   /** DA03: edição. Se o status passar para "desativado", aplica a regra do DA04. */
@@ -153,10 +173,26 @@ export class ProfissionaisService {
       { usuarioId: usuario._id, profissionalId: profissional._id },
     );
 
-    if (dto.setorId !== undefined) {
-      const setor = await this.exigirSetorAtivo(dto.setorId);
-      if (!setor._id.equals(profissional.setorId ?? undefined)) await this.exigirSemPlantoesFuturosAoMudarSetor(profissional);
-      profissional.setorId = setor._id;
+    if (dto.setorId !== undefined || dto.subsetorId !== undefined || dto.formacao !== undefined) {
+      const setor =
+        dto.setorId !== undefined
+          ? await this.exigirSetorAtivo(dto.setorId)
+          : profissional.setorId
+            ? await this.setorModel.findById(profissional.setorId).lean().exec()
+            : null;
+      const mudouSetor = setor !== null && !setor._id.equals(profissional.setorId ?? undefined);
+      if (mudouSetor) await this.exigirSemPlantoesFuturosAoMudarSetor(profissional);
+      // Cadastro legado sem setor e sem setorId no pedido: não há vínculo a validar.
+      if (setor) {
+        const formacao = dto.formacao ?? profissional.formacao;
+        // Sem subsetorId no pedido, o vínculo atual é herdado, exceto ao trocar de setor (o subsetor antigo é de outro setor).
+        const herdado = dto.subsetorId === undefined;
+        const atual = mudouSetor ? null : (profissional.subsetorId?.toString() ?? null);
+        // Ao virar enfermeiro, um subsetor herdado deixa de se aplicar (enfermeiro é vinculado só ao setor).
+        const solicitado = herdado ? (formacao === Formacao.ENFERMEIRO ? null : atual) : dto.subsetorId;
+        profissional.subsetorId = await this.resolverSubsetor(formacao, setor, solicitado);
+        profissional.setorId = setor._id;
+      }
     }
 
     if (dto.status && dto.status !== profissional.status) {
@@ -167,7 +203,7 @@ export class ProfissionaisService {
     profissional.set(semUndefined({ formacao: dto.formacao, tipoVinculo: dto.tipoVinculo }));
     await usuario.save();
     await profissional.save();
-    return this.paraResposta(profissional, usuario, await this.nomeDoSetor(profissional.setorId));
+    return this.paraResposta(profissional, usuario, await this.nomeDoSetor(profissional.setorId), await this.nomeDoSubsetor(profissional.subsetorId));
   }
 
   /** DA04: desativação lógica. O registro é preservado e nenhum DELETE físico é feito. */
@@ -177,7 +213,7 @@ export class ProfissionaisService {
       await this.aplicarStatus(profissional, StatusProfissional.DESATIVADO);
       await profissional.save();
     }
-    return this.paraResposta(profissional, usuario, await this.nomeDoSetor(profissional.setorId));
+    return this.paraResposta(profissional, usuario, await this.nomeDoSetor(profissional.setorId), await this.nomeDoSubsetor(profissional.subsetorId));
   }
 
   /** Atualiza o status em memória, validando a regra de plantões futuros ao desativar. */
@@ -207,6 +243,35 @@ export class ProfissionaisService {
     return setor;
   }
 
+  /**
+   * Regra do vínculo setor/subsetor (validada no backend, independente do formulário):
+   * - enfermeiro: só o setor, nunca subsetor;
+   * - técnico de setor sem subsetores: só o setor, nunca subsetor;
+   * - técnico de setor com subsetores: subsetor obrigatório, ativo e pertencente a ESTE setor.
+   * Devolve o `subsetorId` a persistir (nulo quando não se aplica).
+   */
+  private async resolverSubsetor(
+    formacao: Formacao,
+    setor: { _id: Types.ObjectId; nome: string; possuiSubsetores?: boolean },
+    subsetorId: string | null | undefined,
+  ): Promise<Types.ObjectId | null> {
+    const erro = (message: string) => new UnprocessableEntityException({ message, erros: [message] });
+    if (formacao === Formacao.ENFERMEIRO) {
+      if (subsetorId) throw erro('Enfermeiros são vinculados diretamente ao setor, sem subsetor.');
+      return null;
+    }
+    if (!setor.possuiSubsetores) {
+      if (subsetorId) throw erro(`O setor ${setor.nome} não possui subsetores.`);
+      return null;
+    }
+    if (!subsetorId) throw erro(`O setor ${setor.nome} possui subsetores: selecione o subsetor do técnico.`);
+    const subsetor = Types.ObjectId.isValid(subsetorId) ? await this.subsetorModel.findById(subsetorId).lean().exec() : null;
+    if (!subsetor) throw erro('Subsetor não encontrado.');
+    if (!subsetor.setorId.equals(setor._id)) throw erro('O subsetor selecionado pertence a outro setor.');
+    if (!subsetor.ativo) throw erro('Subsetor inativo: selecione um subsetor ativo.');
+    return subsetor._id;
+  }
+
   /** Trocar o setor com plantões publicados futuros deixaria a escala vigente fora da regra do setor fixo. */
   private async exigirSemPlantoesFuturosAoMudarSetor(profissional: ProfissionalDocument): Promise<void> {
     if (!profissional.setorId) return; // atribuição inicial de um cadastro legado
@@ -222,6 +287,11 @@ export class ProfissionaisService {
   private async nomeDoSetor(setorId: Types.ObjectId | null | undefined): Promise<string | null> {
     if (!setorId) return null;
     return (await this.setorModel.findById(setorId, { nome: 1 }).lean().exec())?.nome ?? null;
+  }
+
+  private async nomeDoSubsetor(subsetorId: Types.ObjectId | null | undefined): Promise<string | null> {
+    if (!subsetorId) return null;
+    return (await this.subsetorModel.findById(subsetorId, { nome: 1 }).lean().exec())?.nome ?? null;
   }
 
   private async carregar(id: string): Promise<{ profissional: ProfissionalDocument; usuario: UsuarioDocument }> {
@@ -253,7 +323,12 @@ export class ProfissionaisService {
     }
   }
 
-  private paraResposta(profissional: ProfissionalDocument, usuario: UsuarioPublico, setorNome: string | null): ProfissionalResponseDto {
+  private paraResposta(
+    profissional: ProfissionalDocument,
+    usuario: UsuarioPublico,
+    setorNome: string | null,
+    subsetorNome: string | null,
+  ): ProfissionalResponseDto {
     return {
       id: profissional._id.toString(),
       nome: usuario.nome,
@@ -265,6 +340,8 @@ export class ProfissionaisService {
       status: profissional.status,
       setorId: profissional.setorId ? String(profissional.setorId) : null,
       setorNome,
+      subsetorId: profissional.subsetorId ? String(profissional.subsetorId) : null,
+      subsetorNome,
       createdAt: profissional.createdAt,
       updatedAt: profissional.updatedAt,
     };
@@ -282,6 +359,8 @@ export class ProfissionaisService {
       status: item.status,
       setorId: item.setorId ? String(item.setorId) : null,
       setorNome: item.setor?.nome ?? null,
+      subsetorId: item.subsetorId ? String(item.subsetorId) : null,
+      subsetorNome: item.subsetor?.nome ?? null,
       createdAt: item.createdAt,
       updatedAt: item.updatedAt,
     };

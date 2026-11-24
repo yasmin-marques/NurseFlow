@@ -1,35 +1,52 @@
-import { useEffect, useState } from "react";
-import { Check, Clock, Users, X } from "../../../components/icons";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { NumberStepper } from "../../../components/ui/NumberStepper";
+import type { SectorMinimums } from "../../../services/sectors";
+import {
+    bodyClassName,
+    closeButtonClassName,
+    footerClassName,
+    headerClassName,
+    overlayClassName,
+    panelClassName,
+    primaryButtonClassName,
+    secondaryButtonClassName,
+} from "../styles";
+import type { Sector } from "../types";
 
 export type SectorMinimum = {
     nurses: number;
-    technicians: number;
+    /** Nulo em setor com subsetores: o mínimo de técnicos é definido em cada subsetor. */
+    technicians: number | null;
 };
 
 type EditSectorMinimumModalProps = {
-    sectorName: string;
-    minimum: SectorMinimum;
+    sector: Sector;
     onClose: () => void;
-    onSave: (minimum: SectorMinimum) => void | Promise<void>;
+    onSave: (minimums: SectorMinimums) => void | Promise<void>;
 };
 
-export function EditSectorMinimumModal({ sectorName, minimum, onClose, onSave }: EditSectorMinimumModalProps) {
-    const [nurses, setNurses] = useState(minimum.nurses);
-    const [technicians, setTechnicians] = useState(minimum.technicians);
+function Row({ title, hint, children }: { title: string; hint?: string; children: ReactNode }) {
+    return (
+        <div className="flex min-h-14 items-center justify-between gap-3 py-2">
+            <div className="min-w-0">
+                <p className="text-[13px] font-semibold text-text">{title}</p>
+                {hint ? <p className="text-xs text-text-muted">{hint}</p> : null}
+            </div>
+            {children}
+        </div>
+    );
+}
+
+/** Edita, em uma única operação, todos os mínimos do setor: enfermeiros e técnicos (do setor ou de cada subsetor). */
+export function EditSectorMinimumModal({ sector, onClose, onSave }: EditSectorMinimumModalProps) {
+    const [nurses, setNurses] = useState(sector.minimum.nurses);
+    const [technicians, setTechnicians] = useState(sector.minimum.technicians ?? 0);
+    const activeSubsectors = sector.subsectors.filter((sub) => sub.active);
+    const [subsectorMinimums, setSubsectorMinimums] = useState<Record<string, number>>(
+        Object.fromEntries(activeSubsectors.map((sub) => [sub.id, sub.minimumTechnicians])),
+    );
     const [error, setError] = useState("");
     const [saving, setSaving] = useState(false);
-
-    const save = async () => {
-        setSaving(true);
-        setError("");
-        try {
-            await onSave({ nurses, technicians });
-        } catch (err) {
-            setError(err instanceof Error ? err.message : "Não foi possível salvar.");
-            setSaving(false);
-        }
-    };
 
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
@@ -39,72 +56,89 @@ export function EditSectorMinimumModal({ sectorName, minimum, onClose, onSave }:
         return () => window.removeEventListener("keydown", handleKeyDown);
     }, [onClose]);
 
+    const save = async (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+        setSaving(true);
+        setError("");
+        try {
+            await onSave(sector.hasSubsectors
+                ? {
+                    nurses,
+                    technicians: null,
+                    subsectors: activeSubsectors.map((sub) => ({ id: sub.id, minimumTechnicians: subsectorMinimums[sub.id] })),
+                }
+                : { nurses, technicians });
+        } catch (err) {
+            setError(err instanceof Error ? err.message : "Não foi possível salvar.");
+            setSaving(false);
+        }
+    };
+
     return (
         <div
-            className="fixed inset-0 z-50 flex justify-end bg-black/30 backdrop-blur-sm"
+            className={overlayClassName}
             onMouseDown={(event) => {
                 if (event.target === event.currentTarget) onClose();
             }}
         >
-            <aside role="dialog" aria-modal="true" aria-labelledby="minimum-modal-title" className="flex h-full w-full max-w-[460px] flex-col bg-white shadow-2xl">
-                <header className="flex items-center justify-between border-b border-border px-6 py-5">
+            <section role="dialog" aria-modal="true" aria-labelledby="minimum-modal-title" className={panelClassName}>
+                <header className={headerClassName}>
                     <div>
-                        <h2 id="minimum-modal-title" className="text-base font-bold text-text">
-                            Editar mínimo por plantão de 24h · {sectorName}
-                        </h2>
-                        <p className="mt-1 text-xs text-text-muted">Defina a quantidade mínima simultânea por função</p>
+                        <h2 id="minimum-modal-title" className="text-xl font-bold tracking-tight text-text">Editar mínimo · {sector.name}</h2>
+                        <p className="mt-1 text-sm text-text-muted">Defina a quantidade mínima por plantão de 24h</p>
                     </div>
-                    <button type="button" onClick={onClose} aria-label="Fechar edição de mínimo" className="rounded-xl border border-border p-2 text-text-muted hover:bg-card-header">
+                    <button type="button" onClick={onClose} aria-label="Fechar edição de mínimo" className={closeButtonClassName}>
                         <X className="size-5" />
                     </button>
                 </header>
 
-                <div className="flex-1 space-y-4 px-6 py-6">
-                    <div className="flex items-center gap-3 rounded-xl bg-[#f0f5ec] px-3.5 py-4">
-                        <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[#e1efd9] text-primary">
-                            <Clock className="size-5" />
-                        </span>
-                        <div>
-                            <p className="text-[11px] font-bold text-text">Plantão contínuo de 24 horas · 07h às 07h</p>
-                            <p className="mt-1 text-[10px] leading-relaxed text-text-muted">O sistema usará estes números para gerar a escala e identificar cobertura insuficiente.</p>
-                        </div>
+                <form onSubmit={save} className="flex min-h-0 flex-1 flex-col">
+                    <div className={bodyClassName}>
+
+                        <section aria-label="Enfermeiros" className="rounded-xl border border-border px-4">
+                            <Row title="Enfermeiros" hint="Inclui o enfermeiro chefe do plantão">
+                                <NumberStepper value={nurses} onChange={setNurses} min={0} label="enfermeiros" />
+                            </Row>
+                        </section>
+
+                        {sector.hasSubsectors ? (
+                            <section aria-label="Técnicos por subsetor" className="space-y-2">
+                                <h3 className="text-sm font-bold text-text">Técnicos de enfermagem por subsetor</h3>
+                                <div className="divide-y divide-border rounded-xl border border-border px-4">
+                                    {activeSubsectors.map((sub) => (
+                                        <Row key={sub.id} title={sub.name} hint="Mínimo simultâneo no subsetor">
+                                            <NumberStepper
+                                                value={subsectorMinimums[sub.id]}
+                                                onChange={(value) => setSubsectorMinimums((current) => ({ ...current, [sub.id]: value }))}
+                                                min={0}
+                                                label={`técnicos de ${sub.name}`}
+                                            />
+                                        </Row>
+                                    ))}
+                                </div>
+                                {sector.subsectors.some((sub) => !sub.active) ? (
+                                    <p className="text-xs text-text-muted">Subsetores inativos não entram no dimensionamento.</p>
+                                ) : null}
+                            </section>
+                        ) : (
+                            <section aria-label="Técnicos" className="rounded-xl border border-border px-4">
+                                <Row title="Técnicos de enfermagem" hint="Quantidade mínima simultânea no setor">
+                                    <NumberStepper value={technicians} onChange={setTechnicians} min={0} label="técnicos de enfermagem" />
+                                </Row>
+                            </section>
+                        )}
                     </div>
 
-                    <div className="overflow-hidden rounded-xl border border-border">
-                        <div className="flex min-h-[70px] items-center gap-3 border-b border-border px-3 py-3 last:border-b-0">
-                            <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[#e4f1df] text-primary">
-                                <Users className="size-5" />
-                            </span>
-                            <div className="min-w-0 flex-1">
-                                <p className="text-[11px] font-bold text-text">Enfermeiros</p>
-                                <p className="mt-1 text-[10px] text-text-muted">Inclui o enfermeiro chefe do plantão</p>
-                            </div>
-                            <NumberStepper value={nurses} onChange={setNurses} min={0} label="enfermeiros" />
-                        </div>
-                        <div className="flex min-h-[70px] items-center gap-3 px-3 py-3">
-                            <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[#e4f1df] text-primary">
-                                <Users className="size-5" />
-                            </span>
-                            <div className="min-w-0 flex-1">
-                                <p className="text-[11px] font-bold text-text">Técnicos de enfermagem</p>
-                                <p className="mt-1 text-[10px] text-text-muted">Quantidade mínima simultânea no setor</p>
-                            </div>
-                            <NumberStepper value={technicians} onChange={setTechnicians} min={0} label="técnicos de enfermagem" />
-                        </div>
-                    </div>
-
-                    <div className="flex items-center gap-2 rounded-xl bg-[#e5f2dc] px-3 py-3 text-[10px] leading-relaxed text-[#356c39]">
-                        <Check className="size-4 shrink-0" strokeWidth={2.4} />
-                        Plantões abaixo de {nurses} enfermeiros ou {technicians} técnicos serão sinalizados como irregulares.
-                    </div>
-                </div>
-
-                <footer className="flex justify-end gap-2 border-t border-border px-6 py-4">
-                    {error ? <p role="alert" className="mr-auto self-center text-[11px] font-semibold text-danger">{error}</p> : null}
-                    <button type="button" onClick={onClose} className="rounded-xl border border-border px-4 py-2.5 text-xs font-bold text-text hover:bg-card-header">Cancelar</button>
-                    <button type="button" disabled={saving} onClick={save} className="rounded-xl bg-primary px-4 py-2.5 text-xs font-bold text-white shadow-md hover:brightness-95">Salvar quantitativo</button>
-                </footer>
-            </aside>
+                    <footer className={footerClassName}>
+                        {error ? <p role="alert" className="mr-auto self-center text-xs font-medium text-danger">{error}</p> : null}
+                        <button type="button" onClick={onClose} className={secondaryButtonClassName}>Cancelar</button>
+                        <button type="submit" disabled={saving} className={primaryButtonClassName}>
+                            <Check className="size-4" strokeWidth={2.3} />
+                            Salvar quantitativos
+                        </button>
+                    </footer>
+                </form>
+            </section>
         </div>
     );
 }

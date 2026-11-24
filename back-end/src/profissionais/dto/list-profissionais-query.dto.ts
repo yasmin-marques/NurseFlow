@@ -36,6 +36,17 @@ export class ListProfissionaisQueryDto {
   @IsMongoId()
   setorId?: string;
 
+  @ApiPropertyOptional({ description: 'Filtra pelo subsetor.' })
+  @IsOptional()
+  @IsMongoId()
+  subsetorId?: string;
+
+  @ApiPropertyOptional({ description: 'true: apenas técnicos de setores com subsetores que ainda não têm subsetor (pendências de adequação).' })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) => (value === 'true' ? true : value === 'false' ? false : value))
+  @IsBoolean()
+  semSubsetor?: boolean;
+
   @ApiPropertyOptional({ description: 'true: apenas cadastros legados ainda sem setor fixo (pendências da migração).' })
   @IsOptional()
   @Transform(({ value }: { value: unknown }) => (value === 'true' ? true : value === 'false' ? false : value))

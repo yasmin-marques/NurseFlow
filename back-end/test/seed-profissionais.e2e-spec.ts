@@ -136,4 +136,30 @@ describe("seed de 40 profissionais com setor fixo (e2e)", () => {
     expect(profs.filter((p) => String(p.setorId) === String(soEnf)).every((p) => p.formacao === "enfermeiro")).toBe(true);
     expect(profs.filter((p) => String(p.setorId) === String(soTec)).every((p) => p.formacao === "tecnico")).toBe(true);
   });
+
+  it("técnicos de setor com subsetores recebem subsetor do próprio setor; os demais ficam sem subsetor", async () => {
+    await col("profissionaisDaSaude").deleteMany({});
+    await col("usuarios").deleteMany({});
+    await col("setores").deleteMany({});
+    const comSub = (await col("setores").insertOne({
+      nome: "Com subsetores", ativo: true, possuiSubsetores: true, plantao24h: { enfermeiros: 2, tecnicos: 3 }, createdAt: agora, updatedAt: agora,
+    })).insertedId;
+    const semSub = await inserirSetor("Sem subsetores", [2, 2], [2, 2]);
+    const subs = (await col("subsetores").insertMany([
+      { setorId: comSub, nome: "Sub A", plantao24h: { tecnicos: 2 }, ativo: true, createdAt: agora, updatedAt: agora },
+      { setorId: comSub, nome: "Sub B", plantao24h: { tecnicos: 1 }, ativo: true, createdAt: agora, updatedAt: agora },
+    ])).insertedIds;
+    const idsSubsetores = new Set(Object.values(subs).map(String));
+
+    await seed();
+    const profs = await col("profissionaisDaSaude").find().toArray();
+    expect(profs).toHaveLength(40);
+    const tecnicosCom = profs.filter((p) => String(p.setorId) === String(comSub) && p.formacao === "tecnico");
+    expect(tecnicosCom.length).toBeGreaterThan(0);
+    expect(tecnicosCom.every((p) => idsSubsetores.has(String(p.subsetorId)))).toBe(true);
+    expect(new Set(tecnicosCom.map((p) => String(p.subsetorId))).size).toBe(2);
+    const demais = profs.filter((p) => !(String(p.setorId) === String(comSub) && p.formacao === "tecnico"));
+    expect(demais.every((p) => p.subsetorId === null)).toBe(true);
+    expect(profs.some((p) => String(p.setorId) === String(semSub))).toBe(true);
+  });
 });

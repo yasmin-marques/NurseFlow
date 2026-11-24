@@ -27,6 +27,14 @@ export class Profissional {
   @Prop({ type: Types.ObjectId, ref: 'Setor', default: null })
   setorId: Types.ObjectId | null;
 
+  /**
+   * Subsetor do técnico, dentro do `setorId`. Regras (validadas no ProfissionaisService): só técnicos; obrigatório
+   * quando o setor possui subsetores; nulo quando o setor não possui. Enfermeiros nunca têm subsetor.
+   * Nulo também em técnicos de setores que passaram a ter subsetores e ainda aguardam adequação manual.
+   */
+  @Prop({ type: Types.ObjectId, ref: 'Subsetor', default: null })
+  subsetorId: Types.ObjectId | null;
+
   @Prop({ required: true, default: false })
   sincronizaAgenda: boolean;
 

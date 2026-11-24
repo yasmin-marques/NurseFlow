@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { jest } from "@jest/globals";
 import {
   aplicarMigrations,
   aplicarMigrationsAte,
@@ -66,12 +67,13 @@ describe("Migrations", () => {
   });
 
   it("há migrations nomeadas com timestamp", () => {
-    expect(listarMigrations()).toHaveLength(15);
+    expect(listarMigrations()).toHaveLength(16);
     expect(listarMigrations()).toContain("20261101000009-restricoes-campos-estruturados.js");
     expect(listarMigrations()).toContain("20261101000010-trocas.js");
     expect(listarMigrations()).toContain("20261119000011-profissionais-setor-fixo.js");
     expect(listarMigrations()).toContain("20261119000012-setores-minimo-plantao-24h.js");
     expect(listarMigrations()).toContain("20261120000013-google-agenda.js");
+    expect(listarMigrations()).toContain("20261121000014-subsetores-vinculo-profissionais.js");
   });
 
   it('up: consolida os quantitativos antigos no mínimo por plantão de 24h', async () => {
@@ -157,6 +159,61 @@ describe("Migrations", () => {
     await aplicarMigrations(banco.uri, 'down');
     expect(await db.collection('solicitacoesTroca').countDocuments({ _id: solicId })).toBe(1);
     expect((await db.listCollections({ name: 'auditoriaTrocas' }).toArray())).toHaveLength(1);
+  });
+
+  it("00014: preserva setores/profissionais, não atribui subsetor, reporta pendências e é idempotente", async () => {
+    const arquivo = "20261121000014-subsetores-vinculo-profissionais.js";
+    const isolado = await iniciarBanco("nurseflow_00014_isolado");
+    const clientIsolado = new mongoose.mongo.MongoClient(isolado.uri);
+    const dbIsolado = clientIsolado.db();
+    const aviso = jest.spyOn(console, "warn").mockImplementation(() => undefined);
+    try {
+      await aplicarMigrationsAte(isolado.uri, "20261120000013-google-agenda.js");
+      const agora = new Date();
+      const setorId = new mongoose.Types.ObjectId();
+      await dbIsolado.collection("setores").insertOne({
+        _id: setorId, nome: "UTI", ativo: true, plantao24h: { enfermeiros: 2, tecnicos: 3 }, createdAt: agora, updatedAt: agora,
+      });
+      const base = { tipoVinculo: "clt", status: "ativo", sincronizaAgenda: false, createdAt: agora, updatedAt: agora };
+      await dbIsolado.collection("profissionaisDaSaude").insertMany([
+        { ...base, usuarioId: new mongoose.Types.ObjectId(), coren: "T-1", formacao: "tecnico", setorId },
+        { ...base, usuarioId: new mongoose.Types.ObjectId(), coren: "E-1", formacao: "enfermeiro", setorId },
+        { ...base, usuarioId: new mongoose.Types.ObjectId(), coren: "T-2", formacao: "tecnico", setorId: null },
+      ]);
+
+      await aplicarMigrations(isolado.uri, "up", arquivo);
+      await aplicarMigrations(isolado.uri, "up", arquivo); // idempotente
+
+      // Setor existente: sem subsetores, mínimo próprio intacto.
+      expect(await dbIsolado.collection("setores").findOne({ _id: setorId })).toMatchObject({
+        possuiSubsetores: false, plantao24h: { enfermeiros: 2, tecnicos: 3 },
+      });
+      // Nenhum subsetor atribuído; vínculos de setor preservados; pendência de setor continua pendente.
+      const profissionais = await dbIsolado.collection("profissionaisDaSaude").find({}).toArray();
+      expect(profissionais.every((p) => p.subsetorId === null)).toBe(true);
+      expect(profissionais.filter((p) => p.setorId).map((p) => p.coren).sort()).toEqual(["E-1", "T-1"]);
+      expect(await dbIsolado.collection("subsetores").countDocuments()).toBe(0);
+      expect(aviso).toHaveBeenCalledWith(expect.stringContaining("1 profissional(is) continuam sem setor"));
+
+      // Contrato: subsetor exige campos; nome único por setor (sem diferenciar caixa/acento); subsetorId aceito no profissional.
+      await expect(dbIsolado.collection("subsetores").insertOne({ setorId, nome: "A", ativo: true })).rejects.toThrow(/validation/i);
+      const subsetor = { setorId, nome: "UTI Adulto", plantao24h: { tecnicos: 2 }, ativo: true, createdAt: agora, updatedAt: agora };
+      const { insertedId } = await dbIsolado.collection("subsetores").insertOne(subsetor);
+      await expect(dbIsolado.collection("subsetores").insertOne({ ...subsetor, _id: new mongoose.Types.ObjectId(), nome: "uti adulto" }))
+        .rejects.toThrow(/duplicate key/i);
+      await dbIsolado.collection("profissionaisDaSaude").updateOne({ coren: "T-1" }, { $set: { subsetorId: insertedId } });
+      await expect(dbIsolado.collection("profissionaisDaSaude").updateOne({ coren: "T-1" }, { $set: { subsetorId: "texto" } }))
+        .rejects.toThrow(/validation/i);
+
+      // down preserva os dados gravados (inclusive o subsetor e o vínculo).
+      await aplicarMigrations(isolado.uri, "down", arquivo);
+      expect(await dbIsolado.collection("subsetores").countDocuments()).toBe(1);
+      expect((await dbIsolado.collection("profissionaisDaSaude").findOne({ coren: "T-1" }))?.subsetorId).toEqual(insertedId);
+    } finally {
+      aviso.mockRestore();
+      await clientIsolado.close();
+      await isolado.parar();
+    }
   });
 
   async function criarBancoParaMigracao00009() {
