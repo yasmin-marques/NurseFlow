@@ -101,7 +101,7 @@ function App() {
           {professionalTab === 'inicio' ? (
             <ProfessionalOverviewPage
               userName={user.nome.split(/\s+/)[0]}
-              onNavigate={(id) => id === 'trocas' ? setProfessionalTab('trocas') : navigate(id)}
+              onNavigate={setProfessionalTab}
               onOpenGoogleCalendar={() => setProfessionalTab('meus-plantoes')}
             />
           ) : professionalTab === 'meus-plantoes' ? (

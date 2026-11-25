@@ -15,9 +15,16 @@ describe('professional schedule service', () => {
   it('requests the own shifts with situation and paging, never a professional id', async () => {
     const fetchMock = stub(new Response(JSON.stringify({ itens: [], pagina: 2, limite: 20, total: 0, totalPaginas: 1 }), { status: 200 }))
     await getMyShifts('anteriores', 2)
-    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    const [url] = fetchMock.mock.calls[0] as [string, RequestInit]
     expect(url).toContain('/escala-profissional/meus-plantoes?situacao=anteriores&pagina=2&limite=20')
     expect(url).not.toContain('profissionalId')
+  })
+
+  it('filters own shifts by month when a month is selected', async () => {
+    const fetchMock = stub(new Response(JSON.stringify({ itens: [], pagina: 1, limite: 50, total: 0, totalPaginas: 1 }), { status: 200 }))
+    await getMyShifts('proximos', 1, 50, 2026, 11)
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    expect(url).toContain('&ano=2026&mes=11')
     expect(new Headers(init.headers).get('Authorization')).toBe('Bearer jwt-token')
   })
 

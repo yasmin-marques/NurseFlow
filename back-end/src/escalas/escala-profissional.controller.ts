@@ -1,4 +1,4 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { BadRequestException, Controller, Get, Query } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
@@ -20,13 +20,16 @@ export class EscalaProfissionalController {
   constructor(private readonly service: EscalaProfissionalService) {}
 
   @Get('meus-plantoes')
-  @ApiOperation({ summary: 'Plantões do profissional autenticado (próximos ou anteriores) na versão publicada' })
+  @ApiOperation({ summary: 'Plantões publicados do profissional autenticado, com filtro mensal opcional' })
   @ApiOkResponse({ description: 'Página de plantões com equipe (somente nomes).' })
   @ApiForbiddenResponse({ description: 'Usuário sem vínculo de profissional.' })
   @ApiBadRequestResponse({ description: 'Parâmetros inválidos.' })
   meusPlantoes(@Query() query: MeusPlantoesQueryDto, @UsuarioAtual() usuario: UsuarioAutenticado) {
+    if ((query.ano === undefined) !== (query.mes === undefined)) {
+      throw new BadRequestException('Informe ano e mes juntos para filtrar os plantões por mês.');
+    }
     const profissionalId = this.service.exigirProfissional(usuario);
-    return this.service.meusPlantoes(profissionalId, query.situacao, query.pagina, query.limite);
+    return this.service.meusPlantoes(profissionalId, query.situacao, query.pagina, query.limite, query.ano, query.mes);
   }
 
   @Get('geral')

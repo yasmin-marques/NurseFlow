@@ -107,6 +107,20 @@ a {
   cursor: pointer;
 }
 
+button:not(:disabled) {
+  transition: filter 150ms ease, background-color 150ms ease, border-color 150ms ease, color 150ms ease, box-shadow 150ms ease;
+}
+
+button:not(:disabled):hover {
+  filter: brightness(0.96);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  button:not(:disabled) {
+    transition: none;
+  }
+}
+
 button,
 a,
 input,

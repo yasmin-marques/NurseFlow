@@ -74,13 +74,13 @@ describe('weekly team presentation', () => {
   })
 
   it('describes leadership coverage and restriction/complementary labels from service data', () => {
-    expect(describeShift(shifts[0])).toBe('24 horas · 07h—07h')
+    expect(describeShift(shifts[0])).toBe('24 horas · 07h — 07h')
     expect(describeShiftBadge(restrictedTechnician, shifts[0])).toEqual({
-      label: 'Baixa · 07h—07h · restrição',
+      label: 'Baixa · 07h — 07h · restrição',
       tone: 'covered',
     })
     expect(describeShiftBadge(complementaryTechnician, shifts[1])).toEqual({
-      label: 'Retorna · 19h—07h · cobertura',
+      label: 'Retorna · 19h — 07h · cobertura',
       tone: 'info',
     })
   })

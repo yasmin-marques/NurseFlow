@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { getIncomingExchangeCount, getMyShifts } from '../../services/my-shifts'
 import { ProfessionalOverviewPage } from './ProfessionalOverviewPage'
@@ -42,22 +42,35 @@ describe('professional overview page', () => {
     })
     vi.mocked(getIncomingExchangeCount).mockResolvedValue({ recebidas: 2 })
 
-    render(<ProfessionalOverviewPage userName="Ana" onNavigate={vi.fn()} />)
+    const onNavigate = vi.fn()
+    render(<ProfessionalOverviewPage userName="Ana" onNavigate={onNavigate} />)
 
     expect(await screen.findByText('Olá, Ana.')).not.toBeNull()
     expect(await screen.findByText('Bloco A · Enfermagem')).not.toBeNull()
     expect(await screen.findByText('2 solicitação(ões) recebida(s)')).not.toBeNull()
+    const quickAccess = screen.getByRole('region', { name: 'Acesso rápido' })
+    const quickAccessButtons = within(quickAccess).getAllByRole('button')
+    expect(quickAccessButtons).toHaveLength(3)
+    for (const button of quickAccessButtons) {
+      expect(button.className).toContain('px-2')
+      expect(button.className).toContain('hover:bg-neutral/60')
+    }
     expect(screen.getAllByText('2').some((element) => element.parentElement?.className.includes('text-[10px]') && element.parentElement?.className.includes('font-bold'))).toBe(true)
     expect(getMyShifts).toHaveBeenCalledOnce()
     expect(getIncomingExchangeCount).toHaveBeenCalledOnce()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Ver detalhes' }))
+    fireEvent.click(screen.getByRole('button', { name: /Abrir detalhes do plantão de .* em Bloco A/ }))
     expect(screen.getByRole('heading', { name: 'Informações do plantão' })).not.toBeNull()
     expect(screen.getByText('Observações')).not.toBeNull()
     expect(screen.getByRole('button', { name: 'Solicitar troca' })).not.toBeNull()
 
     fireEvent.click(screen.getByRole('button', { name: /Voltar para meus plantões/ }))
     expect(screen.getByRole('heading', { name: 'Olá, Ana.' })).not.toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Ver detalhes' }))
+    expect(screen.getByRole('heading', { name: 'Informações do plantão' })).not.toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: /Voltar para meus plantões/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Escala geral/ }))
+    expect(onNavigate).toHaveBeenCalledWith('escala-geral')
   })
 
   it('switches the main card to its neutral style after the next shift passes', async () => {

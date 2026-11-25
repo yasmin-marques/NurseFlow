@@ -195,7 +195,7 @@ export function NotificationCenter({ onOpenExchange }: { onOpenExchange?: (id: s
                           {formatDate.format(new Date(`${shift.data}T00:00:00.000Z`))} · {shift.setor.nome}
                         </p>
                         <p className="mt-1 text-text-muted">
-                          {shift.horarioInicio}–{shift.horarioFim} · {shift.tipo === 'extra' ? 'Extra' : 'Regular'}
+                          {shift.horarioInicio} – {shift.horarioFim} · {shift.tipo === 'extra' ? 'Extra' : 'Regular'}
                         </p>
                         <p className="mt-1 text-text">
                           {shift.profissionais.map((professional) => professional.nome).join(', ') || 'Sem profissionais alocados'}

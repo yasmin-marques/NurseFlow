@@ -262,7 +262,7 @@ export class TrocasService {
       const profissionais = await this.profissionais.find({ _id: { $in: [troca.solicitanteProfissionalId, troca.profissionalSolicitadoId] } }).select('usuarioId').session(session).lean().exec();
       const userIds = [...new Set(profissionais.map((p) => String(p.usuarioId)))];
       await this.notificacoes.insertMany(userIds.map((destinatarioId) => ({ solicitacaoId: troca._id, destinatarioId: new Types.ObjectId(destinatarioId), eventKey: chaveDecisao,
-        titulo: 'Troca de plantão aprovada', mensagem: `A troca foi aprovada. Plantão ${plantaoA.data.toISOString().slice(0, 10)} (${plantaoA.horarioInicio}–${plantaoA.horarioFim}) e plantão ${plantaoB.data.toISOString().slice(0, 10)} (${plantaoB.horarioInicio}–${plantaoB.horarioFim}) foram permutados na versão ${numero}.` })), { session });
+        titulo: 'Troca de plantão aprovada', mensagem: `A troca foi aprovada. Plantão ${plantaoA.data.toISOString().slice(0, 10)} (${plantaoA.horarioInicio} – ${plantaoA.horarioFim}) e plantão ${plantaoB.data.toISOString().slice(0, 10)} (${plantaoB.horarioInicio} – ${plantaoB.horarioFim}) foram permutados na versão ${numero}.` })), { session });
       // Mesma transação da aprovação: sincroniza os dois profissionais afetados sem depender do Google.
       await this.googleAgenda.enfileirar([troca.solicitanteProfissionalId, troca.profissionalSolicitadoId], 'troca', session);
     }); } catch (erro) {
