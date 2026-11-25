@@ -5,7 +5,6 @@ import type { SectorMinimums } from "../../../services/sectors";
 import {
     bodyClassName,
     closeButtonClassName,
-    footerClassName,
     headerClassName,
     overlayClassName,
     panelClassName,
@@ -130,7 +129,7 @@ export function EditSectorMinimumModal({ sector, onClose, onSave }: EditSectorMi
                         )}
                     </div>
 
-                    <footer className={footerClassName}>
+                    <footer className="flex justify-end gap-2 border-t border-border px-6 py-4">
                         {error ? <p role="alert" className="mr-auto self-center text-xs font-medium text-danger">{error}</p> : null}
                         <button type="button" onClick={onClose} className={secondaryButtonClassName}>Cancelar</button>
                         <button type="submit" disabled={saving} className={primaryButtonClassName}>

@@ -8,7 +8,6 @@ import {
   editCompactButtonClassName,
   dangerCompactButtonClassName,
   successCompactButtonClassName,
-  compactButtonClassName,
 } from "./styles";
 import type { NewSector, Sector } from "./types";
 

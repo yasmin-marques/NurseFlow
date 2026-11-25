@@ -6,7 +6,7 @@ import { listProfessionals } from '../../services/professionals'
 import type { Professional } from '../Professionals/types'
 import { listSectors } from '../../services/sectors'
 import type { Sector } from '../Sectors/types'
-import { formatValidationErrors, stageShiftChanges } from './review'
+import { stageShiftChanges } from './review'
 import {
   SHIFT_CHOICES,
   buildShiftChanges,
