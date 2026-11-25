@@ -39,7 +39,9 @@ function ChoiceCard({
     );
 }
 
-const inputClassName = "mt-1.5 h-11 w-full rounded-xl border border-border bg-[#f7f8f6] px-3.5 text-sm text-text outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15";
+const inputBaseClassName = "h-11 w-full rounded-xl border border-border bg-[#f7f8f6] px-3.5 text-sm text-text outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15";
+const inputClassName = `mt-1.5 ${inputBaseClassName}`;
+const selectClassName = `${inputBaseClassName} appearance-none truncate pr-10`;
 
 export function ProfessionalFormModal({ professional, isCreating = false, onClose, onSave }: ProfessionalFormModalProps) {
     const [form, setForm] = useState<Omit<Professional, "formation"> & { formation: FormationType | "" }>(
@@ -176,10 +178,10 @@ export function ProfessionalFormModal({ professional, isCreating = false, onClos
                                         aria-haspopup="listbox"
                                         aria-expanded={bondOpen}
                                         onClick={() => setBondOpen((open) => !open)}
-                                        className={`${inputClassName} flex items-center justify-between text-left`}
+                                        className={`${inputClassName} flex items-center justify-between gap-3 text-left`}
                                     >
-                                        {form.bond}
-                                        <ChevronRight className={`size-4 transition-transform ${bondOpen ? "rotate-90" : ""}`} />
+                                        <span className="truncate">{form.bond}</span>
+                                        <ChevronRight className={`pointer-events-none size-4 shrink-0 transition-transform ${bondOpen ? "rotate-90" : ""}`} aria-hidden="true" />
                                     </button>
                                     {bondOpen ? (
                                         <span role="listbox" aria-label="Tipo de vínculo" className="absolute inset-x-0 top-full z-10 mt-1 block overflow-hidden rounded-xl border border-border bg-white p-1 shadow-lg">
@@ -215,29 +217,32 @@ export function ProfessionalFormModal({ professional, isCreating = false, onClos
 
                         <label className="block text-[11px] font-semibold text-text">
                             Setor fixo <span className="text-danger">*</span>
-                            <select
-                                value={form.sectorId ?? ""}
-                                disabled={!form.formation}
-                                aria-invalid={Boolean(fieldErrors.sectorId)}
-                                aria-describedby="sector-hint"
-                                onChange={(event) => {
-                                    setForm((current) => ({ ...current, sectorId: event.target.value, subsectorId: null }));
-                                    setFieldErrors((current) => ({ ...current, sectorId: undefined, subsectorId: undefined }));
-                                }}
-                                className={inputClassName}
-                            >
-                                <option value="" disabled>Selecione um setor</option>
-                                {sectors
-                                    .filter((sector) => sector.active || sector.id === form.sectorId)
-                                    .map((sector) => (
-                                        <option key={sector.id} value={sector.id} disabled={!sector.active}>
-                                            {sector.name}{sector.active ? "" : " (inativo)"}
-                                        </option>
-                                    ))}
-                                {form.sectorId && !sectors.some((sector) => sector.id === form.sectorId) ? (
-                                    <option value={form.sectorId}>{form.sectorName ?? "Setor atual"}</option>
-                                ) : null}
-                            </select>
+                            <span className="relative mt-1.5 block">
+                                <select
+                                    value={form.sectorId ?? ""}
+                                    disabled={!form.formation}
+                                    aria-invalid={Boolean(fieldErrors.sectorId)}
+                                    aria-describedby="sector-hint"
+                                    onChange={(event) => {
+                                        setForm((current) => ({ ...current, sectorId: event.target.value, subsectorId: null }));
+                                        setFieldErrors((current) => ({ ...current, sectorId: undefined, subsectorId: undefined }));
+                                    }}
+                                    className={selectClassName}
+                                >
+                                    <option value="" disabled>Selecione um setor</option>
+                                    {sectors
+                                        .filter((sector) => sector.active || sector.id === form.sectorId)
+                                        .map((sector) => (
+                                            <option key={sector.id} value={sector.id} disabled={!sector.active}>
+                                                {sector.name}{sector.active ? "" : " (inativo)"}
+                                            </option>
+                                        ))}
+                                    {form.sectorId && !sectors.some((sector) => sector.id === form.sectorId) ? (
+                                        <option value={form.sectorId}>{form.sectorName ?? "Setor atual"}</option>
+                                    ) : null}
+                                </select>
+                                <ChevronRight aria-hidden="true" className="pointer-events-none absolute right-3.5 top-1/2 size-4 -translate-y-1/2 rotate-90 text-text" />
+                            </span>
                             <span id="sector-hint" className={`mt-1 block text-[10px] font-normal leading-tight ${fieldErrors.sectorId ? "text-danger" : "text-text-muted"}`}>
                                 {fieldErrors.sectorId || (!form.formation ? "Escolha o tipo de formação primeiro" : "O profissional só pode ser escalado neste setor.")}
                             </span>
@@ -247,25 +252,28 @@ export function ProfessionalFormModal({ professional, isCreating = false, onClos
                         {form.formation === "Técnico" ? (
                             <label className="block text-[11px] font-semibold text-text">
                                 Sub-setor (opcional)
-                                <select
-                                    value={form.subsectorId ?? ""}
-                                    disabled={!form.sectorId || !selectedSector || (activeSubsectors.length === 0 && !form.subsectorId)}
-                                    aria-invalid={Boolean(fieldErrors.subsectorId)}
-                                    onChange={(event) => {
-                                        update("subsectorId", event.target.value || null);
-                                        setFieldErrors((current) => ({ ...current, subsectorId: undefined }));
-                                    }}
-                                    className={inputClassName}
-                                    aria-describedby="subsector-hint"
-                                >
-                                    <option value="">Nenhum sub-setor</option>
-                                    {activeSubsectors.map((subsector) => (
-                                        <option key={subsector.id} value={subsector.id}>{subsector.name}</option>
-                                    ))}
-                                    {form.subsectorId && !activeSubsectors.some((subsector) => subsector.id === form.subsectorId) ? (
-                                        <option value={form.subsectorId} disabled>{form.subsectorName ?? "Sub-setor atual"} (indisponível)</option>
-                                    ) : null}
-                                </select>
+                                <span className="relative mt-1.5 block">
+                                    <select
+                                        value={form.subsectorId ?? ""}
+                                        disabled={!form.sectorId || !selectedSector || (activeSubsectors.length === 0 && !form.subsectorId)}
+                                        aria-invalid={Boolean(fieldErrors.subsectorId)}
+                                        onChange={(event) => {
+                                            update("subsectorId", event.target.value || null);
+                                            setFieldErrors((current) => ({ ...current, subsectorId: undefined }));
+                                        }}
+                                        className={selectClassName}
+                                        aria-describedby="subsector-hint"
+                                    >
+                                        <option value="">Nenhum sub-setor</option>
+                                        {activeSubsectors.map((subsector) => (
+                                            <option key={subsector.id} value={subsector.id}>{subsector.name}</option>
+                                        ))}
+                                        {form.subsectorId && !activeSubsectors.some((subsector) => subsector.id === form.subsectorId) ? (
+                                            <option value={form.subsectorId} disabled>{form.subsectorName ?? "Sub-setor atual"} (indisponível)</option>
+                                        ) : null}
+                                    </select>
+                                    <ChevronRight aria-hidden="true" className="pointer-events-none absolute right-3.5 top-1/2 size-4 -translate-y-1/2 rotate-90 text-text" />
+                                </span>
                                 <span id="subsector-hint" className={`mt-1 block text-[10px] font-normal leading-tight ${fieldErrors.subsectorId ? "text-danger" : "text-text-muted"}`}>
                                     {fieldErrors.subsectorId || (!form.sectorId ? "Escolha um setor primeiro." : selectedSector && activeSubsectors.length === 0 ? (selectedSector.subsectors.length ? "Este setor não tem sub-setores ativos." : "Este setor não tem sub-setores") : "")}
                                 </span>
