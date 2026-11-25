@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { Profissional, ProfissionalSchema } from '../profissionais/schemas/profissional.schema';
 import { Setor, SetorSchema } from '../setores/schemas/setor.schema';
+import { Subsetor, SubsetorSchema } from '../setores/schemas/subsetor.schema';
 import { Usuario, UsuarioSchema } from '../usuarios/schemas/usuario.schema';
 import {
   Plantao,
@@ -19,6 +20,7 @@ import { EscalaSnapshotService } from './escala-snapshot.service';
       { name: Profissional.name, schema: ProfissionalSchema },
       { name: Usuario.name, schema: UsuarioSchema },
       { name: Setor.name, schema: SetorSchema },
+      { name: Subsetor.name, schema: SubsetorSchema },
     ]),
   ],
   providers: [EscalaSnapshotService],

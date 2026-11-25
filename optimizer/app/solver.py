@@ -3,8 +3,8 @@
 Unidade de decisão: o profissional `p` inicia, no dia `d`, um plantão do tipo `o` no setor `s`.
 
   24h  07:00 -> 07:00 (dia seguinte)  cobre o mínimo diário do setor
-  12d  07:00 -> 19:00                 extra de cobertura diurna previamente fixado
-  12n  19:00 -> 07:00 (dia seguinte)  extra de cobertura noturna previamente fixado
+  12d  07:00 -> 19:00                 cobre o mínimo do turno diurno
+  12n  19:00 -> 07:00 (dia seguinte)  cobre o mínimo do turno noturno
 
 Restrições obrigatórias (duras):
   * setor fixo: o profissional só é alocado no setor do seu cadastro (`setor_id`) — as variáveis de
@@ -21,9 +21,8 @@ O quantitativo mínimo é flexibilizado por uma variável de folga: se faltar ge
 devolvida como "descoberta" em vez de violar uma restrição dura. A escala regular não ultrapassa
 esse quantitativo; alocações fixas são preservadas mesmo se excederem a demanda.
 
-Objetivo (em ordem de importância): menos vagas descobertas > menos extras > menos sobra de
-cobertura > extras distribuídos de forma equilibrada. A carga regular individual não é uma meta
-de alocação: profissionais não são escalados apenas para completar sua carga mensal.
+Objetivo (em ordem de importância): menos vagas descobertas > menor déficit de carga regular >
+menos extras > menos sobra de cobertura > extras distribuídos de forma equilibrada.
 """
 from __future__ import annotations
 
@@ -40,8 +39,6 @@ OPCOES = ("24h", "12d", "12n")
 INICIO_DIURNO = 7
 INICIO_NOTURNO = 19
 
-PESO_DESCOBERTO = 10_000
-PESO_EXTRA = 100
 PESO_SOBRA = 5
 PESO_EQUILIBRIO_EXTRAS = 10
 CANCELAMENTO_TTL_SEGUNDOS = 300
@@ -96,6 +93,27 @@ def cobre(opcao: str) -> tuple[str, ...]:
     return {"24h": ("diurno", "noturno"), "12d": ("diurno",), "12n": ("noturno",)}[opcao]
 
 
+def compativel_com_horarios_bloqueados(profissional, dia: int, opcao: str, par) -> bool:
+    inicio, fim = janela(dia, opcao)
+    descanso_candidato = par.descanso_apos_24h if opcao == "24h" else par.descanso_apos_12h
+    for bloqueio in profissional.horarios_bloqueados:
+        if (
+            opcao == "12d"
+            and bloqueio.opcao == "12n"
+            and bloqueio.inicio_horas // 24 == dia
+        ) or (
+            opcao == "12n"
+            and bloqueio.opcao == "12d"
+            and bloqueio.inicio_horas // 24 == dia
+        ):
+            continue
+        antes_do_bloqueio = inicio >= bloqueio.fim_horas + bloqueio.descanso_apos_horas
+        depois_do_bloqueio = bloqueio.inicio_horas >= fim + descanso_candidato
+        if not antes_do_bloqueio and not depois_do_bloqueio:
+            return False
+    return True
+
+
 def pares_em_conflito(dias_mes: int, descanso_24: int, descanso_12: int) -> list[tuple[tuple[int, str], tuple[int, str]]]:
     """Pares de plantões que um mesmo profissional não pode cumprir juntos."""
     opcoes = sorted(
@@ -135,23 +153,35 @@ def resolver(problema: Problema) -> Solucao:
         if chave in fixas_por_chave:
             raise RuntimeError(f"Alocações fixas incompatíveis para o extra {fixa.extra_id}.")
         fixas_por_chave[chave] = fixa.extra_id
+    fixas_por_profissional_dia: dict[tuple[int, int], set[str]] = defaultdict(set)
+    for pi, _si, dia, opcao in fixas_por_chave:
+        fixas_por_profissional_dia[(pi, dia)].add(opcao)
 
     for pi, p in enumerate(profs):
         # Setor fixo (restrição dura): sem setor válido no problema, o profissional não é elegível.
         setores_elegiveis = [setor_por_id[p.setor_id]] if p.setor_id in setor_por_id else []
+        if p.formacao == "tecnico" and setores_elegiveis:
+            setor = setores[setores_elegiveis[0]]
+            if setor.subsetores and p.subsetor_id not in {subsetor.id for subsetor in setor.subsetores}:
+                setores_elegiveis = []
         bloqueados = set(p.dias_bloqueados)
         turnos_bloq = {(tb.dia, tb.turno) for tb in getattr(p, "turnos_bloqueados", [])}
         for d in range(n):
             if (d + 1) in bloqueados:
                 continue
-            opcoes = ("24h",) + tuple(
-                o for p_i, _si, dia, o in fixas_por_chave if p_i == pi and dia == d and o != "24h"
-            )
-            for o in opcoes:
+            fixas_no_dia = fixas_por_profissional_dia.get((pi, d), set())
+            opcoes = set(fixas_no_dia)
+            if p.carga_24h > 0 or p.max_extras > 0:
+                opcoes.add("24h")
+            if p.carga_12h > 0 or p.max_extras > 0:
+                opcoes.update(("12d", "12n"))
+            for o in (opcao for opcao in OPCOES if opcao in opcoes):
                 turnos_opcao = set(cobre(o))
                 if any((d + 1, t) in turnos_bloq for t in turnos_opcao):
                     continue
                 if janela(d, o)[0] < p.livre_a_partir_horas:
+                    continue
+                if not compativel_com_horarios_bloqueados(p, d, o, par):
                     continue
                 por_setor = []
                 for si in setores_elegiveis:
@@ -179,36 +209,78 @@ def resolver(problema: Problema) -> Solucao:
 
     objetivo = []
 
-    # Índices de cobertura por (setor, dia, formação), separados entre escala regular e fixa.
-    cobertura_regular_de: dict[tuple[int, int, str], list[cp_model.IntVar]] = defaultdict(list)
-    cobertura_fixa_de: dict[tuple[int, int, str], list[cp_model.IntVar]] = defaultdict(list)
+    # Índices de cobertura por setor, dia, turno, formação e subsetor (quando aplicável).
+    cobertura_regular_de: dict[tuple[int, int, str, str, str | None], list[cp_model.IntVar]] = defaultdict(list)
+    cobertura_fixa_de: dict[tuple[int, int, str, str, str | None], list[cp_model.IntVar]] = defaultdict(list)
     for (pi, si, d, o), v in x.items():
-        if o == "24h":
-            chave = (si, d, profs[pi].formacao)
-            if (pi, si, d, o) in fixas_por_chave:
-                cobertura_fixa_de[chave].append(v)
-            else:
-                cobertura_regular_de[chave].append(v)
+        formacao = profs[pi].formacao
+        setor = setores[si]
+        subsetores = (
+            [s.id for s in setor.subsetores if s.id == profs[pi].subsetor_id]
+            if formacao == "tecnico" and setor.subsetores
+            else [None]
+        )
+        for subsetor_id in subsetores:
+            for turno in cobre(o):
+                chave = (si, d, turno, formacao, subsetor_id)
+                if (pi, si, d, o) in fixas_por_chave:
+                    cobertura_fixa_de[chave].append(v)
+                else:
+                    cobertura_regular_de[chave].append(v)
 
     folgas = {}
+    alvos_cobertura = []
     for si, setor in enumerate(setores):
         for d in range(n):
-            quant = setor.plantao24h
-            for funcao, formacao in (("enfermeiros", "enfermeiro"), ("tecnicos", "tecnico")):
-                necessario = getattr(quant, funcao)
-                chave = (si, d, formacao)
-                cobertura_regular = sum(cobertura_regular_de.get(chave, []))
-                cobertura_fixa = cobertura_fixa_de.get(chave, [])
-                cobertura = cobertura_regular + sum(cobertura_fixa)
-                modelo.Add(cobertura_regular <= max(0, necessario - len(cobertura_fixa)))
-                sobra = modelo.NewIntVar(0, max(len(profs), 1), f"sobra_{si}_{d}_{funcao}")
-                modelo.Add(sobra >= cobertura - necessario)
-                objetivo.append(PESO_SOBRA * sobra)
-                if necessario > 0:
-                    folga = modelo.NewIntVar(0, necessario, f"folga_{si}_{d}_{funcao}")
-                    modelo.Add(cobertura + folga >= necessario)
-                    objetivo.append(PESO_DESCOBERTO * folga)
-                    folgas[(si, d, "24h", funcao)] = (folga, necessario)
+            alvos = [("enfermeiros", "enfermeiro", None, setor.plantao24h.enfermeiros)]
+            if setor.subsetores:
+                alvos.extend(
+                    ("tecnicos", "tecnico", subsetor.id, subsetor.tecnicos)
+                    for subsetor in setor.subsetores
+                )
+            else:
+                alvos.append(("tecnicos", "tecnico", None, setor.plantao24h.tecnicos))
+            for funcao, formacao, subsetor_id, necessario in alvos:
+                for turno in ("diurno", "noturno"):
+                    chave = (si, d, turno, formacao, subsetor_id)
+                    alvos_cobertura.append((si, d, turno, funcao, necessario, chave))
+
+    max_sobra_total = sum(
+        max(
+            0,
+            len(cobertura_regular_de.get(chave, []))
+            + len(cobertura_fixa_de.get(chave, []))
+            - necessario,
+        )
+        for _si, _d, _turno, _funcao, necessario, chave in alvos_cobertura
+    )
+    max_extras_total = sum(p.max_extras for p in profs)
+    max_equilibrio_extras = max((p.max_extras for p in profs), default=0)
+    max_deficit_carga = sum(p.carga_24h + p.carga_12h for p in profs)
+    custo_sobra_maximo = PESO_SOBRA * max_sobra_total
+    peso_extra = custo_sobra_maximo + PESO_EQUILIBRIO_EXTRAS * max_equilibrio_extras + 1
+    custo_extra_maximo = (
+        max_extras_total * peso_extra
+        + custo_sobra_maximo
+        + PESO_EQUILIBRIO_EXTRAS * max_equilibrio_extras
+    )
+    peso_carga = custo_extra_maximo + 1
+    peso_descoberto = max_deficit_carga * peso_carga + custo_extra_maximo + 1
+
+    for alvo_idx, (si, d, turno, funcao, necessario, chave) in enumerate(alvos_cobertura):
+        cobertura_regular_vars = cobertura_regular_de.get(chave, [])
+        cobertura_fixa = cobertura_fixa_de.get(chave, [])
+        cobertura_regular = sum(cobertura_regular_vars)
+        cobertura = cobertura_regular + sum(cobertura_fixa)
+        max_sobra = max(0, len(cobertura_regular_vars) + len(cobertura_fixa) - necessario)
+        sobra = modelo.NewIntVar(0, max_sobra, f"sobra_{alvo_idx}")
+        modelo.Add(sobra >= cobertura - necessario)
+        objetivo.append(PESO_SOBRA * sobra)
+        if necessario > 0:
+            folga = modelo.NewIntVar(0, necessario, f"folga_{alvo_idx}")
+            modelo.Add(cobertura + folga >= necessario)
+            objetivo.append(peso_descoberto * folga)
+            folgas[(si, d, turno, funcao, chave[4])] = (folga, necessario)
 
     # Carga regular, extras e teto de plantões por profissional.
     por_prof_vars: dict[int, list[tuple[str, cp_model.IntVar]]] = defaultdict(list)
@@ -228,15 +300,20 @@ def resolver(problema: Problema) -> Solucao:
         inferidos12 = modelo.NewIntVar(0, teto, f"inferidos12_{pi}")
         e24 = modelo.NewIntVar(0, teto, f"e24_{pi}")
         e12 = modelo.NewIntVar(0, teto, f"e12_{pi}")
-        modelo.Add(inferidos24 >= n24 - p.carga_24h)
-        modelo.Add(inferidos12 >= n12 - p.carga_12h)
+        modelo.Add(inferidos24 >= n24 + p.plantoes_regulares24_fora_escopo - p.carga_24h)
+        modelo.Add(inferidos12 >= n12 + p.plantoes_regulares12_fora_escopo - p.carga_12h)
         modelo.Add(e24 == inferidos24 + fixas24)
         modelo.Add(e12 == inferidos12 + fixas12)
-        modelo.Add(e24 + e12 <= p.max_extras)
+        modelo.Add(e24 + e12 + p.extras_fora_escopo <= p.max_extras)
         if p.max_plantoes > 0:
-            modelo.Add(n24 + n12 <= p.max_plantoes)
-        objetivo.append(PESO_EXTRA * (e24 + e12))
-        extras_vars.append(e24 + e12)
+            modelo.Add(n24 + n12 + fixas24 + fixas12 + p.plantoes_fora_escopo <= p.max_plantoes)
+        falta24 = modelo.NewIntVar(0, p.carga_24h, f"falta24_{pi}")
+        falta12 = modelo.NewIntVar(0, p.carga_12h, f"falta12_{pi}")
+        modelo.Add(falta24 >= p.carga_24h - n24 - p.plantoes_regulares24_fora_escopo)
+        modelo.Add(falta12 >= p.carga_12h - n12 - p.plantoes_regulares12_fora_escopo)
+        objetivo.append(peso_carga * (falta24 + falta12))
+        objetivo.append(peso_extra * (e24 + e12))
+        extras_vars.append(e24 + e12 + p.extras_fora_escopo)
         contagens[pi] = (e24, e12, inferidos24, inferidos12)
 
     if extras_vars:
@@ -287,11 +364,11 @@ def resolver(problema: Problema) -> Solucao:
         cargas.append(
             CargaProfissional(
                 profissional_id=p.id,
-                plantoes_24h=len(l24_todos),
-                plantoes_12h=len(l12_todos),
-                extras=v24 + v12,
-                faltam_24h=max(0, p.carga_24h - len(l24)),
-                faltam_12h=max(0, p.carga_12h - len(l12)),
+                plantoes_24h=len(l24_todos) + p.plantoes_regulares24_fora_escopo,
+                plantoes_12h=len(l12_todos) + p.plantoes_regulares12_fora_escopo,
+                extras=v24 + v12 + p.extras_fora_escopo,
+                faltam_24h=max(0, p.carga_24h - len(l24) - p.plantoes_regulares24_fora_escopo),
+                faltam_12h=max(0, p.carga_12h - len(l12) - p.plantoes_regulares12_fora_escopo),
             )
         )
 
@@ -308,12 +385,13 @@ def resolver(problema: Problema) -> Solucao:
     ]
 
     descobertos = []
-    for (si, d, turno, funcao), (folga, necessario) in folgas.items():
+    for (si, d, turno, funcao, subsetor_id), (folga, necessario) in folgas.items():
         faltam = solver.Value(folga)
         if faltam > 0:
             descobertos.append(
                 Descoberto(
                     setor_id=setores[si].id,
+                    subsetor_id=subsetor_id,
                     dia=d + 1,
                     turno=turno,
                     funcao=funcao,

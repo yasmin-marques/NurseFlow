@@ -28,12 +28,14 @@ export interface ProfissionalEntrada {
   status: StatusProfissional;
   /** Setor fixo do cadastro. Sem setor, o profissional não participa da geração. */
   setorId?: string | null;
+  subsetorId?: string | null;
 }
 
 export interface SetorEntrada {
   id: string;
   nome: string;
   plantao24h: ProblemaOtimizacao['setores'][number]['plantao24h'];
+  subsetores: ProblemaOtimizacao['setores'][number]['subsetores'];
 }
 
 export interface RestricaoEntrada {
@@ -406,6 +408,7 @@ export function montarProblema(e: EntradaGeracao): ProblemaMontado {
     return {
       id: p.id,
       setor_id: p.setorId!,
+      subsetor_id: p.subsetorId ?? null,
       formacao: p.formacao,
       vinculo: p.tipoVinculo,
       carga_24h: carga?.plantoes24h ?? 0,
@@ -415,18 +418,33 @@ export function montarProblema(e: EntradaGeracao): ProblemaMontado {
       dias_bloqueados: calc.diasBloqueados,
       turnos_bloqueados: calc.turnosBloqueados.map((tb) => ({ dia: tb.dia, turno: tb.turno })),
       livre_a_partir_horas: livre,
+      horarios_bloqueados: [],
+      plantoes_regulares24_fora_escopo: 0,
+      plantoes_regulares12_fora_escopo: 0,
+      extras_fora_escopo: 0,
+      plantoes_fora_escopo: 0,
     };
   });
 
   for (const s of e.setores) {
-    for (const [funcao, formacao] of [['enfermeiros', Formacao.ENFERMEIRO], ['tecnicos', Formacao.TECNICO]] as const) {
-      const disponiveis = ativos.filter((p) => p.formacao === formacao && p.setorId === s.id).length;
-      if (s.plantao24h[funcao] > disponiveis) {
+    const alvos = [
+      { funcao: 'enfermeiros', formacao: Formacao.ENFERMEIRO, subsetorId: null, minimo: s.plantao24h.enfermeiros },
+      ...(s.subsetores.length
+        ? s.subsetores.map((subsetor) => ({ funcao: 'tecnicos', formacao: Formacao.TECNICO, subsetorId: subsetor.id, minimo: subsetor.tecnicos }))
+        : [{ funcao: 'tecnicos', formacao: Formacao.TECNICO, subsetorId: null, minimo: s.plantao24h.tecnicos }]),
+    ] as const;
+    for (const alvo of alvos) {
+      const disponiveis = ativos.filter((p) =>
+        p.formacao === alvo.formacao &&
+        p.setorId === s.id &&
+        (alvo.subsetorId === null || p.subsetorId === alvo.subsetorId),
+      ).length;
+      if (alvo.minimo > disponiveis) {
         avisos.push({
           tipo: 'EFETIVO_INSUFICIENTE',
           setorId: s.id,
           setor: s.nome,
-          motivo: `Plantão de 24h exige ${s.plantao24h[funcao]} ${funcao}, mas há ${disponiveis} ativo(s) com setor fixo neste setor.`,
+          motivo: `Plantão de 24h exige ${alvo.minimo} ${alvo.funcao}${alvo.subsetorId ? ` no subsetor ${alvo.subsetorId}` : ''}, mas há ${disponiveis} profissional(is) ativo(s) elegível(is).`,
         });
       }
     }
@@ -440,7 +458,7 @@ export function montarProblema(e: EntradaGeracao): ProblemaMontado {
       mes: e.mes,
       dias_mes: dias,
       profissionais,
-      setores: e.setores.map((s) => ({ id: s.id, nome: s.nome, plantao24h: s.plantao24h })),
+      setores: e.setores.map((s) => ({ id: s.id, nome: s.nome, plantao24h: s.plantao24h, subsetores: s.subsetores })),
       parametros: { tempo_limite_segundos: e.tempoLimiteSegundos },
       alocacoes_fixas: [],
     },

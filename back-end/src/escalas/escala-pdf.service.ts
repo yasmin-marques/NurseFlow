@@ -6,7 +6,7 @@ import PDFDocument from 'pdfkit';
 import { PassThrough } from 'node:stream';
 import { EscalaSnapshotService } from './escala-snapshot.service';
 import { isVisualizacaoEscalaPdf, type DadosEscalaPdf } from './escala-pdf.types';
-import { Escala, VersaoEscala } from './schemas';
+import { Escala, StatusEscala, VersaoEscala } from './schemas';
 
 interface SetorPdf {
   id: string;
@@ -24,6 +24,13 @@ export class EscalaPdfService {
   async obterDados(escalaId: string): Promise<DadosEscalaPdf> {
     const escala = await this.escalas.findById(escalaId).lean().exec();
     if (!escala) throw new NotFoundException('Escala não encontrada.');
+    if (
+      escala.status === StatusEscala.EXCLUIDA ||
+      escala.versaoPublicada < 1 ||
+      ![StatusEscala.PUBLICADA, StatusEscala.FINALIZADA, StatusEscala.EM_REVISAO, StatusEscala.VALIDADA].includes(escala.status)
+    ) {
+      throw new NotFoundException('Não há escala oficial disponível para exportação.');
+    }
     const versao = await this.versoes.findOne({ escalaId: escala._id }).sort({ numero: -1 }).lean().exec();
     if (!versao) throw new NotFoundException('A escala ainda não possui uma versão oficial publicada.');
     const snapshot = await this.snapshots.snapshotComVisualizacao(escala, versao.snapshot);
@@ -129,19 +136,27 @@ export class EscalaPdfService {
         doc.font('Helvetica-Bold').fontSize(8).fillColor('#175b32').text(String(dia), x + 3, y + 3);
         const data = `${dados.escala.ano}-${String(dados.escala.mes).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
         const doDia = plantoes.filter((plantao) => plantao.data === data).sort((a, b) => a.horarioInicio.localeCompare(b.horarioInicio));
+<<<<<<< HEAD
         const linhasEquipe = doDia.map((plantao) => `${plantao.horarioInicio} – ${plantao.horarioFim}\n${plantao.profissionais.map((profissional) => profissional.nome).join(', ') || 'Sem equipe'}`).join('\n');
+=======
+        const chefeGeral = dados.chefesGerais.find((item) => item.data === data);
+        const linhasEquipe = [
+          ...(chefeGeral ? [`Chefe geral: ${chefeGeral.nome}`] : []),
+          ...doDia.map((plantao) => `${plantao.horarioInicio}–${plantao.horarioFim}\n${plantao.profissionais.map((profissional) => profissional.nome).join(', ') || 'Sem equipe'}`),
+        ].join('\n');
+>>>>>>> fix/fixing-scale-problems
         doc.font('Helvetica').fontSize(5.5).fillColor('#222222')
           .text(linhasEquipe || 'Sem plantão', x + 3, y + 14, { width: larguraCelula - 6, height: alturaCelula - 16, ellipsis: true });
       }
 
       const esquerda = doc.page.margins.left;
       const larguraAssinatura = (larguraCalendario - 50) / 2;
-      const yAssinatura = calendarioTop + 14 + linhas * alturaCelula + 22;
+      const yAssinatura = calendarioTop + 14 + linhas * alturaCelula + 48;
       doc.moveTo(esquerda, yAssinatura).lineTo(esquerda + larguraAssinatura, yAssinatura).lineWidth(0.7).strokeColor('#000000').stroke();
       doc.moveTo(esquerda + larguraAssinatura + 50, yAssinatura).lineTo(esquerda + larguraCalendario, yAssinatura).stroke();
       doc.font('Helvetica').fontSize(9).fillColor('#000000');
-      doc.text('Coordenação', esquerda, yAssinatura + 6, { width: larguraAssinatura, align: 'center' });
-      doc.text('Diretoria', esquerda + larguraAssinatura + 50, yAssinatura + 6, { width: larguraAssinatura, align: 'center' });
+      doc.text('Coordenação', esquerda, yAssinatura + 12, { width: larguraAssinatura, align: 'center' });
+      doc.text('Diretoria', esquerda + larguraAssinatura + 50, yAssinatura + 12, { width: larguraAssinatura, align: 'center' });
     });
 
     doc.end();

@@ -84,6 +84,7 @@ export function WeeklyDayCard({
 }) {
   const key = dateKey(date)
   const dayShifts = dayScale?.plantoes.filter((shift) => shift.data === key) ?? []
+  const chefeGeral = dayScale?.chefesGerais?.find((item) => item.data === key)
   const indicator = dayIndicators(dayScale, key)
   const belowMinimumSectors = new Set(
     dayScale?.pendencias.filter((item) => item.data === key).map((item) => item.setorId) ?? [],
@@ -121,6 +122,7 @@ export function WeeklyDayCard({
             {dayShifts.length ? 'Cobertura diária' : 'Sem plantões'}
           </span>
           <p className="mt-1 truncate text-[10px] font-semibold uppercase text-text-muted">{monthLabel(date)}</p>
+          {chefeGeral ? <p className="mt-1 truncate text-[10px] font-semibold text-primary">Chefe geral: {chefeGeral.nome}</p> : null}
         </div>
       </div>
       <div className="flex shrink-0 items-center justify-between gap-3 sm:justify-end">

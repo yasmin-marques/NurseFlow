@@ -8,7 +8,20 @@ Opcao = Literal["24h", "12d", "12n"]
 Turno = Literal["diurno", "noturno"]
 Funcao = Literal["enfermeiros", "tecnicos"]
 CAPACIDADE_ALOCACOES_FIXAS = "alocacoes_fixas"
-VERSAO_CONTRATO = 4
+VERSAO_CONTRATO = 6
+
+
+class Subsetor(BaseModel):
+    id: str
+    nome: str = ""
+    tecnicos: int = Field(ge=0)
+
+
+class HorarioBloqueado(BaseModel):
+    inicio_horas: int
+    fim_horas: int
+    descanso_apos_horas: int = Field(ge=0)
+    opcao: Opcao = "24h"
 
 
 class Quantitativo(BaseModel):
@@ -20,6 +33,7 @@ class Setor(BaseModel):
     id: str
     nome: str = ""
     plantao24h: Quantitativo
+    subsetores: list[Subsetor] = Field(default_factory=list)
 
 
 class TurnoBloqueado(BaseModel):
@@ -32,6 +46,7 @@ class Profissional(BaseModel):
     # Setor fixo do cadastro: restrição obrigatória. O profissional só pode ser alocado em vagas deste
     # setor; sem setor (ou com setor fora do problema) ele não é elegível a nenhuma alocação.
     setor_id: str | None = None
+    subsetor_id: str | None = None
     formacao: Formacao
     vinculo: str = ""
     # Carga regular esperada no mês (vinda das configurações). O que exceder vira "extra".
@@ -48,6 +63,11 @@ class Profissional(BaseModel):
     # Horas, contadas a partir de 00:00 do dia 1, antes das quais o profissional não pode
     # iniciar plantão (descanso herdado do mês anterior). Valor <= 0 significa "livre".
     livre_a_partir_horas: int = 0
+    horarios_bloqueados: list[HorarioBloqueado] = Field(default_factory=list)
+    plantoes_regulares24_fora_escopo: int = Field(default=0, ge=0)
+    plantoes_regulares12_fora_escopo: int = Field(default=0, ge=0)
+    extras_fora_escopo: int = Field(default=0, ge=0)
+    plantoes_fora_escopo: int = Field(default=0, ge=0)
 
 
 class Parametros(BaseModel):
@@ -102,6 +122,16 @@ class Problema(BaseModel):
                 raise ValueError(
                     f"alocacao_fixa {alocacao.extra_id} fora do setor fixo do profissional {alocacao.profissional_id}"
                 )
+            profissional = next(p for p in self.profissionais if p.id == alocacao.profissional_id)
+            setor = next(s for s in self.setores if s.id == alocacao.setor_id)
+            if (
+                profissional.formacao == "tecnico"
+                and setor.subsetores
+                and profissional.subsetor_id not in {subsetor.id for subsetor in setor.subsetores}
+            ):
+                raise ValueError(
+                    f"alocacao_fixa {alocacao.extra_id} sem vínculo válido com subsetor"
+                )
         for p in self.profissionais:
             if any(d < 1 or d > self.dias_mes for d in p.dias_bloqueados):
                 raise ValueError(f"dias_bloqueados fora do mês para o profissional {p.id}")
@@ -137,8 +167,9 @@ class Alocacao(BaseModel):
 
 class Descoberto(BaseModel):
     setor_id: str
+    subsetor_id: str | None = None
     dia: int
-    turno: Literal["24h"]
+    turno: Turno
     funcao: Funcao
     necessario: int
     alocado: int

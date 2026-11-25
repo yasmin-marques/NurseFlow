@@ -40,6 +40,7 @@ const setor = {
   id: 's1',
   nome: 'UTI',
   plantao24h: { enfermeiros: 2, tecnicos: 1 },
+  subsetores: [],
 };
 
 const dia = (d: number, h = 0, m = 0) => new Date(Date.UTC(2026, 9, d, h, m));

@@ -3,6 +3,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { type ClientSession, Model, Types } from 'mongoose';
 import { Profissional } from '../profissionais/schemas/profissional.schema';
 import { Setor } from '../setores/schemas/setor.schema';
+import { Subsetor } from '../setores/schemas/subsetor.schema';
 import { Usuario } from '../usuarios/schemas/usuario.schema';
 import type { Mensagem } from './montar-problema';
 import { isVisualizacaoEscalaPdf } from './escala-pdf.types';
@@ -39,6 +40,7 @@ export class EscalaSnapshotService {
     @InjectModel(Profissional.name) private readonly profissionais: Model<Profissional>,
     @InjectModel(Usuario.name) private readonly usuarios: Model<Usuario>,
     @InjectModel(Setor.name) private readonly setores: Model<Setor>,
+    @InjectModel(Subsetor.name) private readonly subsetores: Model<Subsetor>,
   ) {}
 
   async snapshotComVisualizacao(
@@ -98,6 +100,21 @@ export class EscalaSnapshotService {
     if (session) consultaSetores.session(session);
     const setoresDocs = await consultaSetores.lean().exec();
     const nomeSetor = new Map(setoresDocs.map((setor) => [String(setor._id), setor.nome]));
+    const subsetorIds = profissionaisDocs.flatMap((profissional) => profissional.subsetorId ? [profissional.subsetorId] : []);
+    const consultaSubsetores = this.subsetores.find({ _id: { $in: subsetorIds } }, { nome: 1 });
+    if (session) consultaSubsetores.session(session);
+    const nomeSubsetor = new Map((await consultaSubsetores.lean().exec()).map((subsetor) => [String(subsetor._id), subsetor.nome]));
+    const perfilPorId = new Map(profissionaisDocs.map((profissional) => [String(profissional._id), profissional]));
+    const chefePorData = new Map<string, { id: string; nome: string }>();
+    for (const plantao of plantoes) {
+      if (nomeSetor.get(String(plantao.setorId))?.trim().toLocaleLowerCase('pt-BR') !== 'internamento') continue;
+      const equipe = vinculos.filter((vinculo) =>
+        String(vinculo.plantaoId) === String(plantao._id) && vinculo.funcao === 'enfermeiro',
+      );
+      const chefe = equipe.find((vinculo) => vinculo.lideranca) ?? equipe[0];
+      const profissional = chefe ? profissionalPorId.get(String(chefe.profissionalId)) : undefined;
+      if (profissional) chefePorData.set(isoDia(plantao.data), { id: profissional.id, nome: profissional.nome });
+    }
 
     const geracao = (escala.geracao ?? {}) as {
       resumo?: unknown;
@@ -123,6 +140,9 @@ export class EscalaSnapshotService {
       },
       resumo: { plantoes: plantoes.length, ...(geracao.resumo as object) },
       cobertura: (geracao.resumo as { cobertura?: ResumoCobertura } | undefined)?.cobertura ?? null,
+      chefesGerais: [...chefePorData.entries()]
+        .sort(([dataA], [dataB]) => dataA.localeCompare(dataB))
+        .map(([data, profissional]) => ({ data, ...profissional })),
       configuracaoUtilizada: geracao.configuracao ?? null,
       escopo: geracao.escopo ?? null,
       plantoes: plantoes.map((plantao) => ({
@@ -142,6 +162,12 @@ export class EscalaSnapshotService {
             if (!profissional) return undefined;
             return {
               ...profissional,
+              subsetor: perfilPorId.get(String(vinculo.profissionalId))?.subsetorId
+                ? {
+                    id: String(perfilPorId.get(String(vinculo.profissionalId))!.subsetorId),
+                    nome: nomeSubsetor.get(String(perfilPorId.get(String(vinculo.profissionalId))!.subsetorId)) ?? '',
+                  }
+                : null,
               lideranca: vinculo.lideranca ?? false,
               origemCobertura: vinculo.origemCobertura ?? OrigemCobertura.REGULAR,
             };

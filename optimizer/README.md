@@ -3,8 +3,9 @@
 Serviço FastAPI + Google OR-Tools (CP-SAT) usado **somente** pela API NestJS. Não acessa o banco: recebe o problema pronto e devolve alocações e vagas descobertas.
 
 - `POST /otimizar` — corpo/resposta em `app/schemas.py` (documentação interativa em `/docs`).
-- A demanda é `plantao24h` por setor e função; plantões regulares são sempre de 24h e respeitam descanso 24x72.
-- Plantões de 12h permanecem disponíveis somente para extras previamente fixados.
+- `plantao24h` é o mínimo por função em cada turno: um plantão de 24h cobre diurno e noturno; um plantão regular de 12h cobre apenas seu turno.
+- A carga regular é uma meta flexível priorizada após a cobertura; déficits são retornados sem tornar a geração inviável.
+- Plantões de 24h e 12h respeitam seus descansos mínimos, disponibilidade e limites de extras.
 - `GET /saude` — healthcheck.
 - Modelo e restrições: `app/solver.py` (docstring no topo).
 

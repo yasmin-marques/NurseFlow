@@ -44,6 +44,13 @@ interface EditScaleShiftDialogProps {
   onStaged: (changes: ShiftBatchChange[], scope: ShiftEditScope) => void
 }
 
+interface AddProfessionalGroup {
+  id: string
+  label: string
+  professionals: ProfessionalWithId[]
+  disabled?: boolean
+}
+
 const formationLabel = (formation?: string) => formation === 'tecnico' ? 'Técnico de enfermagem' : 'Enfermeiro'
 
 export function ScaleShiftDialog({ scale, dayShifts, focusSectorId, initialDate, stagedChanges, onClose, onStaged }: EditScaleShiftDialogProps) {
@@ -57,6 +64,7 @@ export function ScaleShiftDialog({ scale, dayShifts, focusSectorId, initialDate,
   const [members, setMembers] = useState<DayMember[]>(() =>
     seedDayMembers(shiftsOf(focusSectorId ?? dayShifts[0]?.setor.id ?? ''), stagedChanges, focusSectorId ?? dayShifts[0]?.setor.id ?? '', date))
   const [showAddProfessional, setShowAddProfessional] = useState(false)
+  const [openAddGroupId, setOpenAddGroupId] = useState<string | null>(null)
   const [professionalToAddId, setProfessionalToAddId] = useState('')
   const [professionalSearch, setProfessionalSearch] = useState('')
   const [addProfessionalOption, setAddProfessionalOption] = useState<ShiftOption>(() => members[0]?.option ?? '12d')
@@ -108,6 +116,9 @@ export function ScaleShiftDialog({ scale, dayShifts, focusSectorId, initialDate,
     return {
       name: activePerson?.name ?? known?.nome ?? id,
       formation: activePerson ? formationFor(activePerson) : known?.formacao,
+      subsector: activePerson?.subsectorName ?? known?.subsetor?.nome ??
+        sector?.subsectors.find((item) => item.id === activePerson?.subsectorId)?.name ?? '',
+      subsectorId: activePerson?.subsectorId ?? known?.subsetor?.id,
       active: activePerson !== undefined,
     }
   }
@@ -119,10 +130,66 @@ export function ScaleShiftDialog({ scale, dayShifts, focusSectorId, initialDate,
     () => professionalsAvailableToAdd(availableProfessionals, members.map((member) => member.id)),
     [availableProfessionals, members],
   )
-  const matchingTechnicians = useMemo(
+  const matchingProfessionals = useMemo(
     () => searchProfessionals(professionalsToAdd, professionalSearch),
     [professionalsToAdd, professionalSearch],
   )
+  const addProfessionalGroups = useMemo<AddProfessionalGroup[]>(() => {
+    if (!sector?.hasSubsectors) {
+      return [{ id: 'professionals', label: 'Profissionais disponíveis', professionals: matchingProfessionals }]
+    }
+
+    const activeSubsectors = sector.subsectors.filter((item) => item.active)
+    const validSubsectorIds = new Set(activeSubsectors.map((item) => item.id))
+    const groups: AddProfessionalGroup[] = [
+      {
+        id: 'nurses',
+        label: 'Enfermeiros do setor',
+        professionals: matchingProfessionals.filter((person) => formationFor(person) === 'enfermeiro'),
+      },
+      ...activeSubsectors.map((subsector) => ({
+        id: `subsector-${subsector.id}`,
+        label: subsector.name,
+        professionals: matchingProfessionals.filter(
+          (person) => formationFor(person) === 'tecnico' && person.subsectorId === subsector.id,
+        ),
+      })),
+      {
+        id: 'technicians-without-subsector',
+        label: 'Técnicos sem vínculo ativo a subsetor',
+        professionals: matchingProfessionals.filter(
+          (person) => formationFor(person) === 'tecnico' && !validSubsectorIds.has(person.subsectorId ?? ''),
+        ),
+        disabled: true,
+      },
+    ]
+
+    return groups.filter((group) =>
+      group.professionals.length > 0 ||
+      (!professionalSearch.trim() && group.id.startsWith('subsector-')),
+    )
+  }, [matchingProfessionals, professionalSearch, sector])
+  const editSubsectorRows = sector?.hasSubsectors
+    ? (() => {
+        const rows = new Map(sector.subsectors.map((subsector) => [
+          subsector.id,
+          { id: subsector.id, name: subsector.name, professionals: [] as string[] },
+        ] as const))
+        for (const member of orderedMembers) {
+          const info = infoOf(member.id)
+          if (info.formation !== 'tecnico') continue
+          const id = info.subsectorId ?? 'without-subsector'
+          const row = rows.get(id) ?? {
+            id,
+            name: info.subsector || 'Sem subsetor cadastrado',
+            professionals: [],
+          }
+          row.professionals.push(info.name)
+          rows.set(id, row)
+        }
+        return [...rows.values()]
+      })()
+    : []
   const hasInactiveSelection = members.some((member) => !infoOf(member.id).active)
   const leader = members.find((member) => member.leader)
   const leaderCandidates = nurseOptions.filter((person) => members.some((member) => member.id === person.id && member.option === '24h'))
@@ -180,6 +247,23 @@ export function ScaleShiftDialog({ scale, dayShifts, focusSectorId, initialDate,
     setProfessionalToAddId('')
     setProfessionalSearch('')
     setAddProfessionalError('')
+    setOpenAddGroupId(null)
+    setShowAddProfessional(false)
+  }
+
+  const openProfessionalPicker = () => {
+    setProfessionalToAddId('')
+    setProfessionalSearch('')
+    setAddProfessionalError('')
+    setOpenAddGroupId(null)
+    setShowAddProfessional(true)
+  }
+
+  const closeProfessionalPicker = () => {
+    setProfessionalToAddId('')
+    setProfessionalSearch('')
+    setAddProfessionalError('')
+    setOpenAddGroupId(null)
     setShowAddProfessional(false)
   }
 
@@ -296,6 +380,16 @@ export function ScaleShiftDialog({ scale, dayShifts, focusSectorId, initialDate,
               {members.length} {members.length === 1 ? 'profissional' : 'profissionais'}
             </span>
           </div>
+          {editSubsectorRows.length > 0 ? (
+            <dl aria-label="Profissionais por subsetor" className="space-y-1 rounded-xl bg-page px-3 py-2">
+              {editSubsectorRows.map((row) => (
+                <div key={row.id} className="grid gap-0.5 text-[10px] sm:grid-cols-[minmax(8rem,0.3fr)_1fr] sm:gap-2">
+                  <dt className="font-semibold text-text">{row.name}</dt>
+                  <dd className="text-text-muted">{row.professionals.join(', ') || 'Nenhum profissional escalado'}</dd>
+                </div>
+              ))}
+            </dl>
+          ) : null}
           {orderedMembers.length ? (
             <ul className="grid gap-2 sm:grid-cols-2">
               {orderedMembers.map((member) => {
@@ -304,7 +398,7 @@ export function ScaleShiftDialog({ scale, dayShifts, focusSectorId, initialDate,
                 return <li key={member.id}>
                   <PersonCard
                     name={info.name}
-                    detail={`${formationLabel(info.formation)} · ${choice.label} · ${choice.hours}`}
+                    detail={`${formationLabel(info.formation)}${info.formation === 'tecnico' && info.subsector ? ` · ${info.subsector}` : ''} · ${choice.label} · ${choice.hours}`}
                     badges={member.leader ? [{ label: 'Chefe', tone: 'covered' }] : []}
                     statusLabel={!info.active ? 'Inativo' : undefined}
                     statusTone="conflict"
@@ -315,11 +409,7 @@ export function ScaleShiftDialog({ scale, dayShifts, focusSectorId, initialDate,
             </ul>
           ) : <p className="text-xs text-text-muted">Nenhum profissional escalado neste setor neste dia.</p>}
 
-          <button type="button" onClick={() => {
-            setShowAddProfessional(true)
-            setProfessionalSearch('')
-            setAddProfessionalError('')
-          }} className="w-full rounded-xl border border-dashed border-primary bg-soft-green px-4 py-3 text-left text-xs font-semibold text-primary">
+          <button type="button" onClick={openProfessionalPicker} className="w-full rounded-xl border border-dashed border-primary bg-soft-green px-4 py-3 text-left text-xs font-semibold text-primary">
             ＋ &nbsp;Adicionar profissional ao setor
           </button>
           {showAddProfessional ? (
@@ -347,9 +437,62 @@ export function ScaleShiftDialog({ scale, dayShifts, focusSectorId, initialDate,
               </label>
               {professionalsToAdd.length === 0 ? (
                 <p className="text-xs text-text-muted">Nenhum profissional ativo disponível para adicionar.</p>
-              ) : matchingTechnicians.length > 0 ? (
+              ) : sector?.hasSubsectors ? (
+                <div className="space-y-2">
+                  {addProfessionalGroups.map((group) => {
+                    const isOpen = openAddGroupId === group.id
+                    return (
+                      <section key={group.id} className="overflow-hidden rounded-lg border border-border bg-white">
+                        <button
+                          type="button"
+                          aria-expanded={isOpen}
+                          aria-controls={`add-professionals-${group.id}`}
+                          disabled={group.disabled}
+                          onClick={() => {
+                            setOpenAddGroupId(isOpen ? null : group.id)
+                            setProfessionalToAddId('')
+                            setAddProfessionalError('')
+                          }}
+                          className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          <span>
+                            <span className="block text-[11px] font-bold text-text">{group.label}</span>
+                            <span className="text-[10px] text-text-muted">
+                              {group.disabled ? 'Vínculo de subsetor necessário' : `${group.professionals.length} profissional(is) disponível(is)`}
+                            </span>
+                          </span>
+                          {!group.disabled ? <span aria-hidden className="text-sm text-primary">{isOpen ? '−' : '+'}</span> : null}
+                        </button>
+                        {isOpen ? (
+                          <div id={`add-professionals-${group.id}`} className="border-t border-border p-2">
+                            {group.professionals.length > 0 ? (
+                              <fieldset className="max-h-40 space-y-1 overflow-y-auto" aria-label={`Profissionais elegíveis: ${group.label}`}>
+                                {group.professionals.map((person) => (
+                                  <label key={person.id} className="flex cursor-pointer items-center gap-1.5 rounded-lg bg-neutral px-2 py-1.5 text-[11px] text-text">
+                                    <input
+                                      type="radio"
+                                      name="professional-to-add"
+                                      value={person.id}
+                                      checked={professionalToAddId === person.id}
+                                      onChange={() => { setProfessionalToAddId(person.id); setAddProfessionalError('') }}
+                                    />
+                                    <span>{person.name}</span>
+                                    <span className="ml-auto rounded-full bg-highlight px-2 py-0.5 text-[10px] font-semibold text-primary">{formationLabel(formationFor(person))}</span>
+                                  </label>
+                                ))}
+                              </fieldset>
+                            ) : (
+                              <p className="text-[10px] text-text-muted">Nenhum profissional disponível neste subsetor.</p>
+                            )}
+                          </div>
+                        ) : null}
+                      </section>
+                    )
+                  })}
+                </div>
+              ) : matchingProfessionals.length > 0 ? (
                 <fieldset className="max-h-40 space-y-1 overflow-y-auto" aria-label="Profissionais elegíveis">
-                  {matchingTechnicians.map((person) => (
+                  {matchingProfessionals.map((person) => (
                     <label key={person.id} className="flex cursor-pointer items-center gap-1.5 rounded-lg bg-white px-2 py-1.5 text-[11px] text-text">
                       <input
                         type="radio"
@@ -384,10 +527,7 @@ export function ScaleShiftDialog({ scale, dayShifts, focusSectorId, initialDate,
               {addProfessionalError ? <p role="alert" className="text-xs text-danger">{addProfessionalError}</p> : null}
               <div className="flex justify-end gap-1.5">
                 <button type="button" onClick={() => {
-                  setShowAddProfessional(false)
-                  setProfessionalToAddId('')
-                  setProfessionalSearch('')
-                  setAddProfessionalError('')
+                  closeProfessionalPicker()
                 }} className="rounded-lg border border-border px-2.5 py-1.5 text-[11px] font-semibold text-text">Cancelar</button>
                 <button type="button" onClick={addProfessional} disabled={!professionalToAddId} className="rounded-lg bg-primary px-2.5 py-1.5 text-[11px] font-bold text-white disabled:cursor-not-allowed disabled:opacity-50">＋ &nbsp;Adicionar à equipe</button>
               </div>
@@ -431,7 +571,7 @@ export function ScaleShiftDialog({ scale, dayShifts, focusSectorId, initialDate,
             <ul className="space-y-1 text-xs text-text">
               {coveragePending.map((pending) => (
                 <li key={`${pending.setorId}-${pending.data}-${pending.turno}-${pending.funcao}`}>
-                  {pending.setor} · {pending.data} · {pending.turno === 'diurno' ? 'Diurno' : 'Noturno'} · {pending.funcao}: {pending.alocado}/{pending.necessario}; faltam {pending.faltam}
+                  {pending.setor}{pending.subsetor ? ` · ${pending.subsetor}` : ''} · {pending.data} · {pending.turno === 'diurno' ? 'Diurno' : pending.turno === '24h' ? '24h' : 'Noturno'} · {pending.funcao}: {pending.alocado}/{pending.necessario}; faltam {pending.faltam}
                 </li>
               ))}
             </ul>

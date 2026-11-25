@@ -13,6 +13,7 @@ import { Profissional } from '../profissionais/schemas/profissional.schema';
 import { Restricao } from '../restricoes/restricao.schema';
 import { ExtraOpcao, ExtraProgramado, ExtraProgramadoSituacao } from '../extras/extras.schema';
 import { Setor } from '../setores/schemas/setor.schema';
+import { Subsetor } from '../setores/schemas/subsetor.schema';
 import { Administrador } from '../usuarios/schemas/administrador.schema';
 import { Usuario } from '../usuarios/schemas/usuario.schema';
 import type { GerarEscalaDto } from './dto/gerar-escala.dto';
@@ -24,8 +25,8 @@ import {
   type ProfissionalEntrada,
   validarEntrada,
 } from './montar-problema';
-import { OtimizadorEscala, type OpcaoPlantao, type SolucaoOtimizacao } from './otimizador/otimizador';
-import { resumirCobertura } from './regras-plantao';
+import { OtimizadorEscala, VERSAO_CONTRATO_OTIMIZADOR, type OpcaoPlantao, type ProblemaOtimizacao, type SolucaoOtimizacao } from './otimizador/otimizador';
+import { calcularPendenciasCobertura, resumirCobertura } from './regras-plantao';
 import {
   Escala,
   Plantao,
@@ -66,6 +67,7 @@ export class EscalaGeracaoService {
     @InjectModel(Usuario.name) private readonly usuarios: Model<Usuario>,
     @InjectModel(Administrador.name) private readonly administradores: Model<Administrador>,
     @InjectModel(Setor.name) private readonly setores: Model<Setor>,
+    @InjectModel(Subsetor.name) private readonly subsetores: Model<Subsetor>,
     @InjectModel(Restricao.name) private readonly restricoes: Model<Restricao>,
     @InjectModel(ExtraProgramado.name) private readonly extrasProgramados: Model<ExtraProgramado>,
     private readonly configuracoes: ConfiguracoesService,
@@ -123,7 +125,7 @@ export class EscalaGeracaoService {
     const { ano, mes } = dto;
     const rotulo = rotuloPeriodo(ano, mes);
 
-    const existente = await this.escalas.findOne({ ano, mes }).lean().exec();
+    const existente = await this.escalas.findOne({ ano, mes, status: { $ne: StatusEscala.EXCLUIDA } }).lean().exec();
     const substituivel =
       existente?.status === StatusEscala.RASCUNHO ||
       existente?.status === StatusEscala.EM_REVISAO ||
@@ -150,6 +152,7 @@ export class EscalaGeracaoService {
       tipoVinculo: profissional.tipoVinculo,
       status: profissional.status,
       setorId: profissional.setorId ? String(profissional.setorId) : null,
+      subsetorId: profissional.subsetorId ? String(profissional.subsetorId) : null,
     }));
 
     const setoresAtivos = await this.setores.find({ ativo: true }).sort({ nome: 1 }).lean().exec();
@@ -163,11 +166,28 @@ export class EscalaGeracaoService {
         erros: ['Selecione somente setores ativos cadastrados.'],
       });
     }
-    const setores = setoresDocs.map((setor) => ({
+    const subsetoresDocs = await this.subsetores
+      .find({ setorId: { $in: setoresAtivos.map((setor) => setor._id) }, ativo: true })
+      .sort({ nome: 1 })
+      .lean()
+      .exec();
+    const subsetoresPorSetor = new Map<string, typeof subsetoresDocs>();
+    for (const subsetor of subsetoresDocs) {
+      const setorId = String(subsetor.setorId);
+      subsetoresPorSetor.set(setorId, [...(subsetoresPorSetor.get(setorId) ?? []), subsetor]);
+    }
+    const setorEntrada = (setor: (typeof setoresAtivos)[number]) => ({
       id: String(setor._id),
       nome: setor.nome,
       plantao24h: { enfermeiros: setor.plantao24h.enfermeiros, tecnicos: setor.plantao24h.tecnicos },
-    }));
+      subsetores: (subsetoresPorSetor.get(String(setor._id)) ?? []).map((subsetor) => ({
+        id: String(subsetor._id),
+        nome: subsetor.nome,
+        tecnicos: subsetor.plantao24h.tecnicos,
+      })),
+    });
+    const setores = setoresDocs.map(setorEntrada);
+    const todosSetores = setoresAtivos.map(setorEntrada);
     const inicioMesIso = `${String(ano).padStart(4, '0')}-${String(mes).padStart(2, '0')}-01`;
     const fimMesIso = `${String(ano).padStart(4, '0')}-${String(mes).padStart(2, '0')}-${String(diasDoMes(ano, mes)).padStart(2, '0')}`;
     const extrasDoMes = await this.extrasProgramados.find({
@@ -206,6 +226,9 @@ export class EscalaGeracaoService {
     });
 
     const setoresDoEscopo = new Set(setores.map((setor) => setor.id));
+    if (dto.setorIds !== undefined && existente) {
+      await this.incluirAgendaProtegida(problema, existente._id, setoresDoEscopo, extrasDoMes);
+    }
     const extrasFixos = extrasDoMes.filter((extra) => setoresDoEscopo.has(String(extra.setorId)));
     problema.alocacoes_fixas = extrasFixos.map((extra) => ({
       extra_id: String(extra._id),
@@ -215,22 +238,6 @@ export class EscalaGeracaoService {
       opcao: extra.opcao as OpcaoPlantao,
       tipo: 'extra' as const,
     }));
-    for (const extra of extrasDoMes.filter((item) => !setoresDoEscopo.has(String(item.setorId)))) {
-      const dia = Number(extra.data.slice(8, 10));
-      const turnos = extra.opcao === ExtraOpcao.VINTE_QUATRO_HORAS
-        ? ['diurno', 'noturno'] as const
-        : extra.opcao === ExtraOpcao.DOZE_DIA ? ['diurno'] as const : ['noturno'] as const;
-      // Extras em setores fora do escopo também consomem disponibilidade daquele perfil no dia.
-      for (const profissional of problema.profissionais.filter((item) => item.formacao === extra.funcao)) {
-        profissional.turnos_bloqueados ??= [];
-        for (const turno of turnos) {
-          if (!profissional.turnos_bloqueados.some((item) => item.dia === dia && item.turno === turno)) {
-            profissional.turnos_bloqueados.push({ dia, turno });
-          }
-        }
-      }
-    }
-
     problema.operacao_id = dto.operacaoId;
     this.exigirGeracaoAtiva(operacao);
     const solucao = await this.otimizador.resolver(problema, operacao.controller.signal);
@@ -250,10 +257,15 @@ export class EscalaGeracaoService {
     }
 
     const porId = new Map(profissionais.map((profissional) => [profissional.id, profissional]));
-    const nomeSetor = new Map(setores.map((setor) => [setor.id, setor.nome]));
+    const nomeSetor = new Map(todosSetores.map((setor) => [setor.id, setor.nome]));
+    const nomeSubsetor = new Map(todosSetores.flatMap((setor) => setor.subsetores.map((subsetor) => [subsetor.id, subsetor.nome] as const)));
     const pendencias = solucao.descobertos.map((descoberto) => ({
       setorId: descoberto.setor_id,
       setor: nomeSetor.get(descoberto.setor_id) ?? descoberto.setor_id,
+      ...(descoberto.subsetor_id ? {
+        subsetorId: descoberto.subsetor_id,
+        subsetor: nomeSubsetor.get(descoberto.subsetor_id) ?? descoberto.subsetor_id,
+      } : {}),
       data: isoDia(utcDate(ano, mes - 1, descoberto.dia)),
       turno: descoberto.turno,
       funcao: descoberto.funcao,
@@ -267,14 +279,6 @@ export class EscalaGeracaoService {
     const cargas = solucao.estatisticas.cargas.map((carga) => {
       const profissional = porId.get(carga.profissional_id)!;
       const esperada = problema.profissionais.find((item) => item.id === carga.profissional_id)!;
-      if (carga.faltam_24h + carga.faltam_12h > 0) {
-        conflitos.push({
-          tipo: 'CARGA_ABAIXO_DO_ESPERADO',
-          profissionalId: profissional.id,
-          profissional: profissional.nome,
-          motivo: `Faltam ${carga.faltam_24h} plantão(ões) de 24h e ${carga.faltam_12h} de 12h para a carga esperada do vínculo ${profissional.tipoVinculo}.`,
-        });
-      }
       if (carga.extras > esperada.max_extras) {
         avisos.push({
           tipo: 'EXTRAS_ALOCADOS',
@@ -289,6 +293,7 @@ export class EscalaGeracaoService {
         vinculo: profissional.tipoVinculo,
         esperada: { plantoes24h: esperada.carga_24h, plantoes12h: esperada.carga_12h },
         atribuida: { plantoes24h: carga.plantoes_24h, plantoes12h: carga.plantoes_12h },
+        faltam: { plantoes24h: carga.faltam_24h, plantoes12h: carga.faltam_12h },
         extras: carga.extras,
       };
     });
@@ -328,6 +333,9 @@ export class EscalaGeracaoService {
       porId,
       new Map(setores.map((setor) => [setor.id, setor.nome])),
       extrasFixos,
+      setores.map((setor) => setor.id),
+      dto.setorIds !== undefined,
+      todosSetores,
     );
     const escala = await this.escalas.findById(escalaId).lean().exec();
     if (!escala) throw new NotFoundException('Escala não encontrada após a geração.');
@@ -342,11 +350,90 @@ export class EscalaGeracaoService {
 
   private validarSolucaoGerada(solucao: SolucaoOtimizacao) {
     const resposta = solucao as Partial<SolucaoOtimizacao> | null;
-    if (!resposta || resposta.versao_contrato !== 4 ||
+    if (!resposta || resposta.versao_contrato !== VERSAO_CONTRATO_OTIMIZADOR ||
       !Array.isArray(resposta.capacidades) || !resposta.capacidades.includes('alocacoes_fixas') ||
       !Array.isArray(resposta.alocacoes) || !Array.isArray(resposta.descobertos) ||
       !resposta.estatisticas || !Array.isArray(resposta.estatisticas.cargas)) {
       throw new ConflictException('O otimizador devolveu um resultado incompatível ou incompleto. Nenhuma escala foi salva.');
+    }
+  }
+
+  private async incluirAgendaProtegida(
+    problema: ProblemaOtimizacao,
+    escalaId: Types.ObjectId,
+    setoresDoEscopo: Set<string>,
+    extrasDoMes: (ExtraProgramado & { _id: Types.ObjectId })[],
+  ): Promise<void> {
+    const idsSetores = [...setoresDoEscopo].map((id) => new Types.ObjectId(id));
+    const plantoes = await this.plantoes
+      .find({ escalaId, setorId: { $nin: idsSetores } })
+      .lean()
+      .exec();
+    const plantoesPorId = new Map(plantoes.map((plantao) => [String(plantao._id), plantao]));
+    const vinculos = plantoes.length
+      ? await this.relacionados.find({ plantaoId: { $in: plantoes.map((plantao) => plantao._id) } }).lean().exec()
+      : [];
+    const extrasVinculados = new Set(
+      vinculos.flatMap((vinculo) => vinculo.extraProgramadoId ? [String(vinculo.extraProgramadoId)] : []),
+    );
+    const profissionalPorId = new Map(problema.profissionais.map((profissional) => [profissional.id, profissional]));
+
+    const registrar = (
+      profissionalId: string,
+      data: Date | string,
+      inicio: string,
+      duracaoHoras: number,
+      opcao: OpcaoPlantao,
+      tipo: TipoPlantao,
+    ) => {
+      const profissional = profissionalPorId.get(profissionalId);
+      if (!profissional) return;
+      const dia = typeof data === 'string' ? Number(data.slice(8, 10)) : data.getUTCDate();
+      const [hora, minuto] = inicio.split(':').map(Number);
+      const inicioHoras = (dia - 1) * 24 + hora + minuto / 60;
+      profissional.horarios_bloqueados.push({
+        inicio_horas: inicioHoras,
+        fim_horas: inicioHoras + duracaoHoras,
+        descanso_apos_horas: duracaoHoras >= 24 ? 72 : 36,
+        opcao,
+      });
+      profissional.plantoes_fora_escopo += 1;
+      if (tipo === TipoPlantao.EXTRA) {
+        profissional.extras_fora_escopo += 1;
+      } else if (duracaoHoras >= 24) {
+        profissional.plantoes_regulares24_fora_escopo += 1;
+      } else {
+        profissional.plantoes_regulares12_fora_escopo += 1;
+      }
+    };
+
+    for (const vinculo of vinculos) {
+      const plantao = plantoesPorId.get(String(vinculo.plantaoId));
+      if (!plantao) continue;
+      const opcao: OpcaoPlantao = plantao.duracaoHoras >= 24
+        ? '24h'
+        : plantao.horarioInicio === '07:00' ? '12d' : '12n';
+      registrar(
+        String(vinculo.profissionalId),
+        plantao.data,
+        plantao.horarioInicio,
+        plantao.duracaoHoras,
+        opcao,
+        plantao.tipo,
+      );
+    }
+
+    for (const extra of extrasDoMes) {
+      if (setoresDoEscopo.has(String(extra.setorId)) || extrasVinculados.has(String(extra._id))) continue;
+      const opcao = extra.opcao as OpcaoPlantao;
+      registrar(
+        String(extra.substitutoId),
+        extra.data,
+        HORARIOS[opcao].inicio,
+        HORARIOS[opcao].horas,
+        opcao,
+        TipoPlantao.EXTRA,
+      );
     }
   }
 
@@ -358,6 +445,14 @@ export class EscalaGeracaoService {
     porId: Map<string, ProfissionalEntrada>,
     nomesSetor: Map<string, string>,
     extrasFixos: (ExtraProgramado & { _id: Types.ObjectId })[],
+    setorIdsEscopo: string[],
+    preservarForaEscopo: boolean,
+    todosSetores: {
+      id: string;
+      nome: string;
+      plantao24h: { enfermeiros: number; tecnicos: number };
+      subsetores: { id: string; nome: string; tecnicos: number }[];
+    }[],
   ): Promise<Types.ObjectId> {
     // Última barreira antes de gravar: nenhuma alocação pode contrariar o setor fixo do cadastro.
     const errosSetor = errosSetorFixo(
@@ -378,10 +473,18 @@ export class EscalaGeracaoService {
     try {
       return await executarTransacao(this.connection, async (session) => {
         const escalaId = existenteId ?? new Types.ObjectId();
+        const setorIdsObj = setorIdsEscopo.map((id) => new Types.ObjectId(id));
+        const filtroEscopo = preservarForaEscopo ? { setorId: { $in: setorIdsObj } } : {};
+        let geracaoAnterior: Record<string, unknown> = {};
+        let statusFinal = StatusEscala.RASCUNHO;
         if (existenteId) {
-          await this.removerConteudo(escalaId, session);
+          const atual = await this.escalas.findById(escalaId).session(session).lean().exec();
+          if (!atual) throw new NotFoundException('Escala não encontrada.');
+          geracaoAnterior = (atual.geracao ?? {}) as Record<string, unknown>;
+          statusFinal = atual.versaoPublicada > 0 ? StatusEscala.EM_REVISAO : StatusEscala.RASCUNHO;
+          await this.removerConteudo(escalaId, session, preservarForaEscopo ? setorIdsObj : undefined);
           await this.extrasProgramados.updateMany(
-            { escalaId, _id: { $nin: extrasFixos.map((extra) => extra._id) } },
+            { escalaId, ...filtroEscopo, _id: { $nin: extrasFixos.map((extra) => extra._id) } },
             { $set: { escalaId: null, plantaoId: null, plantaoProfissionalId: null }, $inc: { revisao: 1 } },
             { session },
           );
@@ -396,7 +499,7 @@ export class EscalaGeracaoService {
                 administradorId: base.administradorId,
                 dataCriacao: new Date(),
                 geracao: base.geracao,
-                status: StatusEscala.RASCUNHO,
+                status: statusFinal,
               },
               $unset: { validacao: 1 },
               $inc: { revisao: 1 },
@@ -467,6 +570,81 @@ export class EscalaGeracaoService {
             if (atualizado.matchedCount !== 1) throw new ConflictException('Um extra programado mudou antes de ser conciliado com a escala. Gere novamente.');
           }
         }
+
+        const todosPlantoes = await this.plantoes.find({ escalaId }).session(session).lean().exec();
+        const idsTodosPlantoes = todosPlantoes.map((plantao) => plantao._id);
+        const todosVinculos = idsTodosPlantoes.length
+          ? await this.relacionados.find({ plantaoId: { $in: idsTodosPlantoes } }).session(session).lean().exec()
+          : [];
+        const plantaoPorId = new Map(todosPlantoes.map((plantao) => [String(plantao._id), plantao]));
+        const alocacoesPersistidas = todosVinculos.flatMap((vinculo) => {
+          const plantao = plantaoPorId.get(String(vinculo.plantaoId));
+          const profissional = porId.get(String(vinculo.profissionalId));
+          if (!plantao || !profissional) return [];
+          return [{
+            profissional,
+            funcao: vinculo.funcao as Formacao,
+            data: plantao.data,
+            horarioInicio: plantao.horarioInicio,
+            duracaoHoras: plantao.duracaoHoras,
+            tipo: plantao.tipo,
+            setorId: String(plantao.setorId),
+          }];
+        });
+        const pendencias = calcularPendenciasCobertura({
+          ano: base.ano,
+          mes: base.mes,
+          setores: todosSetores,
+          alocacoes: alocacoesPersistidas,
+        });
+        const cobertura = resumirCobertura({ ano: base.ano, mes: base.mes, setores: todosSetores, pendencias });
+        const dadosGeracao = base.geracao as {
+          escopo?: { setorIds?: string[]; turnos?: ('diurno' | 'noturno')[] };
+          resumo?: Record<string, unknown>;
+          pendencias?: Record<string, unknown>[];
+          conflitos?: Record<string, unknown>[];
+          avisos?: Record<string, unknown>[];
+          cargas?: { profissionalId?: string; extras?: number }[];
+        };
+        const setoresGerados = new Set(todosSetores.map((setor) => setor.id));
+        const turnosGerados = new Set(dadosGeracao.escopo?.turnos ?? ['diurno', 'noturno']);
+        const preservarMetadado = (itens: unknown, novos: Record<string, unknown>[] = []) => {
+          const anteriores = Array.isArray(itens) ? itens as Record<string, unknown>[] : [];
+          const mantidos = preservarForaEscopo
+            ? anteriores.filter((item) => {
+                if (item.tipo === 'CARGA_ABAIXO_DO_ESPERADO') return false;
+                const setorId = typeof item.setorId === 'string'
+                  ? item.setorId
+                  : typeof item.profissionalId === 'string' ? porId.get(item.profissionalId)?.setorId : null;
+                return !setorId || !setorIdsEscopo.includes(setorId);
+              })
+            : [];
+          return [...mantidos, ...novos];
+        };
+        const conflitos = preservarMetadado(geracaoAnterior.conflitos, dadosGeracao.conflitos);
+        const avisos = preservarMetadado(geracaoAnterior.avisos, dadosGeracao.avisos);
+        const cargas = dadosGeracao.cargas ?? [];
+        const geracaoFinal = {
+          ...base.geracao,
+          escopo: { setorIds: [...setoresGerados], turnos: [...turnosGerados] },
+          resumo: {
+            ...dadosGeracao.resumo,
+            alocacoes: todosVinculos.length,
+            vagasDescobertas: pendencias.reduce((total, item) => total + item.faltam, 0),
+            extras: cargas.reduce((total, carga) => total + (carga.extras ?? 0), 0),
+            cobertura,
+          },
+          pendencias,
+          conflitos,
+          avisos,
+          cargas,
+        };
+        const metadadosAtualizados = await this.escalas.updateOne(
+          { _id: escalaId },
+          { $set: { geracao: geracaoFinal } },
+          { session },
+        );
+        if (metadadosAtualizados.matchedCount !== 1) throw new ConflictException('A escala deixou de existir durante a geração.');
         return escalaId;
       });
     } catch (erro) {
@@ -478,10 +656,11 @@ export class EscalaGeracaoService {
     }
   }
 
-  private async removerConteudo(escalaId: Types.ObjectId, session: ClientSession) {
-    const ids = (await this.plantoes.find({ escalaId }, { _id: 1 }).session(session).lean().exec()).map((plantao) => plantao._id);
+  private async removerConteudo(escalaId: Types.ObjectId, session: ClientSession, setorIds?: Types.ObjectId[]) {
+    const filtro = { escalaId, ...(setorIds ? { setorId: { $in: setorIds } } : {}) };
+    const ids = (await this.plantoes.find(filtro, { _id: 1 }).session(session).lean().exec()).map((plantao) => plantao._id);
     if (ids.length > 0) await this.relacionados.deleteMany({ plantaoId: { $in: ids } }, { session });
-    await this.plantoes.deleteMany({ escalaId }, { session });
+    await this.plantoes.deleteMany(filtro, { session });
   }
 
   private async administradorDe(usuarioId: string): Promise<Types.ObjectId> {

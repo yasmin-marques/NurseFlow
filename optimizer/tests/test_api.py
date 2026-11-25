@@ -9,7 +9,7 @@ client = TestClient(app)
 def corpo(**extra):
     base = {
         "ano": 2026,
-        "versao_contrato": 4,
+        "versao_contrato": 6,
         "capacidades": ["alocacoes_fixas"],
         "mes": 9,
         "dias_mes": 30,
@@ -38,7 +38,7 @@ def test_otimizar_retorna_alocacoes_e_descobertos():
     assert len(dados["alocacoes"]) == 2
     assert dados["descobertos"], "um enfermeiro com carga 2 não cobre o mês"
     assert dados["estatisticas"]["status"] in ("OPTIMAL", "FEASIBLE")
-    assert dados["versao_contrato"] == 4
+    assert dados["versao_contrato"] == 6
     assert "alocacoes_fixas" in dados["capacidades"]
 
 

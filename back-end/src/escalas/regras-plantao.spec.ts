@@ -181,7 +181,7 @@ describe('regras de plantões manuais', () => {
     expect(erros.join(' ')).toMatch(/descanso obrigatório/);
   });
 
-  it('calcula vagas descobertas por setor, dia de plantão de 24h e função', () => {
+  it('calcula vagas por turno e reconhece um plantão de 24h nos dois turnos', () => {
     const pendencias = calcularPendenciasCobertura({
       ano: 2026,
       mes: 10,
@@ -195,22 +195,85 @@ describe('regras de plantões manuais', () => {
       alocacoes: [{ ...alocacao('07:00', 24), setorId: 'setor-1' }],
     });
     expect(pendencias).toContainEqual(
-      expect.objectContaining({ data: '2026-10-12', turno: '24h', funcao: 'tecnicos', necessario: 1, alocado: 0, faltam: 1 }),
+      expect.objectContaining({ data: '2026-10-12', turno: 'diurno', funcao: 'tecnicos', necessario: 1, alocado: 0, faltam: 1 }),
+    );
+    expect(pendencias).toContainEqual(
+      expect.objectContaining({ data: '2026-10-12', turno: 'noturno', funcao: 'tecnicos', necessario: 1, alocado: 0, faltam: 1 }),
     );
     expect(pendencias).not.toContainEqual(
-      expect.objectContaining({ data: '2026-10-12', turno: '24h', funcao: 'enfermeiros' }),
+      expect.objectContaining({ data: '2026-10-12', turno: 'diurno', funcao: 'enfermeiros' }),
+    );
+    expect(pendencias).not.toContainEqual(
+      expect.objectContaining({ data: '2026-10-12', turno: 'noturno', funcao: 'enfermeiros' }),
     );
   });
 
-  it('calcula percentual da cobertura de 24h arredondando para baixo e deixa vazio sem posições exigidas', () => {
+  it('permite plantão de 12h cobrir apenas seu turno', () => {
+    const pendencias = calcularPendenciasCobertura({
+      ano: 2026,
+      mes: 10,
+      setores: [{ id: 'setor-1', nome: 'UTI', plantao24h: { enfermeiros: 1, tecnicos: 0 } }],
+      alocacoes: [{ ...alocacao('07:00', 12), setorId: 'setor-1' }],
+    });
+
+    expect(pendencias).not.toContainEqual(
+      expect.objectContaining({ data: '2026-10-12', turno: 'diurno', funcao: 'enfermeiros' }),
+    );
+    expect(pendencias).toContainEqual(
+      expect.objectContaining({ data: '2026-10-12', turno: 'noturno', funcao: 'enfermeiros', necessario: 1, alocado: 0, faltam: 1 }),
+    );
+  });
+
+  it('aplica mínimos de técnicos por subsetor, sem misturar vínculos', () => {
+    const tecnico = {
+      ...profissional,
+      id: 'tecnico-1',
+      formacao: Formacao.TECNICO,
+      setorId: 'setor-1',
+      subsetorId: 'sub-a',
+    };
+    const setores = [{
+      id: 'setor-1',
+      nome: 'UTI',
+      plantao24h: { enfermeiros: 0, tecnicos: 2 },
+      subsetores: [
+        { id: 'sub-a', nome: 'Adulto', tecnicos: 1 },
+        { id: 'sub-b', nome: 'Pediatria', tecnicos: 1 },
+      ],
+    }];
+    const pendencias = calcularPendenciasCobertura({
+      ano: 2026,
+      mes: 10,
+      setores,
+      alocacoes: [{
+        ...alocacao('07:00', 24),
+        profissional: tecnico,
+        funcao: Formacao.TECNICO,
+        setorId: 'setor-1',
+      }],
+    });
+
+    expect(pendencias).not.toContainEqual(expect.objectContaining({ data: '2026-10-12', subsetorId: 'sub-a' }));
+    expect(pendencias).toContainEqual(expect.objectContaining({
+      data: '2026-10-12',
+      subsetorId: 'sub-b',
+      subsetor: 'Pediatria',
+      necessario: 1,
+      alocado: 0,
+      faltam: 1,
+    }));
+    expect(resumirCobertura({ ano: 2026, mes: 10, setores, pendencias }).posicoesExigidas).toBe(124);
+  });
+
+  it('calcula percentual da cobertura por turno arredondando para baixo e deixa vazio sem posições exigidas', () => {
     const setores = [{ plantao24h: { enfermeiros: 1, tecnicos: 0 } }];
     const parcial = resumirCobertura({
       ano: 2026,
       mes: 10,
       setores,
-      pendencias: [{ setorId: 'setor-1', setor: 'UTI', data: '2026-10-01', turno: '24h', funcao: 'enfermeiros', necessario: 2, alocado: 0, faltam: 2, motivo: 'teste' }],
+      pendencias: [{ setorId: 'setor-1', setor: 'UTI', data: '2026-10-01', turno: 'diurno', funcao: 'enfermeiros', necessario: 2, alocado: 0, faltam: 2, motivo: 'teste' }],
     });
-    expect(parcial).toEqual({ posicoesExigidas: 31, posicoesPreenchidas: 29, percentual: 93 });
+    expect(parcial).toEqual({ posicoesExigidas: 62, posicoesPreenchidas: 60, percentual: 96 });
     expect(resumirCobertura({ ano: 2026, mes: 10, setores: [], pendencias: [] })).toEqual({
       posicoesExigidas: 0,
       posicoesPreenchidas: 0,
