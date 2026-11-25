@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Check, ChevronRight, LockKeyhole, X } from "../../../components/icons";
 import { listSectors } from "../../../services/sectors";
 import type { Sector } from "../../Sectors/types";
@@ -42,16 +42,37 @@ function ChoiceCard({
 const inputClassName = "mt-1.5 h-11 w-full rounded-xl border border-border bg-[#f7f8f6] px-3.5 text-sm text-text outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15";
 
 export function ProfessionalFormModal({ professional, isCreating = false, onClose, onSave }: ProfessionalFormModalProps) {
-    const [form, setForm] = useState(professional);
+    const [form, setForm] = useState<Omit<Professional, "formation"> & { formation: FormationType | "" }>(
+        () => ({ ...professional, formation: isCreating ? "" : professional.formation, subsectorId: professional.subsectorId ?? null }),
+    );
     const [bondOpen, setBondOpen] = useState(false);
     const [sectors, setSectors] = useState<Sector[]>([]);
     const [sectorsError, setSectorsError] = useState("");
+    const sectorsLoading = useRef(true);
+    const formationChangedWhileLoading = useRef(false);
+    const [fieldErrors, setFieldErrors] = useState<{ formation?: string; sectorId?: string; subsectorId?: string }>({});
+    const selectedSector = sectors.find((sector) => sector.id === form.sectorId);
+    const activeSubsectors = selectedSector?.subsectors.filter((subsector) => subsector.active) ?? [];
 
     useEffect(() => {
         let active = true;
         listSectors()
-            .then((list) => { if (active) setSectors(list); })
-            .catch(() => { if (active) setSectorsError("Não foi possível carregar os setores."); });
+            .then((list) => {
+                if (!active) return;
+                sectorsLoading.current = false;
+                setSectors(list);
+                if (formationChangedWhileLoading.current) {
+                    setForm((current) => current.sectorId && !list.some((sector) => sector.id === current.sectorId && sector.active)
+                        ? { ...current, sectorId: "", subsectorId: null } : current);
+                    formationChangedWhileLoading.current = false;
+                }
+            })
+            .catch(() => {
+                if (active) {
+                    sectorsLoading.current = false;
+                    setSectorsError("Não foi possível carregar os setores.");
+                }
+            });
         return () => { active = false; };
     }, []);
 
@@ -67,17 +88,41 @@ export function ProfessionalFormModal({ professional, isCreating = false, onClos
         setForm((current) => ({ ...current, [key]: value }));
     };
 
+    const changeFormation = (formation: FormationType) => {
+        const loading = sectorsLoading.current;
+        if (form.formation !== formation && loading) formationChangedWhileLoading.current = true;
+        setForm((current) => current.formation === formation ? current : {
+            ...current,
+            formation,
+            sectorId: loading || sectors.some((sector) => sector.id === current.sectorId && sector.active) ? current.sectorId : "",
+            subsectorId: null,
+        });
+        setFieldErrors({});
+    };
+
     const [error, setError] = useState("");
     const [saving, setSaving] = useState(false);
 
     const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
+        const errors = {
+            ...(!form.formation ? { formation: "Escolha o tipo de formação." } : {}),
+            ...(!form.sectorId ? { sectorId: "Selecione um setor." } : {}),
+            ...(form.formation === "Técnico" && form.subsectorId && selectedSector && !activeSubsectors.some((subsector) => subsector.id === form.subsectorId)
+                ? { subsectorId: "Selecione um sub-setor válido ou nenhum." } : {}),
+        };
+        setFieldErrors(errors);
+        if (!form.formation || !form.sectorId || errors.subsectorId) return;
         setSaving(true);
         setError("");
         try {
-            await onSave(form);
+            await onSave({ ...form, formation: form.formation });
         } catch (err) {
-            setError(err instanceof Error ? err.message : "Não foi possível salvar o profissional.");
+            const message = err instanceof Error ? err.message : "Não foi possível salvar o profissional.";
+            const lower = message.toLocaleLowerCase("pt-BR");
+            if (lower.includes("subsetor")) setFieldErrors({ subsectorId: message });
+            else if (lower.includes("setor")) setFieldErrors({ sectorId: message });
+            else setError(message);
             setSaving(false);
         }
     };
@@ -105,7 +150,7 @@ export function ProfessionalFormModal({ professional, isCreating = false, onClos
                 <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
                     <div className="flex-1 space-y-4 overflow-y-auto px-6 py-5">
                         <label className="block text-[11px] font-semibold text-text">
-                            Nome completo <span className="text-danger">*</span>
+                            Nome: <span className="text-danger">*</span>
                             <input required value={form.name} readOnly={!isCreating} onChange={(event) => update("name", event.target.value)} className={`${inputClassName} ${!isCreating ? "cursor-not-allowed bg-neutral" : ""}`} />
                         </label>
                         <label className="block text-[11px] font-semibold text-text">
@@ -114,7 +159,7 @@ export function ProfessionalFormModal({ professional, isCreating = false, onClos
                         </label>
 
                         <label className="block text-[11px] font-semibold text-text">
-                            E-mail profissional <span className="text-danger">*</span>
+                            E-mail: <span className="text-danger">*</span>
                             <input required type="email" value={form.email} onChange={(event) => update("email", event.target.value)} className={inputClassName} />
                         </label>
 
@@ -159,12 +204,26 @@ export function ProfessionalFormModal({ professional, isCreating = false, onClos
                             </div>
                         </div>
 
+                        <section aria-describedby={fieldErrors.formation ? "formation-error" : undefined}>
+                            <h3 className="text-[11px] font-semibold text-text">Tipo de formação <span className="text-danger">*</span></h3>
+                            <div className="mt-2 grid grid-cols-2 gap-1.5 rounded-xl bg-[#f3f5f1] p-1.5">
+                                <ChoiceCard title="Enfermeiro" description="Graduação em enfermagem" selected={form.formation === "Enfemeiro"} onClick={() => changeFormation("Enfemeiro")} />
+                                <ChoiceCard title="Técnico" description="Formação em nível técnico" selected={form.formation === "Técnico"} onClick={() => changeFormation("Técnico")} />
+                            </div>
+                            {fieldErrors.formation ? <p id="formation-error" role="alert" className="mt-1 text-[10px] text-danger">{fieldErrors.formation}</p> : null}
+                        </section>
+
                         <label className="block text-[11px] font-semibold text-text">
                             Setor fixo <span className="text-danger">*</span>
                             <select
-                                required
                                 value={form.sectorId ?? ""}
-                                onChange={(event) => update("sectorId", event.target.value)}
+                                disabled={!form.formation}
+                                aria-invalid={Boolean(fieldErrors.sectorId)}
+                                aria-describedby="sector-hint"
+                                onChange={(event) => {
+                                    setForm((current) => ({ ...current, sectorId: event.target.value, subsectorId: null }));
+                                    setFieldErrors((current) => ({ ...current, sectorId: undefined, subsectorId: undefined }));
+                                }}
                                 className={inputClassName}
                             >
                                 <option value="" disabled>Selecione um setor</option>
@@ -179,24 +238,45 @@ export function ProfessionalFormModal({ professional, isCreating = false, onClos
                                     <option value={form.sectorId}>{form.sectorName ?? "Setor atual"}</option>
                                 ) : null}
                             </select>
-                            <span className="mt-1 block text-[10px] font-normal leading-tight text-text-muted">
-                                {sectorsError || "O profissional só pode ser escalado neste setor."}
+                            <span id="sector-hint" className={`mt-1 block text-[10px] font-normal leading-tight ${fieldErrors.sectorId ? "text-danger" : "text-text-muted"}`}>
+                                {fieldErrors.sectorId || (!form.formation ? "Escolha o tipo de formação primeiro" : "O profissional só pode ser escalado neste setor.")}
                             </span>
+                            {sectorsError ? <span role="alert" className="mt-1 block text-[10px] font-normal text-danger">{sectorsError}</span> : null}
                         </label>
+
+                        {form.formation === "Técnico" ? (
+                            <label className="block text-[11px] font-semibold text-text">
+                                Sub-setor (opcional)
+                                <select
+                                    value={form.subsectorId ?? ""}
+                                    disabled={!form.sectorId || !selectedSector || (activeSubsectors.length === 0 && !form.subsectorId)}
+                                    aria-invalid={Boolean(fieldErrors.subsectorId)}
+                                    onChange={(event) => {
+                                        update("subsectorId", event.target.value || null);
+                                        setFieldErrors((current) => ({ ...current, subsectorId: undefined }));
+                                    }}
+                                    className={inputClassName}
+                                    aria-describedby="subsector-hint"
+                                >
+                                    <option value="">Nenhum sub-setor</option>
+                                    {activeSubsectors.map((subsector) => (
+                                        <option key={subsector.id} value={subsector.id}>{subsector.name}</option>
+                                    ))}
+                                    {form.subsectorId && !activeSubsectors.some((subsector) => subsector.id === form.subsectorId) ? (
+                                        <option value={form.subsectorId} disabled>{form.subsectorName ?? "Sub-setor atual"} (indisponível)</option>
+                                    ) : null}
+                                </select>
+                                <span id="subsector-hint" className={`mt-1 block text-[10px] font-normal leading-tight ${fieldErrors.subsectorId ? "text-danger" : "text-text-muted"}`}>
+                                    {fieldErrors.subsectorId || (!form.sectorId ? "Escolha um setor primeiro." : selectedSector && activeSubsectors.length === 0 ? (selectedSector.subsectors.length ? "Este setor não tem sub-setores ativos." : "Este setor não tem sub-setores") : "")}
+                                </span>
+                            </label>
+                        ) : null}
 
                         <section>
                             <h3 className="text-[11px] font-semibold text-text">Status do profissional <span className="text-danger">*</span></h3>
                             <div className="mt-2 grid grid-cols-2 gap-1.5 rounded-xl bg-[#f3f5f1] p-1.5">
                                 <ChoiceCard title="Desativado" description="Não participa de novas escalas" selected={!form.status} onClick={() => update("status", false)} />
                                 <ChoiceCard title="Ativo" description="Disponível para participar das escalas" selected={form.status} onClick={() => update("status", true)} />
-                            </div>
-                        </section>
-
-                        <section>
-                            <h3 className="text-[11px] font-semibold text-text">Tipo de formação <span className="text-danger">*</span></h3>
-                            <div className="mt-2 grid grid-cols-2 gap-1.5 rounded-xl bg-[#f3f5f1] p-1.5">
-                                <ChoiceCard title="Enfermeiro" description="Graduação em enfermagem" selected={form.formation === "Enfemeiro"} onClick={() => update("formation", "Enfemeiro" as FormationType)} />
-                                <ChoiceCard title="Técnico" description="Formação em nível técnico" selected={form.formation === "Técnico"} onClick={() => update("formation", "Técnico")} />
                             </div>
                         </section>
 

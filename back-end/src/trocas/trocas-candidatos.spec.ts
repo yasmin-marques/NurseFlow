@@ -77,7 +77,7 @@ describe('equivalência completa candidatos antigos x in-memory', () => {
     const usuarioA = new Types.ObjectId();
     const usuarios = [profA, profB, profC, profD, profE, profF].map((id, indice) => ({
       _id: new Types.ObjectId(), usuarioId: id, coren: `${indice}`, formacao: indice === 2 ? Formacao.TECNICO : Formacao.ENFERMEIRO,
-      tipoVinculo: TipoVinculo.CLT, status: StatusProfissional.ATIVO,
+      tipoVinculo: TipoVinculo.CLT, status: StatusProfissional.ATIVO, setorId: indice === 3 ? setor2 : setor1, subsetorId: null,
     }));
     usuarios[0]._id = profA;
     usuarios[1]._id = profB;
@@ -121,8 +121,8 @@ describe('equivalência completa candidatos antigos x in-memory', () => {
       { _id: escalaAnterior, mes: 9, ano: 2026, status: StatusEscala.PUBLICADA, revisao: 1, versaoPublicada: 1, administradorId: new Types.ObjectId() },
     ];
     const setores = [
-      { _id: setor1, nome: 'Setor 1', turnos: { diurno: { enfermeiros: 1, tecnicos: 0 }, noturno: { enfermeiros: 1, tecnicos: 0 } } },
-      { _id: setor2, nome: 'Setor 2', turnos: { diurno: { enfermeiros: 1, tecnicos: 0 }, noturno: { enfermeiros: 1, tecnicos: 0 } } },
+      { _id: setor1, nome: 'Setor 1', plantao24h: { enfermeiros: 0, tecnicos: 0 } },
+      { _id: setor2, nome: 'Setor 2', plantao24h: { enfermeiros: 0, tecnicos: 0 } },
     ];
     const restricoes = [
       { _id: new Types.ObjectId(), profissionalId: profE, tipo: TipoRestricao.INDISPONIVEL, inicio: new Date('2026-10-01T00:00:00Z'), fim: new Date('2026-10-31T23:59:59Z'), turno: 'noturno' },
@@ -214,6 +214,65 @@ describe('equivalência completa candidatos antigos x in-memory', () => {
     expect(divergencias).toEqual([]);
   });
 
+  it('mantém equivalência por formação, setor fixo e subsetor em ambos os sentidos', async () => {
+    const setorA = new Types.ObjectId();
+    const setorB = new Types.ObjectId();
+    const subA = new Types.ObjectId();
+    const subB = new Types.ObjectId();
+    const casos: { nome: string; formacaoA: Formacao; formacaoB: Formacao; setorA: Types.ObjectId | null; setorB: Types.ObjectId | null; subA: Types.ObjectId | null; subB: Types.ObjectId | null; esperado: string | null }[] = [
+      { nome: 'enfermeiros no mesmo setor', formacaoA: Formacao.ENFERMEIRO, formacaoB: Formacao.ENFERMEIRO, setorA, setorB: setorA, subA: null, subB: null, esperado: null },
+      { nome: 'enfermeiros em setores diferentes', formacaoA: Formacao.ENFERMEIRO, formacaoB: Formacao.ENFERMEIRO, setorA, setorB, subA: null, subB: null, esperado: 'SETOR_DIFERENTE' },
+      { nome: 'técnicos no mesmo subsetor', formacaoA: Formacao.TECNICO, formacaoB: Formacao.TECNICO, setorA, setorB: setorA, subA, subB: subA, esperado: null },
+      { nome: 'técnicos em subsetores diferentes', formacaoA: Formacao.TECNICO, formacaoB: Formacao.TECNICO, setorA, setorB: setorA, subA, subB, esperado: 'SETOR_SUBSETOR_DIFERENTE' },
+      { nome: 'técnicos em setores diferentes', formacaoA: Formacao.TECNICO, formacaoB: Formacao.TECNICO, setorA, setorB, subA: null, subB: null, esperado: 'SETOR_SUBSETOR_DIFERENTE' },
+      { nome: 'técnico com e sem subsetor', formacaoA: Formacao.TECNICO, formacaoB: Formacao.TECNICO, setorA, setorB: setorA, subA, subB: null, esperado: 'SETOR_SUBSETOR_DIFERENTE' },
+      { nome: 'técnicos sem subsetor', formacaoA: Formacao.TECNICO, formacaoB: Formacao.TECNICO, setorA, setorB: setorA, subA: null, subB: null, esperado: null },
+      { nome: 'enfermeiro e técnico', formacaoA: Formacao.ENFERMEIRO, formacaoB: Formacao.TECNICO, setorA, setorB: setorA, subA: null, subB: null, esperado: 'CATEGORIA_DIFERENTE' },
+      { nome: 'técnico e enfermeiro', formacaoA: Formacao.TECNICO, formacaoB: Formacao.ENFERMEIRO, setorA, setorB: setorA, subA: null, subB: null, esperado: 'CATEGORIA_DIFERENTE' },
+      { nome: 'sem setor fixo', formacaoA: Formacao.ENFERMEIRO, formacaoB: Formacao.ENFERMEIRO, setorA: null, setorB: null, subA: null, subB: null, esperado: 'SETOR_AUSENTE' },
+    ];
+    const divergencias: string[] = [];
+    for (const caso of casos) {
+      const escalaId = new Types.ObjectId();
+      const profissionais = [caso.formacaoA, caso.formacaoB].map((formacao, i) => ({
+        _id: new Types.ObjectId(), usuarioId: new Types.ObjectId(), formacao,
+        setorId: i === 0 ? caso.setorA : caso.setorB, subsetorId: i === 0 ? caso.subA : caso.subB,
+        status: StatusProfissional.ATIVO, tipoVinculo: TipoVinculo.CLT,
+      }));
+      const plantoes = [5, 20].map((dia) => ({
+        _id: new Types.ObjectId(), escalaId, setorId: setorA,
+        data: new Date(Date.UTC(2027, 0, dia)), horarioInicio: '07:00', horarioFim: '19:00', duracaoHoras: 12, tipo: TipoPlantao.REGULAR,
+      }));
+      const vinculos = plantoes.map((plantao, i) => ({
+        _id: new Types.ObjectId(), plantaoId: plantao._id, profissionalId: profissionais[i]._id,
+        funcao: profissionais[i].formacao, lideranca: false, origemCobertura: 'regular',
+      }));
+      const escala = { _id: escalaId, mes: 1, ano: 2027, status: StatusEscala.PUBLICADA, revisao: 1, versaoPublicada: 1 };
+      const configuracao = { chave: '2027-01', limiteTrocas: 5, maxExtras: 10, limitePlantoes: 20, maxExtrasConcursado: 10, maxExtrasClt: 10, cargas: { clt_31: { plantoes24h: 10, plantoes12h: 20 } } };
+      const setores = [setorA, setorB].map((_id) => ({ _id, nome: 'Setor', plantao24h: { enfermeiros: 0, tecnicos: 0 } }));
+      const service = new TrocasService(
+        {} as never, collection([]) as never, {} as never, {} as never, {} as never, {} as never,
+        collection(vinculos) as never, collection(plantoes) as never, collection([escala]) as never,
+        collection(profissionais) as never, collection(profissionais.map((p) => ({ _id: p.usuarioId, nome: 'Profissional' }))) as never,
+        collection(setores) as never, collection([]) as never, {} as never, collection([configuracao]) as never, {} as never,
+      );
+      const contexto = await service.prepararContextoValidacaoCandidatos(String(escalaId));
+      const banco = await service.validarPar(String(vinculos[0]._id), String(vinculos[1]._id), 1, 2027);
+      const memoria = await service.validarParEmMemoria(String(vinculos[0]._id), String(vinculos[1]._id), contexto);
+      const relevantes = ['SETOR_AUSENTE', 'SETOR_DIFERENTE', 'SETOR_SUBSETOR_DIFERENTE', 'CATEGORIA_DIFERENTE'];
+      const noBanco = banco.impedimentos.filter((item) => relevantes.includes(item.codigo)).map((item) => item.codigo);
+      const naMemoria = memoria.impedimentos.filter((item) => relevantes.includes(item.codigo)).map((item) => item.codigo);
+      const esperado = caso.esperado ? [caso.esperado] : [];
+      if (JSON.stringify(noBanco) !== JSON.stringify(esperado) || JSON.stringify(naMemoria) !== JSON.stringify(esperado)) {
+        divergencias.push(`${caso.nome}: esperado ${esperado}, banco ${noBanco}, memória ${naMemoria}`);
+      }
+      if (!caso.esperado && (banco.impedimentos.length || memoria.impedimentos.length)) {
+        divergencias.push(`${caso.nome}: impedimentos inesperados: ${JSON.stringify({ banco: banco.impedimentos, memoria: memoria.impedimentos })}`);
+      }
+    }
+    expect(divergencias).toEqual([]);
+  });
+
   it('aprova Ana Beatriz Lima ↔ Igor Vasconcelos Assis em Emergência nos dias 18 e 19/12/2026', async () => {
     const escalaId = new Types.ObjectId();
     const setorId = new Types.ObjectId();
@@ -224,13 +283,13 @@ describe('equivalência completa candidatos antigos x in-memory', () => {
     const paId = new Types.ObjectId();
     const pbId = new Types.ObjectId();
 
-    const ana = { _id: anaId, usuarioId: new Types.ObjectId(), coren: 'CE-10001', formacao: Formacao.ENFERMEIRO, tipoVinculo: TipoVinculo.CONCURSADO, status: StatusProfissional.ATIVO };
-    const igor = { _id: igorId, usuarioId: new Types.ObjectId(), coren: 'CE-EXTRA-IGOR', formacao: Formacao.ENFERMEIRO, tipoVinculo: TipoVinculo.CLT, status: StatusProfissional.ATIVO };
+    const ana = { _id: anaId, usuarioId: new Types.ObjectId(), coren: 'CE-10001', formacao: Formacao.ENFERMEIRO, tipoVinculo: TipoVinculo.CONCURSADO, status: StatusProfissional.ATIVO, setorId, subsetorId: null };
+    const igor = { _id: igorId, usuarioId: new Types.ObjectId(), coren: 'CE-EXTRA-IGOR', formacao: Formacao.ENFERMEIRO, tipoVinculo: TipoVinculo.CLT, status: StatusProfissional.ATIVO, setorId, subsetorId: null };
     const plantaoAna = { _id: paId, escalaId, setorId, data: new Date('2026-12-18T00:00:00Z'), horarioInicio: '07:00', horarioFim: '19:00', duracaoHoras: 12, tipo: TipoPlantao.REGULAR };
     const plantaoIgor = { _id: pbId, escalaId, setorId, data: new Date('2026-12-19T00:00:00Z'), horarioInicio: '19:00', horarioFim: '07:00', duracaoHoras: 12, tipo: TipoPlantao.REGULAR };
     const vinculoAna = { _id: vaId, plantaoId: paId, profissionalId: anaId, funcao: Formacao.ENFERMEIRO, lideranca: false, origemCobertura: 'regular' };
     const vinculoIgor = { _id: vbId, plantaoId: pbId, profissionalId: igorId, funcao: Formacao.ENFERMEIRO, lideranca: false, origemCobertura: 'regular' };
-    const setor = { _id: setorId, nome: 'Emergência', ativo: true, turnos: { diurno: { enfermeiros: 1, tecnicos: 0 }, noturno: { enfermeiros: 1, tecnicos: 0 } } };
+    const setor = { _id: setorId, nome: 'Emergência', ativo: true, plantao24h: { enfermeiros: 1, tecnicos: 0 } };
 
     const contexto = {
       escala: { _id: escalaId, mes: 12, ano: 2026, status: StatusEscala.PUBLICADA, revisao: 1, versaoPublicada: 1, administradorId: new Types.ObjectId() },
@@ -316,8 +375,8 @@ describe('equivalência completa candidatos antigos x in-memory', () => {
       const vinculoBId = new Types.ObjectId();
       const plantaoAId = new Types.ObjectId();
       const plantaoBId = new Types.ObjectId();
-      const profA = { _id: profAId, usuarioId: new Types.ObjectId(), coren: 'CE-A', formacao: formacaoA, tipoVinculo: TipoVinculo.CLT, status: StatusProfissional.ATIVO };
-      const profB = { _id: profBId, usuarioId: new Types.ObjectId(), coren: 'CE-B', formacao: formacaoB, tipoVinculo: TipoVinculo.CLT, status: StatusProfissional.ATIVO };
+      const profA = { _id: profAId, usuarioId: new Types.ObjectId(), coren: 'CE-A', formacao: formacaoA, tipoVinculo: TipoVinculo.CLT, status: StatusProfissional.ATIVO, setorId: setorA, subsetorId: null };
+      const profB = { _id: profBId, usuarioId: new Types.ObjectId(), coren: 'CE-B', formacao: formacaoB, tipoVinculo: TipoVinculo.CLT, status: StatusProfissional.ATIVO, setorId: setorA, subsetorId: null };
       const vinculoA = { _id: vinculoAId, plantaoId: plantaoAId, profissionalId: profAId, funcao: formacaoA, lideranca: false, origemCobertura: 'regular' };
       const vinculoB = { _id: vinculoBId, plantaoId: plantaoBId, profissionalId: profBId, funcao: formacaoB, lideranca: liderancaB, origemCobertura: 'regular' };
       const plantaoA = { _id: plantaoAId, escalaId, setorId: setorA, data: new Date('2026-12-18T00:00:00Z'), horarioInicio: horarioA, horarioFim: horarioA === '19:00' ? '07:00' : '19:00', duracaoHoras: 12, tipo: TipoPlantao.REGULAR };
@@ -330,8 +389,8 @@ describe('equivalência completa candidatos antigos x in-memory', () => {
           profissionaisPorId: new Map([[String(profAId), profA], [String(profBId), profB]]),
           profissionaisPorCategoria: new Map([[formacaoA, [profA]], [formacaoB, [profB]]]),
           setoresPorId: new Map([
-            [String(setorA), { _id: setorA, nome: 'A', turnos: { diurno: { enfermeiros: 0, tecnicos: 0 }, noturno: { enfermeiros: 0, tecnicos: 0 } } }],
-            [String(setorB), { _id: setorB, nome: 'B', turnos: { diurno: { enfermeiros: 0, tecnicos: 0 }, noturno: { enfermeiros: 0, tecnicos: 0 } } }],
+            [String(setorA), { _id: setorA, nome: 'A', plantao24h: { enfermeiros: 0, tecnicos: 0 } }],
+            [String(setorB), { _id: setorB, nome: 'B', plantao24h: { enfermeiros: 0, tecnicos: 0 } }],
           ]),
           restricoesPorProfissional: new Map([[String(profAId), restricoesA]]),
           plantoesPorProfissional: new Map([

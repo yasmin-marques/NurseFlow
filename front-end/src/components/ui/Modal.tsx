@@ -3,8 +3,10 @@ import { useEffect, useRef, type ReactNode } from 'react'
 interface ModalProps {
   id: string
   /** Nome acessível do diálogo. */
-  label: string
+  label?: string
+  labelledBy?: string
   onClose: () => void
+  escapeDisabled?: boolean
   /** Cabeçalho fixo (fica visível enquanto o corpo rola). */
   header: ReactNode
   children: ReactNode
@@ -13,13 +15,15 @@ interface ModalProps {
 const FOCUSABLE = 'button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])'
 
 /** Diálogo centralizado com cabeçalho fixo e corpo rolável; prende o foco e o devolve ao elemento de origem. */
-export function Modal({ id, label, onClose, header, children }: ModalProps) {
+export function Modal({ id, label, labelledBy, onClose, escapeDisabled = false, header, children }: ModalProps) {
   const panelRef = useRef<HTMLElement>(null)
   const onCloseRef = useRef(onClose)
+  const escapeDisabledRef = useRef(escapeDisabled)
 
   useEffect(() => {
     onCloseRef.current = onClose
-  }, [onClose])
+    escapeDisabledRef.current = escapeDisabled
+  }, [onClose, escapeDisabled])
 
   useEffect(() => {
     const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null
@@ -27,7 +31,7 @@ export function Modal({ id, label, onClose, header, children }: ModalProps) {
     document.body.style.overflow = 'hidden'
     panelRef.current?.focus()
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onCloseRef.current()
+      if (event.key === 'Escape' && !escapeDisabledRef.current) onCloseRef.current()
       if (event.key !== 'Tab' || !panelRef.current) return
       const focusable = [...panelRef.current.querySelectorAll<HTMLElement>(FOCUSABLE)]
       if (!focusable.length) return
@@ -57,9 +61,10 @@ export function Modal({ id, label, onClose, header, children }: ModalProps) {
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
-        aria-label={label}
+        aria-label={labelledBy ? undefined : label}
+        aria-labelledby={labelledBy}
         data-modal-id={id}
-        className="relative flex max-h-[min(52rem,calc(100dvh-2rem))] w-full max-w-[44rem] flex-col overflow-hidden rounded-3xl bg-surface shadow-[0_24px_64px_rgba(22,29,24,0.24)] outline-none"
+        className="relative flex max-h-[calc(100dvh-2rem)] w-full max-w-105 flex-col overflow-hidden rounded-panel bg-surface shadow-[0_20px_48px_rgba(22,29,24,0.18)] outline-none animate-[modal-in_180ms_ease-out]"
       >
         <div className="shrink-0">{header}</div>
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain" data-testid="modal-body">{children}</div>

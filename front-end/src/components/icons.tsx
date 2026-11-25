@@ -175,6 +175,17 @@ export function Bell(props: IconProps) {
   )
 }
 
+export function BellOff(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="m2 2 20 20" />
+      <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+      <path d="M18.63 18H3s3-2 3-9c0-.8.13-1.55.37-2.24" />
+      <path d="M6.26 6.26A6 6 0 0 1 18 8c0 2.05.25 3.7.73 5" />
+    </Icon>
+  )
+}
+
 export function Search(props: IconProps) {
   return (
     <Icon {...props}>
@@ -243,6 +254,16 @@ export function Download(props: IconProps) {
     <Icon {...props}>
       <path d="M12 3v12" />
       <path d="m7 10 5 5 5-5" />
+      <path d="M5 21h14" />
+    </Icon>
+  )
+}
+
+export function Upload(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M12 15V3" />
+      <path d="m7 8 5-5 5 5" />
       <path d="M5 21h14" />
     </Icon>
   )

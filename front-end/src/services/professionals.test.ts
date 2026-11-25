@@ -54,4 +54,15 @@ describe('services/professionals', () => {
     await updateProfessional({ ...p, status: true })
     expect(calls[1].body).toMatchObject({ status: 'ativo' })
   })
+
+  it('preserva o subsetor na leitura e envia sua alteração ou remoção', async () => {
+    mockBackend(() => page([apiPro({ formacao: 'tecnico', setorId: 's1', subsetorId: 'sub1', subsetorNome: 'Adulto' })]))
+    const [p] = await listProfessionals()
+    expect(p).toMatchObject({ subsectorId: 'sub1', subsectorName: 'Adulto' })
+    const { calls } = mockBackend(() => ({ body: apiPro() }))
+    await updateProfessional(p)
+    await updateProfessional({ ...p, subsectorId: null })
+    await updateProfessional({ ...p, formation: 'Enfemeiro' })
+    expect(calls.map((call) => (call.body as Record<string, unknown>).subsetorId)).toEqual(['sub1', null, null])
+  })
 })

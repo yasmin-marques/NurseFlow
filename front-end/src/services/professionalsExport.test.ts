@@ -38,20 +38,20 @@ describe('applyProfessionalView (base da exportação)', () => {
     expect(view({ sort: 'desc' })[0].name).toBe('Elisa Melo')
   })
   it('filtra por formação, vínculo e cada situação', () => {
-    expect(view({ formation: 'Enfemeiro' })).toHaveLength(3)
-    expect(view({ formation: 'Técnico' })).toHaveLength(2)
-    expect(view({ bond: 'RPA' }).map((p) => p.name)).toEqual(['Carla Rocha'])
+    expect(view({ formation: ['Enfemeiro'] })).toHaveLength(3)
+    expect(view({ formation: ['Técnico'] })).toHaveLength(2)
+    expect(view({ bond: ['RPA'] }).map((p) => p.name)).toEqual(['Carla Rocha'])
     for (const status of ['ativo', 'desativado', 'afastado', 'ferias'] as const) {
-      expect(view({ status }).every((p) => p.apiStatus === status)).toBe(true)
+      expect(view({ status: [status] }).every((p) => p.apiStatus === status)).toBe(true)
     }
-    expect(view({ status: 'ferias' }).map((p) => p.name)).toEqual(['Bruno João'])
+    expect(view({ status: ['ferias'] }).map((p) => p.name)).toEqual(['Bruno João'])
   })
   it('combina filtros e busca por nome, COREN ou CPF', () => {
-    expect(view({ formation: 'Técnico', status: 'afastado' }).map((p) => p.name)).toEqual(['Diego Alves'])
+    expect(view({ formation: ['Técnico'], status: ['afastado'] }).map((p) => p.name)).toEqual(['Diego Alves'])
     expect(view({}, 'carla').map((p) => p.name)).toEqual(['Carla Rocha'])
     expect(view({}, 'ce-10002').map((p) => p.name)).toEqual(['Bruno João'])
     expect(view({}, '11144477735').map((p) => p.name)).toEqual(['Carla Rocha'])
-    expect(view({ formation: 'Técnico' }, 'ana')).toEqual([])
+    expect(view({ formation: ['Técnico'] }, 'ana')).toEqual([])
   })
 })
 
@@ -80,7 +80,7 @@ describe('buildProfessionalsWorkbook', () => {
   })
 
   it('exporta somente o recorte recebido, respeitando a ordem', async () => {
-    const sheet = await roundTrip(view({ formation: 'Técnico', sort: 'desc' }))
+    const sheet = await roundTrip(view({ formation: ['Técnico'], sort: 'desc' }))
     expect(sheet.rowCount).toBe(3)
     expect([2, 3].map((n) => sheet.getRow(n).getCell(1).value)).toEqual(['Diego Alves', 'Bruno João'])
   })

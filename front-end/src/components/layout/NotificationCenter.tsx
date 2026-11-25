@@ -153,7 +153,7 @@ export function NotificationCenter({ onOpenExchange }: { onOpenExchange?: (id: s
       >
         <Bell className="size-4" strokeWidth={1.8} />
         {indicator.hasUnread ? (
-          <span className="absolute right-1 top-1 size-2 rounded-full bg-danger ring-2 ring-white" aria-hidden />
+          <span className="absolute right-1 top-1 size-2 shrink-0 rounded-full bg-danger box-border ring-2 ring-white" aria-hidden />
         ) : null}
       </button>
 

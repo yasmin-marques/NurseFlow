@@ -28,7 +28,7 @@ export function minimumSummary(sector: Sector) {
     );
 
     if (sector.hasSubsectors) {
-        return nurses;
+        return `${nurses} · técnicos distribuídos por subsetor`;
     }
 
     return `${nurses} · ${plural(

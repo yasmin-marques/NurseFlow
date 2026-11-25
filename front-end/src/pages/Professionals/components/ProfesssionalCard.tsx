@@ -1,5 +1,15 @@
 import { ChevronRight } from "../../../components/icons";
+import { ProfessionalAvatar } from "../../../components/ui/ProfessionalAvatar";
+import { ProfessionalStatusIndicator } from "../../../components/ui/ProfessionalStatusIndicator";
 import type { Professional } from "../types";
+
+function BondBadge({ bond }: { bond: Professional["bond"] }) {
+    return (
+        <div className="box-border inline-flex h-7 min-w-24 w-fit items-center justify-center rounded-md bg-neutral px-3 text-xs font-semibold text-gray-600 sm:justify-self-center">
+            {bond}
+        </div>
+    );
+}
 
 export function ProfessionalCard({
     onEdit,
@@ -11,37 +21,32 @@ export function ProfessionalCard({
         : nameParts[0]?.[0] ?? "";
 
     return (
-        <div className="grid grid-cols-1 items-center gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <div className="flex gap-4 items-center">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-sm font-bold text-white">
-                    {initials.toUpperCase()}
-                </div>
-                <div>
-                    <h3 className="font-bold text-base">{professional.name}</h3>
-                    <p className="text-sm text-text-muted">{professional.formation}</p>
+        <div className="relative box-border grid min-w-0 grid-cols-1 items-center gap-3 rounded-xl bg-white px-4.25 py-3.5 transition-colors duration-150 hover:bg-neutral has-focus-visible:bg-neutral motion-reduce:transition-none sm:grid-cols-2 sm:px-6.25 xl:grid-cols-4">
+            <button
+                type="button"
+                aria-label={`Abrir perfil de ${professional.name}`}
+                onClick={() => onEdit(professional)}
+                className="absolute inset-0 rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+            />
+            <div className="flex min-w-0 items-center gap-3">
+                <ProfessionalAvatar initials={initials.toUpperCase()} />
+                <div className="min-w-0">
+                    <h3 className="wrap-break-word text-sm font-semibold text-text">{professional.name}</h3>
+                    <p className="text-xs text-text">{professional.formation === "Enfemeiro" ? "Enfermeiro" : professional.formation}</p>
                 </div>
             </div>
-            <div className="bg-border flex w-fit items-center justify-center rounded-2xl p-2 text-sm text-text-muted sm:justify-self-center">
-                {professional.bond}
-            </div>
+            <BondBadge bond={professional.bond} />
             <div className="sm:justify-self-center">
-                {professional.status ? (
-                    <div className="flex gap-2 items-center">
-                        <div className="w-3 h-3 bg-primary rounded-full"></div>
-                        <p className="font-bold text-primary">Ativo</p>
-                    </div>
-                ) : (
-                    <div className="flex gap-2 items-center">
-                        <div className="w-3 h-3 bg-text-muted rounded-full"></div>
-                        <p className="font-bold text-text-muted">Inativo</p>
-                    </div>
-                )}
+                <ProfessionalStatusIndicator active={professional.status} label={professional.status ? "Ativo" : "Inativo"} />
             </div>
             <button
                 type="button"
                 aria-label={`Editar profissional ${professional.name}`}
-                onClick={() => onEdit(professional)}
-                className="rounded-lg p-2 text-text-muted hover:bg-card-header hover:text-primary sm:justify-self-end"
+                onClick={(event) => {
+                    event.stopPropagation();
+                    onEdit(professional);
+                }}
+                className="relative w-fit rounded-lg p-2 text-text hover:bg-card-header hover:text-primary-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary sm:justify-self-end"
             >
                 <ChevronRight />
             </button>

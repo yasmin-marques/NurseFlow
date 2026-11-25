@@ -2,10 +2,9 @@
 //
 // Regras verificadas:
 //   1. profissional sem setor (ou com setor inexistente);
-//   2. técnico de setor COM subsetores sem subsetor;
-//   3. técnico com subsetor em setor SEM subsetores;
-//   4. enfermeiro com subsetor (enfermeiro é vinculado só ao setor);
-//   5. subsetor inexistente, inativo ou pertencente a OUTRO setor.
+//   2. técnico com subsetor em setor SEM subsetores;
+//   3. enfermeiro com subsetor (enfermeiro é vinculado só ao setor);
+//   4. subsetor inexistente, inativo ou pertencente a OUTRO setor.
 //
 // Também alerta sobre setores com subsetores cujo mínimo derivado (plantao24h.tecnicos) diverge da soma dos subsetores ativos.
 // Uso: npm run vinculos:pendencias   (termina com código 1 se houver pendências)
@@ -31,7 +30,6 @@ function diagnosticar({ setores, subsetores, profissionais, nomes = new Map() })
     else if (subsetor && String(subsetor.setorId) !== String(setor._id)) adicionar(p, `subsetor "${subsetor.nome}" pertence a outro setor`);
     else if (subsetor && !subsetor.ativo) adicionar(p, `subsetor "${subsetor.nome}" inativo`);
     else if (p.formacao === 'enfermeiro' && p.subsetorId) adicionar(p, 'enfermeiro não deve ter subsetor');
-    else if (p.formacao === 'tecnico' && setor.possuiSubsetores && !p.subsetorId) adicionar(p, `técnico sem subsetor (setor "${setor.nome}" possui subsetores)`);
     else if (p.formacao === 'tecnico' && !setor.possuiSubsetores && p.subsetorId) adicionar(p, `setor "${setor.nome}" não possui subsetores`);
   }
 

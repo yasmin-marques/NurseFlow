@@ -11,6 +11,7 @@ import { TipoUsuario } from '../src/usuarios/schemas/usuario.schema';
 import { UsuariosService } from '../src/usuarios/usuarios.service';
 import { aplicarMigrations, criarSolicitacaoAceitaFixture, type BancoDeTeste, iniciarBanco } from './helpers';
 import { NotificacaoTroca } from '../src/escalas/schemas';
+import { TrocasService } from '../src/trocas/trocas.service';
 
 const SENHA = 'senha-de-teste-123';
 
@@ -64,7 +65,7 @@ describe('Trocas administrativas (e2e)', () => {
     const admin = await mongo.db().collection('administradores').findOne({ usuarioId: new mongoose.Types.ObjectId(coord.id) });
     administradorId = admin!._id as mongoose.Types.ObjectId;
     escalaId = new mongoose.Types.ObjectId();
-    const setor = await http.post('/setores').set(auth(tokenCoord)).send({ nome: 'Unidade de teste de trocas', turnos: { diurno: { enfermeiros: 0, tecnicos: 0 }, noturno: { enfermeiros: 0, tecnicos: 0 } } }).expect(201);
+    const setor = setorTrocas;
     setorId = new mongoose.Types.ObjectId(setor.body.id);
     const plantaoA = new mongoose.Types.ObjectId(); const plantaoB = new mongoose.Types.ObjectId();
     const db = mongo.db();
@@ -474,11 +475,9 @@ describe('Trocas administrativas (e2e)', () => {
     const idEscala = new mongoose.Types.ObjectId();
     const linkA = new mongoose.Types.ObjectId(); const linkB = new mongoose.Types.ObjectId();
     const shiftA = new mongoose.Types.ObjectId(); const shiftB = new mongoose.Types.ObjectId();
-    const setorB = await http.post('/setores').set(auth(tokenCoord)).send({ nome: 'Setor B de troca Enfermeiro', turnos: { diurno: { enfermeiros: 1, tecnicos: 0 }, noturno: { enfermeiros: 1, tecnicos: 0 } } }).expect(201);
-    const setorBId = new mongoose.Types.ObjectId(setorB.body.id);
     const plantoes = [
       { _id: shiftA, escalaId: idEscala, setorId, data: new Date('2027-01-18T00:00:00Z'), horarioInicio: '07:00', horarioFim: '19:00', duracaoHoras: 12, tipo: 'regular' },
-      { _id: shiftB, escalaId: idEscala, setorId: setorBId, data: new Date('2027-01-19T00:00:00Z'), horarioInicio: '07:00', horarioFim: '19:00', duracaoHoras: 12, tipo: 'regular' },
+      { _id: shiftB, escalaId: idEscala, setorId, data: new Date('2027-01-19T00:00:00Z'), horarioInicio: '07:00', horarioFim: '19:00', duracaoHoras: 12, tipo: 'regular' },
     ];
     const vinculos = [
       { _id: linkA, plantaoId: shiftA, profissionalId: ids.profissionalA, funcao: 'enfermeiro', lideranca: false, origemCobertura: 'regular' },
@@ -489,6 +488,12 @@ describe('Trocas administrativas (e2e)', () => {
     await db.collection('profissionaisRelacionados').insertMany(vinculos);
     await db.collection('versoesEscala').insertOne({ escalaId: idEscala, numero: 1, mes: month, ano: year, publicadoPor: administradorId, publicadoEm: new Date(),
       snapshot: { escala: { _id: idEscala, mes: month, ano: year, status: 'publicada', revisao: 1, versaoPublicada: 1, geracao: {} }, plantoes, profissionaisRelacionados: vinculos, pendencias: [], conflitos: [], avisos: [], cargas: [] }, pendenciasConfirmadas: false });
+    const outroSetor = await http.post('/setores').set(auth(tokenCoord)).send({ nome: 'Outro setor de enfermeiros', plantao24h: { enfermeiros: 0, tecnicos: 0 } }).expect(201);
+    await db.collection('profissionaisDaSaude').updateOne({ _id: ids.profissionalB }, { $set: { setorId: new mongoose.Types.ObjectId(outroSetor.body.id) } });
+    expect((await http.get(`/trocas/minhas/plantoes/${linkA}/candidatos`).set(auth(tokenEnfermeiro)).expect(200)).body.itens).toHaveLength(0);
+    const incompativel = await http.post('/trocas/minhas').set(auth(tokenEnfermeiro)).send({ vinculoSolicitanteId: String(linkA), vinculoSolicitadoId: String(linkB), versaoOficialEsperada: 1, operacaoId: randomUUID() }).expect(422);
+    expect(JSON.stringify(incompativel.body)).toMatch(/mesmo setor/);
+    await db.collection('profissionaisDaSaude').updateOne({ _id: ids.profissionalB }, { $set: { setorId } });
     const candidatos = await http.get(`/trocas/minhas/plantoes/${linkA}/candidatos`).set(auth(tokenEnfermeiro)).expect(200);
     expect(candidatos.body.itens).toHaveLength(1);
     expect(candidatos.body.itens[0]).toMatchObject({ vinculoId: String(linkB), profissional: { nome: 'Beatriz Lima' } });
@@ -503,6 +508,11 @@ describe('Trocas administrativas (e2e)', () => {
     const before = await http.get('/trocas?status=pendentes&pagina=1&limite=50').set(auth(tokenCoord)).expect(200);
     expect(before.body.itens.map((item: { id: string }) => item.id)).not.toContain(created.body.id);
     const acceptOperationId = randomUUID();
+    await db.collection('profissionaisDaSaude').updateOne({ _id: ids.profissionalB }, { $set: { setorId: new mongoose.Types.ObjectId(outroSetor.body.id) } });
+    const aceiteBloqueado = await http.post(`/trocas/minhas/${created.body.id}/aceite`).set(auth(tokenEnfermeiraB)).send({ operacaoId: randomUUID() }).expect(422);
+    expect(JSON.stringify(aceiteBloqueado.body)).toMatch(/mesmo setor/);
+    expect((await db.collection('solicitacoesTroca').findOne({ _id: new mongoose.Types.ObjectId(created.body.id) }))?.status).toBe('aguardando_resposta');
+    await db.collection('profissionaisDaSaude').updateOne({ _id: ids.profissionalB }, { $set: { setorId } });
     await http.post(`/trocas/minhas/${created.body.id}/aceite`).set(auth(tokenEnfermeiraB)).send({ operacaoId: acceptOperationId }).expect(200);
     await http.post(`/trocas/minhas/${created.body.id}/aceite`).set(auth(tokenEnfermeiraB)).send({ operacaoId: acceptOperationId }).expect(200);
     expect(await db.collection('eventosTrocaProfissional').countDocuments({ operacaoId: acceptOperationId })).toBe(1);
@@ -516,6 +526,12 @@ describe('Trocas administrativas (e2e)', () => {
       operacaoId: randomUUID() }).expect(422);
     expect((await db.collection('solicitacoesTroca').findOne({ _id: new mongoose.Types.ObjectId(created.body.id) }))?.status).toBe('aguardando_coordenacao');
     await db.collection('escalas').updateOne({ _id: idEscala }, { $set: { status: 'publicada' } });
+    await db.collection('profissionaisDaSaude').updateOne({ _id: ids.profissionalB }, { $set: { setorId: new mongoose.Types.ObjectId(outroSetor.body.id) } });
+    const bloqueada = await http.get(`/trocas/${created.body.id}/validacao`).set(auth(tokenCoord)).expect(200);
+    expect(bloqueada.body.impedimentos).toEqual(expect.arrayContaining([expect.objectContaining({ codigo: 'SETOR_DIFERENTE' })]));
+    await http.post(`/trocas/${created.body.id}/aprovar`).set(auth(tokenCoord)).send({ revisaoEsperada: bloqueada.body.revisaoEsperada, operacaoId: randomUUID() }).expect(422);
+    expect((await db.collection('solicitacoesTroca').findOne({ _id: new mongoose.Types.ObjectId(created.body.id) }))?.status).toBe('aguardando_coordenacao');
+    await db.collection('profissionaisDaSaude').updateOne({ _id: ids.profissionalB }, { $set: { setorId } });
     const validation = await http.get(`/trocas/${created.body.id}/validacao`).set(auth(tokenCoord)).expect(200);
     await http.post(`/trocas/${created.body.id}/aprovar`).set(auth(tokenCoord)).send({ revisaoEsperada: validation.body.revisaoEsperada, operacaoId: randomUUID() }).expect(200);
     expect((await db.collection('profissionaisRelacionados').findOne({ _id: linkA }))!.profissionalId.toString()).toBe(String(ids.profissionalB));
@@ -573,10 +589,16 @@ describe('Trocas administrativas (e2e)', () => {
     await db.collection('configuracoes').updateOne({ chave: '2027-02' }, { $set: { limiteTrocas: 3, limitePlantoes: 20, cargas: { clt_28: { plantoes24h: 20, plantoes12h: 20 } } } }, { upsert: true });
     const escalaIdTecnicos = new mongoose.Types.ObjectId();
     await db.collection('escalas').insertOne({ _id: escalaIdTecnicos, administradorId, mes: 2, ano: 2027, status: 'publicada', revisao: 1, versaoPublicada: 1, dataCriacao: new Date(), geracao: {} });
-    const setorA = await http.post('/setores').set(auth(tokenCoord)).send({ nome: 'UTI Técnica A', turnos: { diurno: { enfermeiros: 0, tecnicos: 0 }, noturno: { enfermeiros: 0, tecnicos: 0 } } }).expect(201);
-    const setorB = await http.post('/setores').set(auth(tokenCoord)).send({ nome: 'UTI Técnica B', turnos: { diurno: { enfermeiros: 0, tecnicos: 0 }, noturno: { enfermeiros: 0, tecnicos: 0 } } }).expect(201);
-    const setorAId = new mongoose.Types.ObjectId(setorA.body.id);
-    const setorBId = new mongoose.Types.ObjectId(setorB.body.id);
+    const setorTecnico = await http.post('/setores').set(auth(tokenCoord)).send({
+      nome: 'Setor de técnicos com subsetores', plantao24h: { enfermeiros: 0 },
+      subsetores: [{ nome: 'Adulto', plantao24h: { tecnicos: 0 } }, { nome: 'Infantil', plantao24h: { tecnicos: 0 } }],
+    }).expect(201);
+    const setorAId = new mongoose.Types.ObjectId(setorTecnico.body.id);
+    const setorBId = setorAId;
+    const subA = new mongoose.Types.ObjectId(setorTecnico.body.subsetores[0].id);
+    const subB = new mongoose.Types.ObjectId(setorTecnico.body.subsetores[1].id);
+    await db.collection('profissionaisDaSaude').updateOne({ _id: tecnicoAId }, { $set: { setorId: setorAId, subsetorId: subA } });
+    await db.collection('profissionaisDaSaude').updateOne({ _id: tecnicoBId }, { $set: { setorId: setorAId, subsetorId: subB } });
     const plantaoTecnicoA = new mongoose.Types.ObjectId();
     const plantaoTecnicoB = new mongoose.Types.ObjectId();
     const enfermeiroNoTecnico = new mongoose.Types.ObjectId();
@@ -601,6 +623,17 @@ describe('Trocas administrativas (e2e)', () => {
     };
     await db.collection('versoesEscala').updateOne({ escalaId: escalaIdTecnicos, numero: 1 }, { $set: { escalaId: escalaIdTecnicos, numero: 1, mes: 2, ano: 2027, publicadoPor: administradorId, publicadoEm: new Date(), snapshot, pendenciasConfirmadas: false } }, { upsert: true });
 
+    const validacaoPesada = jest.spyOn(app.get(TrocasService), 'validarParEmMemoria');
+    const diferentes = await http.get(`/trocas/minhas/plantoes/${vinculoTecnicoA}/candidatos`).set(auth(tokenTecnicoA)).expect(200);
+    expect(diferentes.body.itens.map((item: { vinculoId: string }) => item.vinculoId)).not.toContain(String(vinculoTecnicoB));
+    expect(validacaoPesada.mock.calls.some((args) => args[1] === String(vinculoTecnicoB))).toBe(false);
+    validacaoPesada.mockRestore();
+    const recusada = await http.post('/trocas/minhas').set(auth(tokenTecnicoA)).send({ vinculoSolicitanteId: String(vinculoTecnicoA), vinculoSolicitadoId: String(vinculoTecnicoB), versaoOficialEsperada: 1, operacaoId: randomUUID() }).expect(422);
+    expect(JSON.stringify(recusada.body)).toMatch(/mesmo setor e sub-setor/);
+    await db.collection('profissionaisDaSaude').updateOne({ _id: tecnicoBId }, { $set: { subsetorId: null } });
+    const semSubsetor = await http.get(`/trocas/minhas/plantoes/${vinculoTecnicoA}/candidatos`).set(auth(tokenTecnicoA)).expect(200);
+    expect(semSubsetor.body.itens.map((item: { vinculoId: string }) => item.vinculoId)).not.toContain(String(vinculoTecnicoB));
+    await db.collection('profissionaisDaSaude').updateOne({ _id: tecnicoBId }, { $set: { subsetorId: subA } });
     const candidatos = await http.get(`/trocas/minhas/plantoes/${vinculoTecnicoA}/candidatos`).set(auth(tokenTecnicoA)).expect(200);
     expect(candidatos.body.itens.map((item: { vinculoId: string }) => item.vinculoId)).toContain(String(vinculoTecnicoB));
     expect(candidatos.body.itens.map((item: { vinculoId: string }) => item.vinculoId)).not.toContain(String(vinculoEnfermeiro));

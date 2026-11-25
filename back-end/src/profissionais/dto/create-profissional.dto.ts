@@ -44,7 +44,7 @@ export class CreateProfissionalDto {
   @ApiPropertyOptional({
     nullable: true,
     description:
-      'Subsetor do técnico (deve pertencer ao setor). Obrigatório para técnico de setor com subsetores; não informar para técnico de setor sem subsetores nem para enfermeiro.',
+      'Subsetor opcional do técnico (deve pertencer ao setor e estar ativo); não informar para enfermeiro.',
   })
   @IsOptional()
   @IsMongoId({ message: 'Subsetor inválido' })
