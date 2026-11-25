@@ -7,6 +7,7 @@ import { EscalaSnapshotService, isSnapshotEscala, type SnapshotEscala } from '..
 import {
   Escala,
   NotificacaoEscala,
+  StatusEscala,
   VersaoEscala,
 } from '../escalas/schemas';
 
@@ -61,6 +62,7 @@ export class NotificacoesEscalaService {
   async obterVersaoNotificada(escalaId: string, numero: number, usuarioId: string) {
     const escala = await this.escalas.findById(escalaId).lean().exec();
     if (!escala) throw new NotFoundException('Escala não encontrada.');
+    if (escala.status === StatusEscala.EXCLUIDA) throw new NotFoundException('Escala não encontrada.');
     const escalaObjectId = new Types.ObjectId(escalaId);
     const destinatarioId = new Types.ObjectId(usuarioId);
     const notificacao = await this.notificacoes

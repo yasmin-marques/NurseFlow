@@ -153,7 +153,7 @@ export function NotificationCenter({ onOpenExchange }: { onOpenExchange?: (id: s
       >
         <Bell className="size-4" strokeWidth={1.8} />
         {indicator.hasUnread ? (
-          <span className="absolute right-1 top-1 size-2 rounded-full bg-danger ring-2 ring-white" aria-hidden />
+          <span className="absolute right-1 top-1 size-2 shrink-0 rounded-full bg-danger box-border ring-2 ring-white" aria-hidden />
         ) : null}
       </button>
 
@@ -195,7 +195,7 @@ export function NotificationCenter({ onOpenExchange }: { onOpenExchange?: (id: s
                           {formatDate.format(new Date(`${shift.data}T00:00:00.000Z`))} · {shift.setor.nome}
                         </p>
                         <p className="mt-1 text-text-muted">
-                          {shift.horarioInicio}–{shift.horarioFim} · {shift.tipo === 'extra' ? 'Extra' : 'Regular'}
+                          {shift.horarioInicio} – {shift.horarioFim} · {shift.tipo === 'extra' ? 'Extra' : 'Regular'}
                         </p>
                         <p className="mt-1 text-text">
                           {shift.profissionais.map((professional) => professional.nome).join(', ') || 'Sem profissionais alocados'}

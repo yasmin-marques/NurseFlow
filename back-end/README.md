@@ -59,6 +59,7 @@ As migrations são idempotentes e funcionam tanto em um banco criado por `db/mon
 | `20261014000007-ciclo-vida-escalas` | Estados e revisões de escala, snapshots oficiais, auditoria, notificações e índices únicos para período, versões e eventos por destinatário |
 | `20261030000008-anos-escalas-independentes` | Permite escalas e versões em qualquer ano civil de quatro dígitos |
 | `20261119000012-setores-minimo-plantao-24h` | Consolida os quantitativos de diurno/noturno no maior mínimo por função em `plantao24h`; escalas automáticas regulares usam o regime 24x72 |
+| `20261122000015-escalas-exclusao-recriacao` | Permite marcar escalas como excluídas e recriar escalas no mesmo período |
 
 ### Primeira conta de Coordenação
 
@@ -91,9 +92,7 @@ Swagger/OpenAPI: **http://localhost:3000/docs** (use *Authorize* com o `accessTo
 
 ## Contrato e implantação do otimizador
 
-O backend e o serviço Python usam o contrato versionado **v4** (v4 acrescenta `profissionais[].setor_id`, o setor fixo
-obrigatório, e `plantao24h` por setor; contratos anteriores não são compatíveis). Toda requisição de geração
-envia `versao_contrato: 4`, `capacidades: ["alocacoes_fixas"]` e `alocacoes_fixas`.
+O backend e o serviço Python usam o contrato versionado **v6**. A v6 permite plantões regulares de 12h para cobrir somente o turno correspondente, retorna lacunas por turno e prioriza a carga regular após a cobertura mínima. Toda requisição de geração envia `versao_contrato: 6`, `capacidades: ["alocacoes_fixas"]` e `alocacoes_fixas`.
 Cada alocação fixa contém `extra_id`, `profissional_id`, `setor_id`, `dia`, `opcao` (`12d`,
 `12n` ou `24h`) e `tipo: "extra"`. A resposta mantém a versão/capacidade e identifica a
 alocação efetiva por `extra_id` quando ela é um extra programado.
@@ -101,9 +100,9 @@ alocação efetiva por `extra_id` quando ela é um extra programado.
 O rollout compatível é:
 
 1. Aplicar migrations e índices do backend.
-2. Publicar o optimizer v2 em uma instância não roteada e verificar `GET /saude`.
-3. Verificar o contrato v2 em uma chamada de integração, incluindo `alocacoes_fixas`.
-4. Publicar o backend que envia e valida o contrato v2 e só então direcionar tráfego para
+2. Publicar o optimizer v6 em uma instância não roteada e verificar `GET /saude`.
+3. Verificar o contrato v6 em uma chamada de integração, incluindo alocações fixas e lacunas por turno.
+4. Publicar o backend que envia e valida o contrato v6 e só então direcionar tráfego para
    as instâncias novas.
 5. Publicar a interface depois de backend e optimizer estarem compatíveis.
 
@@ -150,9 +149,11 @@ Erros seguem um formato único: `{ statusCode, error, message, details?, path, t
 | PATCH | `/profissionais/:id` | Edição parcial (DA03) |
 | PATCH | `/profissionais/:id/desativar` | Desativação lógica (DA04). Nunca há DELETE físico |
 
-Campos: `nome`, `cpf` (com ou sem máscara; armazenado só com dígitos, devolvido como `000.000.000-00`), `email`, `coren` (normalizado em maiúsculas), `formacao` (`enfermeiro`\|`tecnico`), `tipoVinculo` (`concursado`\|`clt`\|`rpa`), `status` (`ativo`\|`desativado`\|`afastado`\|`ferias`), `senha` (opcional no cadastro).
+Campos: `nome`, `cpf` (com ou sem máscara; armazenado só com dígitos, devolvido como `000.000.000-00`), `email`, `coren` (normalizado em maiúsculas), `formacao` (`enfermeiro`\|`tecnico`), `tipoVinculo` (`concursado`\|`clt`\|`rpa`), `status` (`ativo`\|`desativado`\|`afastado`\|`ferias`).
 
-Se `senha` for omitida, o sistema gera uma senha aleatória descartável (`senhaTemporaria: true`) e o profissional define a sua via `recuperar-senha` / `redefinir-senha`.
+A senha inicial de todo novo profissional (cadastro manual e importação) é a definida em `PROFISSIONAL_SENHA_PADRAO` no `.env` (8–72 caracteres); o campo `senha` não é aceito.
+
+O hash é gravado com `senhaTemporaria: true`; a senha nunca é devolvida pela API nem registrada em log. Sem a variável configurada o cadastro responde 500. Na importação, apenas profissionais novos recebem a senha padrão; os existentes mantêm a sua.
 
 ### `/setores`
 

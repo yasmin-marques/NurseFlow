@@ -8,43 +8,19 @@ import { SettingRow } from './components/SettingRow'
 import { SettingsCard } from './components/SettingsCard'
 import { useSettings } from './useSettings'
 
-type SettingsPageProps = {
-  searchQuery?: string
-}
-
-export function SettingsPage({ searchQuery = '' }: SettingsPageProps) {
+export function SettingsPage() {
   const { draft, isDirty, isLoading, loadError, isSaving, toast, update, discard, save, reload } = useSettings()
-  const query = searchQuery.trim().toLocaleLowerCase('pt-BR')
-  const matches = (...values: string[]) =>
-    !query || values.some((value) => value.toLocaleLowerCase('pt-BR').includes(query))
-
-  const showSwapLimit = matches('Trocas Limites e fluxo de aprovação') ||
-    matches('Limite por profissional', 'Quantidade máxima de trocas no período')
-  const showCoordinatorApproval = matches('Trocas Limites e fluxo de aprovação') ||
-    matches('Aprovação da coordenação', 'Toda troca aceita pelo colega passa por validação')
-  const showSwapSettings = showSwapLimit || showCoordinatorApproval
-
-  const showWorkloadSection = matches(
-    'Carga e limites de plantões Parâmetros por tipo de vínculo',
-  )
-  const showConcursado = showWorkloadSection ||
-    matches('Concursado Carga fixa 6 plantões de 24h + 1 de 12h 7 alocações 156 horas regulares')
-  const showClt = showWorkloadSection ||
-    matches('CLT Carga fixa 8 plantões de 24h 8 cargas para meses de 30 ou 31 dias')
-  const showRpa = showWorkloadSection ||
-    matches('RPA Cobertura Sem carga regular fixa Alocação conforme cobertura programada Sem limite')
-  const showAbsenceExtras = showWorkloadSection ||
-    matches('Gerar extras para férias e ausências', 'Cria automaticamente sugestões de cobertura para manter o quantitativo')
-  const showCoverageLimit = showWorkloadSection ||
-    matches('Contabilizar coberturas no limite de extras', 'Ao exceder o limite, a Coordenação recebe um alerta e pode registrar exceção')
-  const showWorkloadSettings =
-    showConcursado || showClt || showRpa || showAbsenceExtras || showCoverageLimit
-
-  const showPublicationNotification = matches(
-    'Notificações Notificações após publicação de escala',
-  ) || matches('Notificar ao publicar', 'Envia aviso para todos os profissionais')
-  const showAnySettings =
-    showSwapSettings || showWorkloadSettings || showPublicationNotification
+  const showSwapLimit = true
+  const showCoordinatorApproval = true
+  const showSwapSettings = true
+  const showConcursado = true
+  const showClt = true
+  const showRpa = true
+  const showAbsenceExtras = true
+  const showCoverageLimit = true
+  const showWorkloadSettings = true
+  const showPublicationNotification = true
+  const showAnySettings = true
 
   return (
     <div className="flex min-h-full w-full flex-col px-5 py-6 sm:px-7 lg:px-10 xl:px-12">

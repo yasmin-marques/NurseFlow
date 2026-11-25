@@ -1,6 +1,8 @@
 import { ChevronRight, LogOut } from '../icons'
 import { NAV_ITEMS, type NavItemId } from './navItems'
 import logo from '../../assets/logo.png'
+import { UserAvatar } from '../ui/UserAvatar'
+import { CountBadge } from '../ui/CountBadge'
 
 export type SideMenuUser = {
   name: string
@@ -58,23 +60,21 @@ export function SideMenu({
             onNavigate?.(item.id)
             onClose?.()
           }}
-          className={`flex h-[42px] items-center gap-2.5 overflow-hidden rounded-xl px-3 text-[14px] transition-all duration-200 ${
+          className={`flex h-10.5 items-center gap-2.5 overflow-hidden rounded-xl px-3 text-[14px] transition-all duration-200 ${
             isActive
               ? 'bg-secondary font-semibold text-primary shadow-[inset_0_0_0_1px_rgba(46,120,61,0.04)]'
               : 'font-medium text-text hover:bg-neutral'
           }`}
         >
           <Icon
-            className={`size-[17px] shrink-0 ${isActive ? 'text-primary' : 'text-text-muted'}`}
+            className={`size-4.25 shrink-0 ${isActive ? 'text-primary' : 'text-text-muted'}`}
             strokeWidth={1.9}
           />
           <span className="min-w-0 flex-1 truncate">{item.label}</span>
           {item.id === 'trocas' && exchangeCount !== null && exchangeCount !== undefined ? (
-            <span aria-label={`${exchangeCount} solicitações aguardando`} className="flex size-[18px] items-center justify-center rounded-full bg-badge-red text-[9px] font-semibold text-badge-red-text">
-              {exchangeCount}
-            </span>
+            <CountBadge count={exchangeCount} showZero size="sm" label={`${exchangeCount} solicitações aguardando`} />
           ) : item.badge !== undefined ? (
-            <span className="flex size-[18px] items-center justify-center rounded-full bg-badge-red text-[9px] font-semibold text-badge-red-text">
+            <span className="flex size-4.5 items-center justify-center rounded-full bg-badge-red text-[9px] font-semibold text-badge-red-text">
               {item.badge}
             </span>
           ) : null}
@@ -95,17 +95,25 @@ export function SideMenu({
       ) : null}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex w-[250px] shrink-0 flex-col overflow-hidden border-r border-border bg-sidebar shadow-[6px_0_24px_rgba(22,29,24,0.04)] md:static md:z-0 ${
+        className={`fixed inset-y-0 left-0 z-40 flex w-62.5 shrink-0 flex-col overflow-hidden border-r border-border bg-sidebar shadow-[6px_0_24px_rgba(22,29,24,0.04)] md:static md:z-0 ${
           isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
         } transition-transform duration-200`}
       >
-        <div className="flex items-center gap-3 px-5 pt-5 pb-4">
+        <button
+          type="button"
+          onClick={() => {
+            onNavigate?.('visao-geral')
+            onClose?.()
+          }}
+          aria-label="Ir para a visão geral"
+          className="flex cursor-pointer items-center gap-3 px-5 pt-5 pb-4 text-left focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary"
+        >
           <img src={logo} alt="NurseFlow" className="size-10 shrink-0 object-contain" />
           <div className="min-w-0 leading-tight">
             <p className="text-[15px] font-bold tracking-tight text-text">NurseFlow</p>
             <p className="text-[10.5px] text-text-muted">Gestão de escalas</p>
           </div>
-        </div>
+        </button>
 
         <p className="px-3 pb-2 pt-1 text-[10px] font-semibold tracking-[0.12em] text-text-muted">
           GESTÃO
@@ -120,7 +128,7 @@ export function SideMenu({
           ) : null}
         </nav>
 
-        <div className="flex items-center gap-2 p-3">
+        <div className="flex items-stretch gap-2 p-3">
           <button
             type="button"
             onClick={() => {
@@ -136,9 +144,7 @@ export function SideMenu({
                 : 'border-border bg-white hover:bg-neutral'
             }`}
           >
-            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-secondary text-[12px] font-bold text-primary shadow-[inset_0_0_0_1px_rgba(46,120,61,0.08)]">
-              {user.initials}
-            </span>
+            <UserAvatar initials={user.initials} sizeClassName="size-9" textClassName="text-[12px] font-bold text-primary" decorative />
             <span className="min-w-0 flex-1 leading-tight">
               <span className="block truncate text-[12px] font-semibold text-text">{user.name}</span>
               <span className="mt-1 block truncate text-[10px] text-text-muted">{user.role}</span>
@@ -148,9 +154,9 @@ export function SideMenu({
           <button
             type="button"
             onClick={onLogout}
-            title="Sair da sessão"
-            aria-label="Sair da sessão"
-            className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-border bg-white text-text-muted transition-colors hover:bg-neutral hover:text-text focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+            title="Sair"
+            aria-label="Sair"
+            className="flex aspect-square shrink-0 self-stretch items-center justify-center rounded-2xl border border-border bg-white text-text-muted transition-colors hover:bg-neutral hover:text-danger active:bg-error focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
           >
             <LogOut className="size-4" strokeWidth={1.8} />
           </button>

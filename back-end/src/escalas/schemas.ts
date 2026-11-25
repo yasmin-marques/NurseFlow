@@ -8,6 +8,7 @@ export enum StatusEscala {
   VALIDADA = 'validada',
   PUBLICADA = 'publicada',
   FINALIZADA = 'finalizada',
+  EXCLUIDA = 'excluida',
 }
 
 export enum TipoPlantao {

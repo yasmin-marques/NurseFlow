@@ -258,11 +258,11 @@ export function GeneralSchedulePage() {
       </div>
 
       <div className="mt-6 flex items-center justify-between px-1 text-[13px]">
-        <button type="button" onClick={() => goToWeek(addDays(weekStart, -7))} className="font-bold text-primary hover:underline focus-visible:outline-2 focus-visible:outline-primary">
+        <button type="button" onClick={() => goToWeek(addDays(weekStart, -7))} className="rounded-lg px-3 py-2 text-sm font-extrabold text-primary hover:bg-neutral focus-visible:outline-2 focus-visible:outline-primary">
           ‹ Semana anterior
         </button>
-        <p aria-live="polite" className="font-semibold text-text">{weekRangeLabel(weekStart)}</p>
-        <button type="button" onClick={() => goToWeek(addDays(weekStart, 7))} className="font-bold text-primary hover:underline focus-visible:outline-2 focus-visible:outline-primary">
+        <p aria-live="polite" className="text-center text-sm font-semibold text-text">{weekRangeLabel(weekStart)}</p>
+        <button type="button" onClick={() => goToWeek(addDays(weekStart, 7))} className="rounded-lg px-3 py-2 text-sm font-extrabold text-primary hover:bg-neutral focus-visible:outline-2 focus-visible:outline-primary">
           Próxima semana ›
         </button>
       </div>

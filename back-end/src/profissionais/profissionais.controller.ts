@@ -1,5 +1,18 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Param, Patch, Post, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiConflictResponse, ApiNotFoundResponse, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Get, HttpCode, HttpStatus, Param, Patch, Post, Query, Res, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiConflictResponse,
+  ApiConsumes,
+  ApiNotFoundResponse,
+  ApiOperation,
+  ApiProduces,
+  ApiResponse,
+  ApiTags,
+  ApiUnprocessableEntityResponse,
+} from '@nestjs/swagger';
+import type { Response } from 'express';
 import { Perfis } from '../common/decorators';
 import { Perfil } from '../common/enums/perfil.enum';
 import { ParseObjectIdPipe } from '../common/pipes/parse-object-id.pipe';
@@ -7,14 +20,25 @@ import { CreateProfissionalDto } from './dto/create-profissional.dto';
 import { ListProfissionaisQueryDto } from './dto/list-profissionais-query.dto';
 import { ProfissionalListaDto, ProfissionalResponseDto } from './dto/profissional-response.dto';
 import { UpdateProfissionalDto } from './dto/update-profissional.dto';
+import { PreviaImportacaoDto, ResultadoImportacaoDto } from './importacao/importacao.dto';
+import { ProfissionaisImportacaoService } from './importacao/profissionais-importacao.service';
+import { TAMANHO_MAXIMO_BYTES, validarArquivo, XLSX_MIME } from './importacao/planilha-profissionais';
 import { ProfissionaisService } from './profissionais.service';
+
+type ArquivoEnviado = Parameters<typeof validarArquivo>[0];
+
+const uploadPlanilha = FileInterceptor('arquivo', { limits: { fileSize: TAMANHO_MAXIMO_BYTES, files: 1 } });
+const corpoUpload = { schema: { type: 'object', required: ['arquivo'], properties: { arquivo: { type: 'string', format: 'binary' } } } };
 
 @ApiTags('Profissionais')
 @ApiBearerAuth()
 @Perfis(Perfil.COORDENACAO)
 @Controller('profissionais')
 export class ProfissionaisController {
-  constructor(private readonly profissionaisService: ProfissionaisService) {}
+  constructor(
+    private readonly profissionaisService: ProfissionaisService,
+    private readonly importacaoService: ProfissionaisImportacaoService,
+  ) {}
 
   @Post()
   @ApiOperation({ summary: 'Cadastra um profissional (DA02)' })
@@ -36,6 +60,40 @@ export class ProfissionaisController {
   @ApiResponse({ status: 200, type: [ProfissionalResponseDto] })
   listarTodos(): Promise<ProfissionalResponseDto[]> {
     return this.profissionaisService.listarTodos();
+  }
+
+  // Rotas de importação declaradas antes de ':id' para não serem capturadas por ele.
+  @Get('importacao/modelo')
+  @ApiOperation({ summary: 'Baixa o modelo de planilha (.xlsx) para importação de profissionais' })
+  @ApiProduces(XLSX_MIME)
+  async baixarModelo(@Res() response: Response): Promise<void> {
+    const buffer = await this.importacaoService.baixarModelo();
+    response
+      .set({ 'Content-Type': XLSX_MIME, 'Content-Disposition': 'attachment; filename="modelo-importacao-profissionais.xlsx"' })
+      .send(buffer);
+  }
+
+  @Post('importacao/previa')
+  @HttpCode(HttpStatus.OK)
+  @UseInterceptors(uploadPlanilha)
+  @ApiConsumes('multipart/form-data')
+  @ApiBody(corpoUpload)
+  @ApiOperation({ summary: 'Valida a planilha e informa o que seria cadastrado/atualizado, sem gravar nada' })
+  @ApiResponse({ status: 200, type: PreviaImportacaoDto })
+  async previaImportacao(@UploadedFile() arquivo?: ArquivoEnviado): Promise<PreviaImportacaoDto> {
+    return this.importacaoService.previa(validarArquivo(arquivo));
+  }
+
+  @Post('importacao')
+  @HttpCode(HttpStatus.OK)
+  @UseInterceptors(uploadPlanilha)
+  @ApiConsumes('multipart/form-data')
+  @ApiBody(corpoUpload)
+  @ApiOperation({ summary: 'Importa a planilha (cadastra novos e atualiza existentes por CPF) em uma única transação' })
+  @ApiResponse({ status: 200, type: ResultadoImportacaoDto })
+  @ApiUnprocessableEntityResponse({ description: 'A planilha possui registros inválidos; nada é gravado.' })
+  async importar(@UploadedFile() arquivo?: ArquivoEnviado): Promise<ResultadoImportacaoDto> {
+    return this.importacaoService.confirmar(validarArquivo(arquivo));
   }
 
   @Get(':id')

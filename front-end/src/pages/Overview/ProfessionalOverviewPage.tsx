@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ArrowLeftRight, Building2, CalendarDays, CalendarPlus, ChevronRight, Clock, Users } from '../../components/icons'
-import type { NavItemId } from '../../components/layout/navItems'
+import type { ProfessionalTabId } from '../../components/layout/professionalTabs'
 import { getIncomingExchangeCount, getMyShifts, type MyShift } from '../../services/my-shifts'
+import { CountBadge } from '../../components/ui/CountBadge'
 
 type OverviewPageProps = {
   userName: string
-  onNavigate: (id: NavItemId) => void
+  onNavigate: (id: Extract<ProfessionalTabId, 'escala-geral' | 'trocas'>) => void
   /** Abre "Meus plantões", onde fica a integração com o Google Agenda. */
   onOpenGoogleCalendar?: () => void
 }
@@ -47,7 +48,7 @@ function ShiftDetails({ shift, compact = false }: { shift: MyShift; compact?: bo
       </span>
       <span className="min-w-0 flex-1">
         <span className={`block truncate text-xs font-semibold ${compact ? 'text-text' : 'text-white'}`}>
-          {shift.horarioInicio}—{shift.horarioFim}
+          {shift.horarioInicio} — {shift.horarioFim}
         </span>
         <span className={`mt-1 block truncate text-[10px] ${compact ? 'text-text-muted' : 'text-white/75'}`}>
           {shift.setor} · {shift.funcao === 'enfermeiro' ? 'Enfermagem' : 'Técnico'}
@@ -84,7 +85,7 @@ function ShiftDetailPage({
               Escala {shift.tipo}
             </span>
             <p className="mt-2 text-2xl font-bold tracking-tight text-text sm:text-3xl">
-              {shift.horarioInicio}—{shift.horarioFim}
+                {shift.horarioInicio} — {shift.horarioFim}
             </p>
             <p className="mt-2 text-sm text-text-muted">
               {shiftDate(shift, { day: 'numeric', month: 'long' })} · Jornada de {shift.duracaoHoras} horas
@@ -94,7 +95,7 @@ function ShiftDetailPage({
         <button
           type="button"
           onClick={onRequestExchange}
-          className="inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-lg bg-[#169b4e] px-6 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#128343] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+          className="inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-lg bg-[#169b4e] px-6 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#128343] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
         >
           <ArrowLeftRight size={16} />
           Solicitar troca
@@ -115,7 +116,7 @@ function ShiftDetailPage({
             </div>
             <div className="flex items-center gap-4 py-4">
               <Clock size={18} className="shrink-0 text-primary" />
-              <div><dt className="text-xs text-text-muted">Horário</dt><dd className="mt-0.5 text-sm font-semibold text-text">{shift.horarioInicio}—{shift.horarioFim}</dd></div>
+              <div><dt className="text-xs text-text-muted">Horário</dt><dd className="mt-0.5 text-sm font-semibold text-text">{shift.horarioInicio} — {shift.horarioFim}</dd></div>
             </div>
           </dl>
         </section>
@@ -210,7 +211,7 @@ export function ProfessionalOverviewPage({ userName, onNavigate, onOpenGoogleCal
 
       <section
         aria-label="Próximo plantão"
-        className={`flex min-h-36 flex-col gap-6 rounded-2xl p-7 shadow-[0_12px_30px_rgba(4,119,51,0.12)] sm:flex-row sm:items-center sm:px-10 sm:py-8 ${hasShiftCardContent ? 'bg-[#07833b] text-white' : 'bg-[#f1f3f0] text-text'}`}
+      className={`flex min-h-36 flex-col gap-6 rounded-2xl p-5 shadow-[0_12px_30px_rgba(4,119,51,0.12)] sm:flex-row sm:items-center sm:px-10 sm:py-8 ${hasShiftCardContent ? 'bg-[#07833b] text-white' : 'bg-[#f1f3f0] text-text'}`}
       >
         {shiftLoading ? (
           <p role="status" className="text-sm text-white/85">Carregando seu próximo plantão...</p>
@@ -218,18 +219,18 @@ export function ProfessionalOverviewPage({ userName, onNavigate, onOpenGoogleCal
           <p role="alert" className="text-sm text-white">Não foi possível carregar seus plantões: {shiftError}</p>
         ) : nextShift ? (
           <>
-            <div className="flex min-w-0 flex-1 items-center gap-6">
-              <span className="flex size-24 shrink-0 flex-col items-center justify-center rounded-2xl bg-white/10 text-center">
+            <div className="flex min-w-0 flex-1 items-center gap-3 sm:gap-6">
+              <span className="flex size-20 shrink-0 flex-col items-center justify-center rounded-2xl bg-white/10 text-center sm:size-24">
                 <span className="text-xs font-bold uppercase">{shiftDate(nextShift, { month: 'short' }).replace('.', '')}</span>
                 <span className="text-4xl font-semibold leading-none">{shiftDate(nextShift, { day: '2-digit' })}</span>
                 <span className="mt-1 text-[10px] font-semibold uppercase">{shiftDate(nextShift, { weekday: 'short' }).replace('.', '')}</span>
               </span>
               <div className="min-w-0">
-                <span className="inline-flex rounded bg-white/15 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide">
+                <span className="inline-flex max-w-full rounded bg-white/15 px-3 py-1.5 text-[9px] font-bold uppercase leading-tight tracking-wide sm:text-[10px]">
                   Próximo plantão · {countdown(shiftStart(nextShift), now)}
                 </span>
-                <p className="mt-2 text-2xl font-bold tracking-tight sm:text-3xl">
-                  {nextShift.horarioInicio} <span className="text-white/50">—</span> {nextShift.horarioFim}
+                <p className="mt-2 text-xl font-bold tracking-tight sm:text-3xl">
+                  {nextShift.horarioInicio} <span className="px-1 text-white/50">—</span> {nextShift.horarioFim}
                 </p>
                 <div className="mt-2 flex flex-wrap gap-x-5 gap-y-2 text-sm text-white/80">
                   <span className="inline-flex items-center gap-1.5"><Building2 size={16} />{nextShift.setor}</span>
@@ -237,11 +238,11 @@ export function ProfessionalOverviewPage({ userName, onNavigate, onOpenGoogleCal
                 </div>
               </div>
             </div>
-            <div className="flex shrink-0 flex-row gap-3 sm:flex-col">
+            <div className="flex w-full shrink-0 flex-col gap-3 sm:w-auto">
               <button
                 type="button"
                 onClick={() => setSelectedShift(nextShift)}
-                className="min-h-12 rounded-lg bg-[#169b4e] px-6 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#128343] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+                className="min-h-12 rounded-lg bg-[#169b4e] px-6 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#128343] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
               >
                 Ver detalhes
               </button>
@@ -285,13 +286,19 @@ export function ProfessionalOverviewPage({ userName, onNavigate, onOpenGoogleCal
               <p className="py-5 text-sm text-text-muted">Você ainda não tem plantões futuros publicados.</p>
             ) : null}
             {!shiftLoading && !shiftError && visibleShifts.map((shift) => (
-              <div key={shift.id} className="flex items-center gap-4 py-4">
+              <button
+                key={shift.id}
+                type="button"
+                onClick={() => setSelectedShift(shift)}
+                aria-label={`Abrir detalhes do plantão de ${shiftDate(shift, { day: 'numeric', month: 'long' })} em ${shift.setor}`}
+                className="flex w-full items-center gap-4 py-4 text-left transition-colors hover:bg-neutral/60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+              >
                 <ShiftDetails shift={shift} compact />
                 <span className="hidden shrink-0 text-xs text-text-muted sm:block">
                   {shiftDate(shift, { weekday: 'short' })}
                 </span>
                 <ChevronRight className="size-5 shrink-0 text-text-muted" />
-              </div>
+              </button>
             ))}
           </div>
         </section>
@@ -299,15 +306,15 @@ export function ProfessionalOverviewPage({ userName, onNavigate, onOpenGoogleCal
         <section aria-labelledby="quick-access-title" className="min-h-64 rounded-2xl border border-border bg-white p-6 shadow-(--shadow-soft) sm:p-7">
           <h3 id="quick-access-title" className="border-b border-border pb-4 text-lg font-bold text-text">Acesso rápido</h3>
           <div className="divide-y divide-border">
-            <button type="button" onClick={() => onNavigate('escala')} className="group flex w-full items-center gap-4 py-4 text-left">
+            <button type="button" onClick={() => onNavigate('escala-geral')} className="group flex w-full items-center gap-4 rounded-lg px-2 py-4 text-left transition-colors hover:bg-neutral/60">
               <span className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-secondary text-primary"><CalendarDays size={18} /></span>
               <span className="min-w-0 flex-1">
                 <span className="block text-sm font-semibold text-text">Escala geral</span>
-                <span className="mt-1 block text-xs text-text-muted">Veja seus plantões publicados</span>
+                <span className="mt-1 block text-xs text-text-muted">Veja a escala publicada da equipe</span>
               </span>
               <ChevronRight className="size-5 text-text-muted transition-transform group-hover:translate-x-0.5" />
             </button>
-            <button type="button" onClick={() => onNavigate('trocas')} className="group flex w-full items-center gap-4 py-4 text-left">
+            <button type="button" onClick={() => onNavigate('trocas')} className="group flex w-full items-center gap-4 rounded-lg px-2 py-4 text-left transition-colors hover:bg-neutral/60">
               <span className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-secondary text-primary"><ArrowLeftRight size={18} /></span>
               <span className="min-w-0 flex-1">
                 <span className="block text-sm font-semibold text-text">Minhas trocas</span>
@@ -315,10 +322,10 @@ export function ProfessionalOverviewPage({ userName, onNavigate, onOpenGoogleCal
                   {exchangeError ?? (incomingExchanges === null ? 'Carregando solicitações...' : `${incomingExchanges} solicitação(ões) recebida(s)`)}
                 </span>
               </span>
-              {incomingExchanges ? <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-badge-red text-[10px] font-bold text-badge-red-text">{incomingExchanges}</span> : null}
+              {incomingExchanges ? <CountBadge count={incomingExchanges} size="md" /> : null}
               <ChevronRight className="size-5 text-text-muted transition-transform group-hover:translate-x-0.5" />
             </button>
-            <button type="button" onClick={onOpenGoogleCalendar} disabled={!onOpenGoogleCalendar} className="group flex w-full items-center gap-4 py-4 text-left disabled:opacity-60">
+            <button type="button" onClick={onOpenGoogleCalendar} disabled={!onOpenGoogleCalendar} className="group flex w-full items-center gap-4 rounded-lg px-2 py-4 text-left transition-colors hover:bg-neutral/60 disabled:opacity-60">
               <span className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-secondary text-primary"><CalendarPlus size={18} /></span>
               <span className="min-w-0 flex-1">
                 <span className="block text-sm font-semibold text-text">Google Agenda</span>

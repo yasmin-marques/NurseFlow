@@ -18,6 +18,7 @@ import { Usuario } from '../usuarios/schemas/usuario.schema';
 import { GoogleAgendaSincronizacaoService } from '../google-agenda/google-agenda-sincronizacao.service';
 import { ListarHistoricoTrocasDto } from './dto/listar-historico-trocas.dto';
 import { FiltroTroca, ListarTrocasDto } from './dto/listar-trocas.dto';
+import { chaveCompatibilidade, impedimentoCompatibilidade } from './compatibilidade-troca';
 
 type TrocaRead = SolicitacaoTroca & { _id: Types.ObjectId };
 export type AlocacaoMemoria = {
@@ -37,6 +38,7 @@ export type ContextoValidacaoCandidatos = {
   } | null;
   profissionaisPorId: Map<string, Profissional & { _id: Types.ObjectId }>;
   profissionaisPorCategoria: Map<string, (Profissional & { _id: Types.ObjectId })[]>;
+  profissionaisPorCategoriaSetorSubsetor: Map<string, (Profissional & { _id: Types.ObjectId })[]>;
   setoresPorId: Map<string, Setor>;
   restricoesPorProfissional: Map<string, Restricao[]>;
   plantoesPorProfissional: Map<string, AlocacaoMemoria[]>;
@@ -260,7 +262,7 @@ export class TrocasService {
       const profissionais = await this.profissionais.find({ _id: { $in: [troca.solicitanteProfissionalId, troca.profissionalSolicitadoId] } }).select('usuarioId').session(session).lean().exec();
       const userIds = [...new Set(profissionais.map((p) => String(p.usuarioId)))];
       await this.notificacoes.insertMany(userIds.map((destinatarioId) => ({ solicitacaoId: troca._id, destinatarioId: new Types.ObjectId(destinatarioId), eventKey: chaveDecisao,
-        titulo: 'Troca de plantão aprovada', mensagem: `A troca foi aprovada. Plantão ${plantaoA.data.toISOString().slice(0, 10)} (${plantaoA.horarioInicio}–${plantaoA.horarioFim}) e plantão ${plantaoB.data.toISOString().slice(0, 10)} (${plantaoB.horarioInicio}–${plantaoB.horarioFim}) foram permutados na versão ${numero}.` })), { session });
+        titulo: 'Troca de plantão aprovada', mensagem: `A troca foi aprovada. Plantão ${plantaoA.data.toISOString().slice(0, 10)} (${plantaoA.horarioInicio} – ${plantaoA.horarioFim}) e plantão ${plantaoB.data.toISOString().slice(0, 10)} (${plantaoB.horarioInicio} – ${plantaoB.horarioFim}) foram permutados na versão ${numero}.` })), { session });
       // Mesma transação da aprovação: sincroniza os dois profissionais afetados sem depender do Google.
       await this.googleAgenda.enfileirar([troca.solicitanteProfissionalId, troca.profissionalSolicitadoId], 'troca', session);
     }); } catch (erro) {
@@ -379,10 +381,17 @@ export class TrocasService {
 
     const profissionaisPorId = new Map(profissionais.map((item) => [String(item._id), item as Profissional & { _id: Types.ObjectId }]));
     const profissionaisPorCategoria = new Map<string, (Profissional & { _id: Types.ObjectId })[]>();
+    const profissionaisPorCategoriaSetorSubsetor = new Map<string, (Profissional & { _id: Types.ObjectId })[]>();
     for (const profissional of profissionais) {
       const lista = profissionaisPorCategoria.get(profissional.formacao) ?? [];
       lista.push(profissional);
       profissionaisPorCategoria.set(profissional.formacao, lista);
+      const chave = chaveCompatibilidade(profissional);
+      if (chave) {
+        const compativeis = profissionaisPorCategoriaSetorSubsetor.get(chave) ?? [];
+        compativeis.push(profissional);
+        profissionaisPorCategoriaSetorSubsetor.set(chave, compativeis);
+      }
     }
     const setoresPorId = new Map(setores.map((item) => [String(item._id), item]));
     const restricoesPorProfissional = new Map<string, Restricao[]>();
@@ -455,7 +464,7 @@ export class TrocasService {
     }
 
     return {
-      escala: escala as Escala & { _id: Types.ObjectId }, configuracao, profissionaisPorId, profissionaisPorCategoria,
+      escala: escala as Escala & { _id: Types.ObjectId }, configuracao, profissionaisPorId, profissionaisPorCategoria, profissionaisPorCategoriaSetorSubsetor,
       setoresPorId, restricoesPorProfissional, plantoesPorProfissional,
       plantoesPorDataTurno, vinculosPorId, plantaoPorId,
       cargaMensalPorProfissional, coberturaPorSetorDataTurnoFuncao,
@@ -493,6 +502,8 @@ export class TrocasService {
       if (!profissionalA || !profissionalB) {
         return { impedimentos: [{ codigo: 'PROFISSIONAL_AUSENTE', mensagem: 'Um profissional não está mais cadastrado. Recuse esta solicitação.' }] };
       }
+      const incompatibilidade = impedimentoCompatibilidade(profissionalA, profissionalB);
+      if (incompatibilidade) impedimentos.push(incompatibilidade);
 
       const afetados = [
         { profissional: profissionalA, vinculo: vinculoA, plantao: plantaoA, destino: vinculoB, destinoPlantao: plantaoB },
@@ -849,6 +860,12 @@ export class TrocasService {
         const nome = nomePorUsuario.get(String(p.usuarioId)) ?? 'Um dos profissionais';
         impedimentos.push({ codigo: 'PROFISSIONAL_INATIVO', mensagem: `${nome.split(' ')[0]} não está ativo. Aguarde ou recuse esta solicitação.` });
       }
+    }
+    const solicitante = profPorId.get(String(troca.solicitanteProfissionalId));
+    const solicitado = profPorId.get(String(troca.profissionalSolicitadoId));
+    if (solicitante && solicitado) {
+      const incompatibilidade = impedimentoCompatibilidade(solicitante, solicitado);
+      if (incompatibilidade) impedimentos.push(incompatibilidade);
     }
     const setorIds = [...new Set(plantoesMes.map((p) => String(p.setorId)))];
     const setores = await this.comCache(cache, `setores:${String(escala._id)}`, () => {

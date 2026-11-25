@@ -3,26 +3,23 @@ import { createDraft, exportScalePdf, listScales, saveShiftBatch, startReview, v
 import { GenerateScaleDialog } from './GenerateScaleDialog'
 import { ExportScaleDrawer } from './ExportScaleDrawer'
 import { PublishScaleDialog } from './PublishScaleDialog'
+import { RemovePublishedScaleDialog } from './RemovePublishedScaleDialog'
 import { ScaleShiftDialog } from './ScaleShiftDialog'
 import { canEditScale, formatValidationErrors, stageShiftChanges } from './review'
-import { calendarDate, calendarDays, dateKey, dayIndicators, formatMonth, formatWeek, summarizeDayShifts, type CalendarView } from './calendar'
+import { calendarDate, calendarDays, dateKey, dayIndicators, formatWeek, summarizeDayShifts, type CalendarView } from './calendar'
 import { getScaleWorkflow } from './workflow'
 import { CoverageAlert } from '../../components/ui/ScaleComponents'
 import { coverageSurfaceClass } from '../../components/ui/coverageStyles'
 import { WeeklyDayCard } from './WeeklyDayCard'
+import { MonthPeriodNavigation, monthLabel } from './MonthPeriodNavigation'
 
 const WEEKDAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
-
-function monthLabel(date: Date) {
-  const label = formatMonth(date)
-  return label.charAt(0).toUpperCase() + label.slice(1)
-}
 
 function statusStyle(state: ReturnType<typeof dayIndicators>['state']) {
   return coverageSurfaceClass(state)
 }
 
-function WorkflowCard({ scale, onGenerate, onCreateManual, creatingManual, manualCreationDisabled, onReview, onValidateAndPublish, stagedCount, onSave, saving, validating, changesSaved }: {
+function WorkflowCard({ scale, onGenerate, onCreateManual, creatingManual, manualCreationDisabled, onReview, onValidateAndPublish, onExcludePublished, stagedCount, onSave, saving, validating, changesSaved }: {
   scale: ScaleDetail | null
   onGenerate: () => void
   onCreateManual: () => void
@@ -30,6 +27,7 @@ function WorkflowCard({ scale, onGenerate, onCreateManual, creatingManual, manua
   manualCreationDisabled: boolean
   onReview: () => void
   onValidateAndPublish: () => void
+  onExcludePublished: () => void
   stagedCount: number
   onSave: () => void
   saving: boolean
@@ -37,6 +35,7 @@ function WorkflowCard({ scale, onGenerate, onCreateManual, creatingManual, manua
   changesSaved: boolean
 }) {
   const published = scale?.escala.status === 'publicada' || scale?.escala.status === 'finalizada'
+  const hasPublication = Boolean(scale && (scale.escala.versaoPublicada ?? 0) > 0 && scale.escala.status !== 'excluida')
   const canValidate = scale?.escala.status === 'em_revisao' || scale?.escala.status === 'validada'
   const workflow = getScaleWorkflow(scale?.escala.status ?? null, changesSaved)
   const badgeStyles = {
@@ -66,9 +65,41 @@ function WorkflowCard({ scale, onGenerate, onCreateManual, creatingManual, manua
         <button type="button" onClick={onGenerate} className="rounded-lg border border-border px-3 py-2 text-xs font-semibold text-text hover:bg-neutral">Gerar novamente</button>
         <button type="button" disabled={saving || stagedCount === 0} onClick={onSave} className="rounded-lg border border-primary px-3 py-2 text-xs font-semibold text-primary disabled:cursor-not-allowed disabled:opacity-50">{saving ? 'Salvando...' : 'Salvar alterações'}</button>
         {canValidate ? <button type="button" disabled={saving || validating} onClick={onValidateAndPublish} className="rounded-lg bg-primary px-3 py-2 text-xs font-bold text-white hover:brightness-95 disabled:opacity-50">{validating ? 'Validando...' : 'Validar e publicar'}</button> : null}
-      </> : <button type="button" onClick={onReview} className="rounded-lg border border-border px-3 py-2 text-xs font-semibold text-text">Editar escala</button>}
+      </> : <>
+        <button type="button" onClick={onReview} className="rounded-lg border border-border px-3 py-2 text-xs font-semibold text-text">Editar escala</button>
+        <button type="button" onClick={onExcludePublished} className="rounded-lg border border-danger/50 px-3 py-2 text-xs font-semibold text-danger hover:bg-error">Excluir escala publicada</button>
+      </>}
+      {!published && hasPublication ? <button type="button" onClick={onExcludePublished} className="rounded-lg border border-danger/50 px-3 py-2 text-xs font-semibold text-danger hover:bg-error">Excluir escala publicada</button> : null}
     </div>}
   </section>
+}
+
+export function WorkloadSummary({ scale }: { scale: ScaleDetail }) {
+  if ((scale.escala.versaoPublicada ?? 0) > 0 && scale.escala.status !== 'excluida') return null
+
+  const pending = scale.cargas.flatMap((carga) => {
+    const faltam24h = carga.faltam?.plantoes24h ?? Math.max(0, carga.esperada.plantoes24h - carga.atribuida.plantoes24h)
+    const faltam12h = carga.faltam?.plantoes12h ?? Math.max(0, carga.esperada.plantoes12h - carga.atribuida.plantoes12h)
+    const falta = [
+      faltam24h > 0 ? `${faltam24h} plantão(ões) de 24h` : '',
+      faltam12h > 0 ? `${faltam12h} plantão(ões) de 12h` : '',
+    ].filter(Boolean)
+    return falta.length > 0 ? [{ id: carga.profissionalId, nome: carga.profissional, falta }] : []
+  })
+
+  if (pending.length === 0) return null
+  return (
+    <section aria-label="Pendências de carga horária" className="rounded-2xl border border-warning bg-warning/20 px-5 py-4">
+      <h3 className="text-sm font-bold text-text">Profissionais abaixo da carga regular</h3>
+      <ul className="mt-2 space-y-1">
+        {pending.map((item) => (
+          <li key={item.id} className="text-xs text-warning-text">
+            <span className="font-semibold">{item.nome}:</span> faltam {item.falta.join(' e ')}.
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
 }
 
 function CalendarDay({
@@ -88,6 +119,7 @@ function CalendarDay({
   const indicators = dayIndicators(scale, key)
   const shifts = scale?.plantoes.filter((shift) => shift.data === key) ?? []
   const team = summarizeDayShifts(shifts)
+  const chefeGeral = scale?.chefesGerais?.find((item) => item.data === key)
   const outsideMonth = date.getMonth() !== activeMonth
   const stateLabel = {
     conflict: 'Conflito',
@@ -103,14 +135,14 @@ function CalendarDay({
       aria-label={`${date.toLocaleDateString('pt-BR', { dateStyle: 'full' })}: ${stateLabel}, ${shifts.length} plantões`}
       aria-pressed={selected}
       onClick={onSelect}
-      className={`min-h-[176px] w-full min-w-0 border p-2 text-left transition-colors hover:bg-neutral sm:p-3 ${statusStyle(indicators.state)} ${outsideMonth ? 'opacity-55' : ''} ${selected ? 'ring-2 ring-inset ring-primary' : ''}`}
+      className={`min-h-44 w-full min-w-0 border p-2 text-left transition-colors hover:bg-neutral sm:p-3 ${statusStyle(indicators.state)} ${outsideMonth ? 'opacity-55' : ''} ${selected ? 'ring-2 ring-inset ring-primary' : ''}`}
     >
       <span className={`inline-flex size-7 items-center justify-center rounded-lg text-xs font-bold ${indicators.state === 'conflict' ? 'bg-error text-danger' : indicators.state === 'partial' || indicators.state === 'restricted' ? 'bg-warning text-warning-text' : 'bg-highlight text-primary'}`}>
         {date.getDate()}
       </span>
       {shifts.length ? <>
-        <span className="mt-2 block text-[8px] font-bold uppercase tracking-wide text-text-muted">CHEFE</span>
-        <span className="block truncate text-[10px] font-semibold text-text">{team.leader?.nome ?? 'Não informado'}</span>
+        <span className="mt-2 block text-[8px] font-bold uppercase tracking-wide text-text-muted">CHEFE GERAL</span>
+        <span className="block truncate text-[10px] font-semibold text-text">{chefeGeral?.nome ?? 'Não informado'}</span>
         <span className="mt-2 block text-[10px] text-text-muted">♙ {team.nurses} enfermeiros</span>
         <span className="block text-[10px] text-text-muted">♧ {team.technicians} técnicos</span>
       </> : <span className="mt-2 block text-[9px] font-bold uppercase tracking-wide text-text-muted">{stateLabel}</span>}
@@ -132,7 +164,7 @@ function CalendarDay({
 
 export function GenerationLoading() {
   return (
-    <section role="status" aria-live="polite" aria-label="Gerando a escala" className="flex min-h-[480px] flex-col items-center justify-center rounded-2xl border border-border bg-white px-6 text-center shadow-(--shadow-soft)">
+    <section role="status" aria-live="polite" aria-label="Gerando a escala" className="flex min-h-120 flex-col items-center justify-center rounded-2xl border border-border bg-white px-6 text-center shadow-(--shadow-soft)">
       <span aria-hidden="true" className="size-20 animate-spin rounded-full border-[9px] border-neutral border-r-primary" />
       <h3 className="mt-4 text-base font-bold text-text">Gerando a escala...</h3>
       <p className="mt-5 max-w-2xl text-xs leading-relaxed text-text-muted">
@@ -162,6 +194,7 @@ export function ScalePage() {
   const [creatingManual, setCreatingManual] = useState(false)
   const [showExportDrawer, setShowExportDrawer] = useState(false)
   const [showPublishDialog, setShowPublishDialog] = useState(false)
+  const [showRemovePublishedDialog, setShowRemovePublishedDialog] = useState(false)
   const [showShiftDialog, setShowShiftDialog] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [exportError, setExportError] = useState('')
@@ -207,7 +240,7 @@ export function ScalePage() {
   }, [visiblePeriodKey, reload])
 
   const matchingScale = scales.find((item) => item.escala.ano === year && item.escala.mes === month) ?? null
-  const isPublished = matchingScale?.escala.status === 'publicada' || matchingScale?.escala.status === 'finalizada'
+  const isPublished = Boolean(matchingScale && (matchingScale.escala.versaoPublicada ?? 0) > 0 && matchingScale.escala.status !== 'excluida')
 
   const changePeriod = (direction: -1 | 1) => {
     if (stagedChanges.length > 0) { setBatchError('Salve ou descarte as alterações staged antes de mudar de período.'); return }
@@ -267,6 +300,13 @@ export function ScalePage() {
       ),
       updatedScale,
     ])
+  }
+
+  const removePublishedScale = () => {
+    if (!matchingScale) return
+    setScales((current) => current.filter((item) => item.escala.id !== matchingScale.escala.id))
+    setShowRemovePublishedDialog(false)
+    setReload((value) => value + 1)
   }
 
   const createManualDraft = async () => {
@@ -377,17 +417,11 @@ export function ScalePage() {
           <h2 className="text-[28px] font-bold leading-tight tracking-[-0.04em] text-text">Escala</h2>
           <p className="mt-2 text-sm text-text-muted">Liderança, equipes e setores organizados por dia de plantão.</p>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <button type="button" onClick={() => { setExportError(''); setShowExportDrawer(true) }} className="rounded-xl border border-border bg-white px-4 py-2.5 text-sm font-semibold text-text hover:bg-neutral">Exportar PDF</button>
-          <button
-            type="button"
-            onClick={() => setShowGenerateDialog(true)}
-            className="rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-white shadow-sm hover:brightness-95"
-          >
-            Gerar Escala Automaticamente
-          </button>
-        </div>
+        {isPublished ? <button type="button" onClick={() => { setExportError(''); setShowExportDrawer(true) }} className="rounded-xl border border-border bg-white px-4 py-2.5 text-sm font-semibold text-text hover:bg-neutral">Exportar PDF</button> : null}
       </header>
+
+      <WorkflowCard scale={matchingScale} onGenerate={() => setShowGenerateDialog(true)} onCreateManual={() => void createManualDraft()} creatingManual={creatingManual} manualCreationDisabled={loading || generationInProgress} onReview={() => void openReview()} onValidateAndPublish={() => void validateAndPublish()} onExcludePublished={() => setShowRemovePublishedDialog(true)} stagedCount={stagedChanges.length} onSave={() => void saveStagedChanges()} saving={savingBatch} validating={validating} changesSaved={changesSaved} />
+      {!loading && !generationInProgress && matchingScale ? <WorkloadSummary scale={matchingScale} /> : null}
 
       {error ? (
         <div role="alert" className="flex flex-col gap-3 rounded-2xl border border-error bg-error p-4 text-sm text-danger sm:flex-row sm:items-center sm:justify-between">
@@ -406,30 +440,28 @@ export function ScalePage() {
       ) : null}
 
 
-      <WorkflowCard scale={matchingScale} onGenerate={() => setShowGenerateDialog(true)} onCreateManual={() => void createManualDraft()} creatingManual={creatingManual} manualCreationDisabled={loading || generationInProgress} onReview={() => void openReview()} onValidateAndPublish={() => void validateAndPublish()} stagedCount={stagedChanges.length} onSave={() => void saveStagedChanges()} saving={savingBatch} validating={validating} changesSaved={changesSaved} />
       {batchError ? <p role="alert" className="rounded-xl border border-error bg-error px-4 py-3 text-sm text-danger">{batchError}</p> : null}
 
       {generationInProgress ? <GenerationLoading /> : <>
         <section aria-label="Navegação do calendário" className="flex flex-col gap-4 rounded-2xl border border-border bg-white px-4 py-4 shadow-(--shadow-soft) sm:flex-row sm:items-center sm:justify-between sm:px-6">
-          <div className="flex items-center justify-between gap-3 sm:justify-start">
-            <button type="button" aria-label={view === 'week' ? 'Semana anterior' : 'Mês anterior'} onClick={() => changePeriod(-1)} className={`flex items-center justify-center rounded-lg border border-border font-semibold hover:bg-page ${view === 'week' ? 'px-3 py-2 text-xs' : 'size-9 text-lg'}`}>
-              {view === 'week' ? '‹ Semana anterior' : '‹'}
-            </button>
-            <div className="flex items-center gap-2">
-              <h3 aria-live="polite" className="min-w-[180px] text-center text-base font-bold text-text">{calendarTitle}</h3>
-              <label className="sr-only" htmlFor="scale-year">Ano da escala</label>
-              <select id="scale-year" aria-label="Ano da escala" value={year} onChange={(event) => {
-                const next = new Date(selectedDate)
-                next.setFullYear(Number(event.target.value))
+          {view === 'month' ? (
+            <MonthPeriodNavigation
+              selectedDate={selectedDate}
+              title={calendarTitle}
+              yearId="scale-year"
+              yearAriaLabel="Ano da escala"
+              onChange={(next) => {
+                if (stagedChanges.length > 0) { setBatchError('Salve ou descarte as alterações staged antes de mudar de período.'); return }
                 setLoading(true); setError(''); setSelectedDate(next)
-              }} className="rounded-lg border border-border bg-white px-2 py-2 text-xs font-semibold text-text">
-                {Array.from({ length: 11 }, (_, index) => year - 5 + index).filter((item) => item >= 1 && item <= 9999).map((item) => <option key={item} value={item}>{item}</option>)}
-              </select>
+              }}
+            />
+          ) : (
+            <div className="flex items-center justify-between gap-3 sm:justify-start">
+              <button type="button" aria-label="Semana anterior" onClick={() => changePeriod(-1)} className="flex items-center justify-center rounded-lg border border-border px-3 py-2 text-xs font-semibold hover:bg-page">‹ Semana anterior</button>
+              <h3 aria-live="polite" className="min-w-45 text-center text-base font-bold text-text">{calendarTitle}</h3>
+              <button type="button" aria-label="Próxima semana" onClick={() => changePeriod(1)} className="flex items-center justify-center rounded-lg border border-border px-3 py-2 text-xs font-semibold hover:bg-page">Próxima semana ›</button>
             </div>
-            <button type="button" aria-label={view === 'week' ? 'Próxima semana' : 'Próximo mês'} onClick={() => changePeriod(1)} className={`flex items-center justify-center rounded-lg border border-border font-semibold hover:bg-page ${view === 'week' ? 'px-3 py-2 text-xs' : 'size-9 text-lg'}`}>
-              {view === 'week' ? 'Próxima semana ›' : '›'}
-            </button>
-          </div>
+          )}
           <div role="group" aria-label="Visualização do calendário" className="flex rounded-xl bg-page p-1">
             <button type="button" aria-pressed={view === 'month'} onClick={() => {
               if (view !== 'month') { setLoading(true); setError(''); setView('month') }
@@ -495,7 +527,7 @@ export function ScalePage() {
         </div>}
       </section>
 
-      {view === 'month' ? <p className="rounded-xl bg-highlight px-4 py-3 text-xs leading-relaxed text-primary">Jornadas de 12 horas são usadas somente quando há uma restrição específica, sempre com cobertura automática no turno complementar.</p> : null}
+      {view === 'month' ? <p className="rounded-xl bg-highlight px-4 py-3 text-xs leading-relaxed text-primary">Plantões de 24h cobrem os turnos diurno e noturno; plantões de 12h cobrem somente o turno correspondente e ajudam a preencher lacunas e cargas regulares.</p> : null}
       </>}
 
       {showGenerateDialog ? (
@@ -560,6 +592,13 @@ export function ScalePage() {
             replaceScale(publishedScale)
             setShowPublishDialog(false)
           }}
+        />
+      ) : null}
+      {matchingScale && isPublished && showRemovePublishedDialog ? (
+        <RemovePublishedScaleDialog
+          scale={matchingScale}
+          onClose={() => setShowRemovePublishedDialog(false)}
+          onRemoved={() => void removePublishedScale()}
         />
       ) : null}
 

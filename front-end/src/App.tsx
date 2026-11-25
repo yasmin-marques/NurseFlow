@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { AppLayout } from './components/layout/AppLayout'
 import { NAV_ITEMS, type NavItemId } from './components/layout/navItems'
 import { OverviewPage } from './pages/Overview/OverviewPage'
@@ -29,20 +29,23 @@ function App() {
   const [activeItem, setActiveItem] = useState<NavItemId>(() =>
     window.location.pathname === '/extras' ? 'extras' : 'visao-geral',
   )
-  const [searchQuery, setSearchQuery] = useState('')
   const [exchangeCount, setExchangeCount] = useState<number | null>(null)
   // Ao voltar do consentimento do Google (?google_agenda=...), abre direto em "Meus plantões".
   const [professionalTab, setProfessionalTab] = useState<ProfessionalTabId>(() =>
     new URLSearchParams(window.location.search).has('google_agenda') ? 'meus-plantoes' : 'inicio',
   )
   const [exchangeIdToOpen, setExchangeIdToOpen] = useState<string | null>(null)
-  const lastNonProfileItem = useRef<NavItemId>('visao-geral')
+  const [profileOpen, setProfileOpen] = useState(() => window.location.pathname === '/perfil')
   const activePage = NAV_ITEMS.find((item) => item.id === activeItem)
 
   const navigate = (id: NavItemId) => {
-    if (id !== 'perfil') lastNonProfileItem.current = id
     setActiveItem(id)
-    setSearchQuery('')
+  }
+
+  const openProfile = () => setProfileOpen(true)
+  const closeProfile = () => {
+    setProfileOpen(false)
+    if (window.location.pathname === '/perfil') window.history.replaceState({}, '', '/')
   }
 
   useEffect(() => {
@@ -85,100 +88,95 @@ function App() {
   const isCoordination = user.perfil === 'coordenacao'
   const role = { coordenacao: 'Coordenação', enfermeiro: 'Enfermeiro', tecnico: 'Técnico' }[user.perfil] ?? user.perfil
 
-  if (activeItem === 'perfil') {
-    return (
-      <ProfilePage
-        user={user}
-        onClose={() => navigate(lastNonProfileItem.current)}
-        onUserUpdated={setUser}
-        onLogout={handleLogout}
-      />
-    )
-  }
-
   if (!isCoordination) {
     return (
-      <ProfessionalLayout
-        activeTab={professionalTab}
-        onNavigate={setProfessionalTab}
-        onOpenExchange={(id) => { setExchangeIdToOpen(id); setProfessionalTab('trocas') }}
-        onProfileClick={() => navigate('perfil')}
-        user={{ name: user.nome, role, initials }}
-      >
-        {professionalTab === 'inicio' ? (
-          <ProfessionalOverviewPage
-            userName={user.nome.split(/\s+/)[0]}
-            onNavigate={(id) => id === 'trocas' ? setProfessionalTab('trocas') : navigate(id)}
-            onOpenGoogleCalendar={() => setProfessionalTab('meus-plantoes')}
-          />
-        ) : professionalTab === 'meus-plantoes' ? (
-          <MyShiftsPage />
-        ) : professionalTab === 'escala-geral' ? (
-          <GeneralSchedulePage />
-        ) : professionalTab === 'trocas' && ['enfermeiro', 'tecnico'].includes(user.perfil) ? (
-          <MyExchangesPage exchangeId={exchangeIdToOpen} />
-        ) : professionalTab === 'trocas' ? (
-          <section className="mx-auto w-full max-w-5xl px-5 py-10 sm:px-8">
-            <h1 className="text-3xl font-bold tracking-tight text-text">Trocas</h1>
-            <p className="mt-3 max-w-xl text-base leading-relaxed text-text-muted">Esta área ainda está sendo preparada.</p>
-          </section>
-        ) : (
-          <OverviewPage />
-        )}
-      </ProfessionalLayout>
+      <>
+        <ProfessionalLayout
+          activeTab={professionalTab}
+          onNavigate={setProfessionalTab}
+          onOpenExchange={(id) => { setExchangeIdToOpen(id); setProfessionalTab('trocas') }}
+          onProfileClick={openProfile}
+          user={{ name: user.nome, role, initials }}
+        >
+          {professionalTab === 'inicio' ? (
+            <ProfessionalOverviewPage
+              userName={user.nome.split(/\s+/)[0]}
+              onNavigate={setProfessionalTab}
+              onOpenGoogleCalendar={() => setProfessionalTab('meus-plantoes')}
+            />
+          ) : professionalTab === 'meus-plantoes' ? (
+            <MyShiftsPage />
+          ) : professionalTab === 'escala-geral' ? (
+            <GeneralSchedulePage />
+          ) : professionalTab === 'trocas' && ['enfermeiro', 'tecnico'].includes(user.perfil) ? (
+            <MyExchangesPage exchangeId={exchangeIdToOpen} />
+          ) : professionalTab === 'trocas' ? (
+            <section className="mx-auto w-full max-w-5xl px-5 py-10 sm:px-8">
+              <h1 className="text-3xl font-bold tracking-tight text-text">Trocas</h1>
+              <p className="mt-3 max-w-xl text-base leading-relaxed text-text-muted">Esta área ainda está sendo preparada.</p>
+            </section>
+          ) : (
+            <OverviewPage />
+          )}
+        </ProfessionalLayout>
+        {profileOpen ? (
+          <ProfilePage user={user} onClose={closeProfile} onUserUpdated={setUser} onLogout={handleLogout} />
+        ) : null}
+      </>
     )
   }
 
   return (
-    <AppLayout
-      title={activePage?.label ?? 'NurseFlow'}
-      activeItem={activeItem}
-      onNavigate={navigate}
-      onSearchChange={setSearchQuery}
-      onProfileClick={() => navigate('perfil')}
-      user={{ name: user.nome, role, initials, isCoordination }}
-      onLogout={handleLogout}
-      exchangeCount={isCoordination ? exchangeCount : null}
-    >
-      {activeItem === 'configuracoes' && isCoordination ? (
-        <SettingsPage searchQuery={searchQuery} />
-      ) : activeItem === 'visao-geral' && ['enfermeiro', 'tecnico'].includes(user.perfil) ? (
-        <ProfessionalOverviewPage userName={user.nome.split(/\s+/)[0]} onNavigate={(id) => id === 'trocas' ? setProfessionalTab('trocas') : navigate(id)} />
-      ) : activeItem === 'visao-geral' && isCoordination ? (
-        <CoordinationOverviewPage userName={user.nome.split(/\s+/)[0]} onNavigate={navigate} />
-      ) : activeItem === 'visao-geral' ? (
-        <OverviewPage />
-      ) : activeItem === 'disponibilidade' && isCoordination ? (
-        <DisponibilityPage />
-      ) : activeItem === 'profissionais' && isCoordination ? (
-          <Professional />
-      ) : activeItem === 'setores' && isCoordination ? (
-        <SectorsPage />
-      ) : activeItem === 'escala' && isCoordination ? (
-        <ScalePage />
-      ) : activeItem === 'trocas' && isCoordination ? (
-        <ExchangesPage onCountChange={setExchangeCount} />
-      ) : activeItem === 'extras' && isCoordination ? (
-        <ExtrasPage />
-      ) : activeItem === 'historico' && isCoordination ? (
-        <HistoryPage />
-      ) : (
-        <section className="mx-auto flex min-h-full w-full max-w-5xl items-center px-5 py-10 sm:px-8">
-          <div className="w-full rounded-3xl border border-border bg-white p-8 shadow-(--shadow-soft) sm:p-12">
-            <p className="text-sm font-semibold uppercase tracking-[0.12em] text-primary">
-              NurseFlow
-            </p>
-            <h2 className="mt-3 text-3xl font-bold tracking-tight text-text">
-              {activePage?.label}
-            </h2>
-            <p className="mt-3 max-w-xl text-base leading-relaxed text-text-muted">
-              Esta área ainda está sendo preparada. A página de configurações está disponível pelo
-              menu lateral.
-            </p>
-          </div>
-        </section>
-      )}
-    </AppLayout>
+    <>
+      <AppLayout
+        activeItem={activeItem}
+        onNavigate={navigate}
+        onProfileClick={openProfile}
+        user={{ name: user.nome, role, initials, isCoordination }}
+        onLogout={handleLogout}
+        exchangeCount={isCoordination ? exchangeCount : null}
+      >
+        {activeItem === 'configuracoes' && isCoordination ? (
+          <SettingsPage />
+        ) : activeItem === 'visao-geral' && isCoordination ? (
+          <CoordinationOverviewPage userName={user.nome.split(/\s+/)[0]} onNavigate={navigate} />
+        ) : activeItem === 'visao-geral' ? (
+          <OverviewPage />
+        ) : activeItem === 'disponibilidade' && isCoordination ? (
+          <DisponibilityPage />
+        ) : activeItem === 'profissionais' && isCoordination ? (
+            <Professional />
+        ) : activeItem === 'setores' && isCoordination ? (
+          <SectorsPage />
+        ) : activeItem === 'escala' && isCoordination ? (
+          <ScalePage />
+        ) : activeItem === 'trocas' && isCoordination ? (
+          <ExchangesPage onCountChange={setExchangeCount} />
+        ) : activeItem === 'extras' && isCoordination ? (
+          <ExtrasPage />
+        ) : activeItem === 'historico' && isCoordination ? (
+          <HistoryPage />
+        ) : (
+          <section className="mx-auto flex min-h-full w-full max-w-5xl items-center px-5 py-10 sm:px-8">
+            <div className="w-full rounded-3xl border border-border bg-white p-8 shadow-(--shadow-soft) sm:p-12">
+              <p className="text-sm font-semibold uppercase tracking-[0.12em] text-primary">
+                NurseFlow
+              </p>
+              <h2 className="mt-3 text-3xl font-bold tracking-tight text-text">
+                {activePage?.label}
+              </h2>
+              <p className="mt-3 max-w-xl text-base leading-relaxed text-text-muted">
+                Esta área ainda está sendo preparada. A página de configurações está disponível pelo
+                menu lateral.
+              </p>
+            </div>
+          </section>
+        )}
+      </AppLayout>
+      {profileOpen ? (
+        <ProfilePage user={user} onClose={closeProfile} onUserUpdated={setUser} onLogout={handleLogout} />
+      ) : null}
+    </>
   )
 }
 

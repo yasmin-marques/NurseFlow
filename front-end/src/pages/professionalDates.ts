@@ -44,7 +44,7 @@ export function weekRangeLabel(weekStart: Date): string {
 }
 
 export const hourLabel = (time: string) => `${time.slice(0, 2)}h`
-export const timeRange = (start: string, end: string) => `${hourLabel(start)}—${hourLabel(end)}`
+export const timeRange = (start: string, end: string) => `${hourLabel(start)} — ${hourLabel(end)}`
 
 export function initials(name: string): string {
   return name.split(/\s+/).filter(Boolean).map((part) => part[0]).slice(0, 2).join('').toUpperCase()

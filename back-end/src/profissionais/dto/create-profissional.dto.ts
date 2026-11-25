@@ -46,7 +46,7 @@ export class CreateProfissionalDto {
   @ApiPropertyOptional({
     nullable: true,
     description:
-      'Subsetor do técnico (deve pertencer ao setor). Obrigatório para técnico de setor com subsetores; não informar para técnico de setor sem subsetores nem para enfermeiro.',
+      'Subsetor opcional do técnico (deve pertencer ao setor e estar ativo); não informar para enfermeiro.',
   })
   @IsOptional()
   @IsMongoId({ message: 'Subsetor inválido' })
@@ -56,15 +56,4 @@ export class CreateProfissionalDto {
   @IsOptional()
   @IsEnum(StatusProfissional, { message: 'Status inválido' })
   status?: StatusProfissional;
-
-  @ApiPropertyOptional({
-    minLength: 8,
-    maxLength: 72,
-    description: 'Senha inicial. Se omitida, o sistema gera uma senha temporária e o profissional define a sua via recuperação de senha.',
-  })
-  @IsOptional()
-  @IsString()
-  @MinLength(8, { message: 'A senha deve ter ao menos 8 caracteres' })
-  @MaxLength(72, { message: 'A senha deve ter no máximo 72 caracteres' })
-  senha?: string;
 }

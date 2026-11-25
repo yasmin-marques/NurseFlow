@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
-import { ScalePage, GenerationLoading } from './ScalePage'
+import { ScalePage, GenerationLoading, WorkloadSummary } from './ScalePage'
 import { ExportScaleDrawer } from './ExportScaleDrawer'
 import { GenerateScaleDialog } from './GenerateScaleDialog'
 import { PublishScaleDialog } from './PublishScaleDialog'
@@ -60,11 +60,13 @@ describe('scale page loading presentation', () => {
     expect(markup).not.toContain('progressbar')
   })
 
-  it('keeps only the reference actions in the scale page header and removes extra review panels', () => {
+  it('keeps PDF export hidden without a published scale and places workflow above the calendar', () => {
     const markup = renderToStaticMarkup(<ScalePage />)
 
-    expect(markup).toContain('Exportar PDF')
-    expect(markup).toContain('Gerar Escala Automaticamente')
+    expect(markup).not.toContain('Exportar PDF')
+    expect(markup).not.toContain('Gerar Escala Automaticamente')
+    expect(markup).toContain('Configurar geração')
+    expect(markup.indexOf('aria-label="Fluxo da escala"')).toBeLessThan(markup.indexOf('aria-label="Calendário da escala"'))
     expect(markup).not.toContain('Adicionar plantão')
     expect(markup).not.toContain('Revisão por data e turno')
     expect(markup).not.toContain('Conflitos e alertas (')
@@ -82,7 +84,45 @@ describe('scale page loading presentation', () => {
   it('stretches monthly day cards across each calendar grid column', () => {
     const markup = renderToStaticMarkup(<ScalePage />)
 
-    expect(markup).toContain('min-h-[176px] w-full min-w-0')
+    expect(markup).toContain('min-h-44 w-full min-w-0')
+  })
+
+  it('shows unfulfilled regular shifts', () => {
+    const markup = renderToStaticMarkup(<WorkloadSummary
+      scale={{
+        ...pendingScale,
+        cargas: [{
+          profissionalId: 'nurse-1',
+          profissional: 'Rafael Rocha',
+          vinculo: 'clt',
+          esperada: { plantoes24h: 3, plantoes12h: 2 },
+          atribuida: { plantoes24h: 2, plantoes12h: 1 },
+          faltam: { plantoes24h: 1, plantoes12h: 1 },
+          extras: 0,
+        }],
+      }}
+    />)
+
+    expect(markup).toContain('Pendências de carga horária')
+    expect(markup).toContain('Rafael Rocha:')
+    expect(markup).toContain('1 plantão(ões) de 24h e 1 plantão(ões) de 12h')
+
+    const publishedMarkup = renderToStaticMarkup(<WorkloadSummary
+      scale={{
+        ...pendingScale,
+        escala: { ...pendingScale.escala, status: 'publicada', versaoPublicada: 1 },
+        cargas: [{
+          profissionalId: 'nurse-1',
+          profissional: 'Rafael Rocha',
+          vinculo: 'clt',
+          esperada: { plantoes24h: 3, plantoes12h: 2 },
+          atribuida: { plantoes24h: 2, plantoes12h: 1 },
+          faltam: { plantoes24h: 1, plantoes12h: 1 },
+          extras: 0,
+        }],
+      }}
+    />)
+    expect(publishedMarkup).not.toContain('Profissionais abaixo da carga regular')
   })
 
   it('renders the generation and export drawers with the reference actions and labels', () => {

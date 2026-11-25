@@ -28,9 +28,9 @@ export function searchProfessionals(professionals: ProfessionalWithId[], query: 
 }
 
 export const SHIFT_CHOICES = [
-  { value: '24h', label: '24 horas', hours: '07h—07h' },
-  { value: '12d', label: 'Diurno', hours: '07h—19h' },
-  { value: '12n', label: 'Noturno', hours: '19h—07h' },
+  { value: '24h', label: '24 horas', hours: '07h — 07h' },
+  { value: '12d', label: 'Diurno', hours: '07h — 19h' },
+  { value: '12n', label: 'Noturno', hours: '19h — 07h' },
 ] as const satisfies ReadonlyArray<{ value: ShiftOption; label: string; hours: string }>
 
 export const shiftChoice = (option: ShiftOption) => SHIFT_CHOICES.find((choice) => choice.value === option)!

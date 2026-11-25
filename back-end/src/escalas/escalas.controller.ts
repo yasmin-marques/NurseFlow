@@ -254,4 +254,18 @@ export class EscalasController {
   remover(@Param('id', ParseObjectIdPipe) id: string, @Body() dto: ConfirmarRemocaoEscalaDto) {
     return this.service.removerRascunho(id, dto.confirmar, dto.revisaoEsperada);
   }
+
+  @Delete(':id/publicada') @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Exclui operacionalmente uma escala publicada após confirmação explícita' })
+  @ApiNoContentResponse({ description: 'Escala removida das consultas operacionais; versões e auditoria preservadas.' })
+  @ApiBadRequestResponse({ description: 'Confirmação ausente ou inválida' })
+  @ApiNotFoundResponse({ description: 'Escala ou versão oficial não encontrada' })
+  @ApiConflictResponse({ description: 'A escala não possui publicação vigente ou a revisão está desatualizada' })
+  excluirPublicada(
+    @Param('id', ParseObjectIdPipe) id: string,
+    @Body() dto: ConfirmarRemocaoEscalaDto,
+    @UsuarioAtual() usuario: UsuarioAutenticado,
+  ) {
+    return this.service.excluirEscalaPublicada(id, dto.confirmar, dto.revisaoEsperada, usuario);
+  }
 }

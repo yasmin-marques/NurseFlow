@@ -72,7 +72,7 @@ class OtimizadorFalso extends OtimizadorEscala {
       }
     }
     return Promise.resolve({
-      versao_contrato: 4,
+      versao_contrato: 6,
       capacidades: ['alocacoes_fixas'],
       alocacoes,
       descobertos: [{ setor_id: problema.setores[0].id, dia: 2, turno: '24h', funcao: 'tecnicos', necessario: 1, alocado: 0, faltam: 1 }],
@@ -129,6 +129,7 @@ describe('Geração automática de escalas (e2e)', () => {
     await aplicarMigrations(banco.uri);
     process.env.MONGODB_URI = banco.uri;
     process.env.JWT_SECRET = 'segredo-de-teste-com-mais-de-16-caracteres';
+    process.env.PROFISSIONAL_SENHA_PADRAO = SENHA;
 
     const { AppModule } = await import('../src/app.module.js');
     const modulo = await Test.createTestingModule({ imports: [AppModule] })
@@ -162,7 +163,7 @@ describe('Geração automática de escalas (e2e)', () => {
         await http
           .post('/profissionais')
           .set(auth(tokenCoord))
-          .send({ nome, cpf, coren, formacao, tipoVinculo: 'clt', email, senha: SENHA, setorId: setorBase })
+          .send({ nome, cpf, coren, formacao, tipoVinculo: 'clt', email, setorId: setorBase })
           .expect(201)
       ).body.id as string;
     idEnf = await criar('Ana Souza', '529.982.247-25', 'COREN-CE 111111', 'enfermeiro', 'ana@nurseflow.com');
@@ -282,14 +283,14 @@ describe('Geração automática de escalas (e2e)', () => {
         await http
           .post('/profissionais')
           .set(auth(tokenCoord))
-          .send({ nome: 'Bia Emergência', cpf: '12345678062', coren: 'COREN-CE 333333', formacao: 'enfermeiro', tipoVinculo: 'clt', email: 'bia@nurseflow.com', senha: SENHA, setorId: setorB })
+          .send({ nome: 'Bia Emergência', cpf: '12345678062', coren: 'COREN-CE 333333', formacao: 'enfermeiro', tipoVinculo: 'clt', email: 'bia@nurseflow.com', setorId: setorB })
           .expect(201)
       ).body.id as string;
       idTecB = (
         await http
           .post('/profissionais')
           .set(auth(tokenCoord))
-          .send({ nome: 'Teo Emergência', cpf: '98765432029', coren: 'COREN-CE 444444', formacao: 'tecnico', tipoVinculo: 'clt', email: 'teo@nurseflow.com', senha: SENHA, setorId: setorB })
+          .send({ nome: 'Teo Emergência', cpf: '98765432029', coren: 'COREN-CE 444444', formacao: 'tecnico', tipoVinculo: 'clt', email: 'teo@nurseflow.com', setorId: setorB })
           .expect(201)
       ).body.id as string;
       await http.patch('/configuracoes/limites?ano=2026&mes=10').set(auth(tokenCoord)).send({
@@ -335,8 +336,10 @@ describe('Geração automática de escalas (e2e)', () => {
       expect(res.body.conflitos).toEqual(
         expect.arrayContaining([
           expect.objectContaining({ tipo: 'INDISPONIBILIDADE', profissionalId: idEnf, motivo: 'ferias', dias: [10, 11, 12] }),
-          expect.objectContaining({ tipo: 'CARGA_ABAIXO_DO_ESPERADO', profissionalId: idTec }),
         ]),
+      );
+      expect(res.body.conflitos).not.toEqual(
+        expect.arrayContaining([expect.objectContaining({ tipo: 'CARGA_ABAIXO_DO_ESPERADO', profissionalId: idTec })]),
       );
 
       const salva = await colecao('escalas').findOne({ ano: 2026, mes: 10 });
@@ -1209,6 +1212,49 @@ describe('Geração automática de escalas (e2e)', () => {
       const rascunho = await http.post('/escalas').set(auth(tokenCoord)).send({ ano: 2032, mes: 5 }).expect(201);
       await http.get(`/escalas/${rascunho.body.escala.id}/pdf`).set(auth(tokenCoord)).expect(404);
       await http.get('/escalas/64b7f0f0f0f0f0f0f0f0f0f0/pdf').set(auth(tokenCoord)).expect(404);
+    });
+
+    it('exclui uma publicação das consultas operacionais e preserva snapshot e auditoria', async () => {
+      const gerada = await prepararPeriodo(2032, 6);
+      const validada = await revisarEValidar(gerada.body);
+      const id = gerada.body.escala.id as string;
+      const publicada = await http
+        .post(`/escalas/${id}/publicar`)
+        .set(auth(tokenCoord))
+        .send({ revisaoEsperada: validada.body.escala.revisao, confirmarPendencias: true })
+        .expect(200);
+
+      await http
+        .delete(`/escalas/${id}/publicada`)
+        .set(auth(tokenCoord))
+        .send({ revisaoEsperada: publicada.body.escala.revisao })
+        .expect(400);
+
+      await http
+        .delete(`/escalas/${id}/publicada`)
+        .set(auth(tokenCoord))
+        .send({ confirmar: true, revisaoEsperada: publicada.body.escala.revisao })
+        .expect(204);
+
+      const escalaId = new mongoose.Types.ObjectId(id);
+      expect(await colecao('versoesEscala').countDocuments({ escalaId })).toBe(1);
+      expect(await colecao('auditoriaEscalas').countDocuments({ escalaId, acao: 'escala_excluida' })).toBe(1);
+      expect((await http.get('/escalas?ano=2032&mes=6').set(auth(tokenCoord)).expect(200)).body).toEqual([]);
+      expect((await http.get('/escalas/historico?ano=2032').set(auth(tokenCoord)).expect(200)).body.itens)
+        .not.toEqual(expect.arrayContaining([expect.objectContaining({ escalaId: id })]));
+      await http.get(`/escalas/${id}/versao-oficial`).set(auth(tokenCoord)).expect(404);
+      await http.get(`/escalas/${id}/pdf`).set(auth(tokenCoord)).expect(404);
+
+      const recriada = await gerar({ ano: 2032, mes: 6 }).expect(201);
+      expect((await http.get('/escalas?ano=2032&mes=6').set(auth(tokenCoord)).expect(200)).body)
+        .toEqual([expect.objectContaining({ escala: expect.objectContaining({ id: recriada.body.escala.id, status: 'rascunho' }) })]);
+
+      const notificacoes = await http.get('/notificacoes/escalas').set(auth(tokenEnf)).expect(200);
+      const notificacao = notificacoes.body.notificacoes.find((item: { escalaId: string; versao: number }) =>
+        item.escalaId === id && item.versao === 1,
+      );
+      expect(notificacao).toBeDefined();
+      await http.get(`/notificacoes/escalas/${id}/versoes/1`).set(auth(tokenEnf)).expect(404);
     });
   });
 

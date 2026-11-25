@@ -73,6 +73,27 @@ body {
   height: 100vh;
 }
 
+@keyframes modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  @keyframes modal-in {
+    from,
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+}
+
 button,
 a,
 input,
@@ -84,6 +105,20 @@ select {
 button,
 a {
   cursor: pointer;
+}
+
+button:not(:disabled) {
+  transition: filter 150ms ease, background-color 150ms ease, border-color 150ms ease, color 150ms ease, box-shadow 150ms ease;
+}
+
+button:not(:disabled):hover {
+  filter: brightness(0.96);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  button:not(:disabled) {
+    transition: none;
+  }
 }
 
 button,

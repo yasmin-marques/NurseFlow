@@ -63,7 +63,7 @@ describe('ScaleReview', () => {
     expect(renderToStaticMarkup(<ScaleReview scale={shift12h} onEdit={() => undefined} />)).not.toContain('enfermeiro chefe')
   })
 
-  it('exibe pendências do quantitativo único de 24h', () => {
+  it('exibe pendências de cobertura por turno', () => {
     const markup = renderToStaticMarkup(<ScaleReview
       scale={{
         ...scale,
@@ -71,7 +71,7 @@ describe('ScaleReview', () => {
           setorId: 'sector-1',
           setor: 'Setor A',
           data: '2026-06-08',
-          turno: '24h',
+          turno: 'noturno',
           funcao: 'tecnicos',
           necessario: 3,
           alocado: 2,
@@ -82,7 +82,8 @@ describe('ScaleReview', () => {
       onEdit={() => undefined}
     />)
 
-    expect(markup).toContain('Plantão de 24h · 07h–07h')
+    expect(markup).toContain('Noturno · 19h–07h')
     expect(markup).toContain('tecnicos 2/3; faltam 1')
   })
+
 })

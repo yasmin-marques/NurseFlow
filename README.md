@@ -226,7 +226,7 @@ Abra http://localhost:5173. Ao desenvolver localmente, a API aceita essa origem 
 | Configurações | Consulta e gravação por `GET /configuracoes`, `PATCH /configuracoes/limites`, `PUT /configuracoes/cargas` |
 | Disponibilidade | Consulta em lote pela Coordenação via `GET /restricoes`; criação, consulta individual e exclusão via `/profissionais/:id/restricoes` |
 | Escalas | Fluxo integrado de geração/montagem, revisão, edição, validação, publicação, notificações e exportação PDF/ZIP via `/escalas/*` e `/notificacoes/escalas/*` |
-| Escala do profissional | Enfermeiro/Técnico consultam, somente leitura e sobre a versão publicada, `GET /escala-profissional/meus-plantoes?situacao=proximos\|anteriores&pagina&limite`, `GET /escala-profissional/geral?ano&mes` e `GET /escala-profissional/geral/dia?data=AAAA-MM-DD`. A identidade vem do JWT (403 sem vínculo de profissional) e nenhuma resposta traz CPF, COREN, e-mail, telefone ou restrições. O botão "Google Agenda" aparece desabilitado e a aba "Trocas" do profissional ainda é um placeholder. |
+| Escala do profissional | Enfermeiro/Técnico consultam, somente leitura e sobre a versão publicada, `GET /escala-profissional/meus-plantoes?situacao=proximos\|anteriores&pagina&limite` (filtro mensal opcional `&ano&mes`), `GET /escala-profissional/geral?ano&mes` e `GET /escala-profissional/geral/dia?data=AAAA-MM-DD`. A identidade vem do JWT (403 sem vínculo de profissional) e nenhuma resposta traz CPF, COREN, e-mail, telefone ou restrições. |
 
 **Limitações intencionais**:
 
@@ -575,7 +575,7 @@ Os parâmetros são armazenados com chave `<vínculo>_<diasDoMês>` (por exemplo
 As datas são persistidas em UTC, como indicado no script. A restrição recorrente contém dia da semana mas **não** um horário específico. Não há escala gerada automaticamente, nem aprovação de trocas no projeto atual.
 ### Exportação de profissionais (Excel)
 
-Em **Profissionais**, o botão **Exportar Excel** (ao lado de *Filtros*) baixa `nurseflow-profissionais-AAAA-MM-DD.xlsx` com a aba `Profissionais`. A planilha contém exatamente o que está na tela: aplica a busca, os filtros (formação, vínculo e situação: ativo, desativado, afastado ou férias) e a ordenação selecionados. Sem filtros, exporta todos. A planilha é gerada no navegador a partir dos dados já carregados pela API (acesso restrito à Coordenação) e não inclui dados de autenticação.
+Em **Profissionais**, o botão **Exportar planilha** (ao lado de *Filtros*) baixa `nurseflow-profissionais-AAAA-MM-DD.xlsx` com a aba `Profissionais`. A planilha contém exatamente o que está na tela: aplica a busca, os filtros (formação, vínculo e situação: ativo, desativado, afastado ou férias) e a ordenação selecionados. Sem filtros, exporta todos. A planilha é gerada no navegador a partir dos dados já carregados pela API (acesso restrito à Coordenação) e não inclui dados de autenticação.
 
 ### Verificação rápida de autorização
 

@@ -4,7 +4,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { randomUUID } from 'node:crypto';
 import { type ClientSession, Model, Types } from 'mongoose';
 import type { AppConfig } from '../config/configuration';
-import { Escala, PlantaoProfissional, Plantao, VersaoEscala } from '../escalas/schemas';
+import { Escala, PlantaoProfissional, Plantao, StatusEscala, VersaoEscala } from '../escalas/schemas';
 import { Setor } from '../setores/schemas/setor.schema';
 import {
   EventoGoogleAgenda,
@@ -341,7 +341,7 @@ export class GoogleAgendaSincronizacaoService implements OnModuleInit, OnModuleD
   /** Estado oficial do profissional: última versão publicada de cada escala, filtrada para plantões ainda relevantes. */
   private async estadoOficial(profissionalId: string, corte: Date): Promise<Map<string, EventoDesejado>> {
     const indiceCorte = corte.getUTCFullYear() * 12 + corte.getUTCMonth();
-    const escalas = (await this.escalas.find({ versaoPublicada: { $gte: 1 } }, { _id: 1, ano: 1, mes: 1 }).lean().exec()).filter(
+    const escalas = (await this.escalas.find({ status: { $ne: StatusEscala.EXCLUIDA }, versaoPublicada: { $gte: 1 } }, { _id: 1, ano: 1, mes: 1 }).lean().exec()).filter(
       (escala) => escala.ano * 12 + (escala.mes - 1) >= indiceCorte,
     );
     const desejados = new Map<string, EventoDesejado>();

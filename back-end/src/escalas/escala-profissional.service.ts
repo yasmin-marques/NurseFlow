@@ -5,7 +5,7 @@ import type { UsuarioAutenticado } from '../common/auth/usuario-autenticado';
 import { Profissional } from '../profissionais/schemas/profissional.schema';
 import { Setor } from '../setores/schemas/setor.schema';
 import { Usuario } from '../usuarios/schemas/usuario.schema';
-import { OrigemCobertura, Escala, Plantao, PlantaoProfissional, VersaoEscala } from './schemas';
+import { OrigemCobertura, Escala, Plantao, PlantaoProfissional, StatusEscala, VersaoEscala } from './schemas';
 
 /** Os horários dos plantões são locais (Fortaleza, UTC-3, sem horário de verão). */
 const OFFSET_LOCAL_MS = 3 * 3_600_000;
@@ -29,7 +29,7 @@ type Turno = 'diurno' | 'noturno' | '24h';
 
 const isoDia = (data: Date) => new Date(data).toISOString().slice(0, 10);
 const hhmm = (valor: string) => `${valor.slice(0, 2)}h`;
-const faixa = (inicio: string, fim: string) => `${hhmm(inicio)}—${hhmm(fim)}`;
+const faixa = (inicio: string, fim: string) => `${hhmm(inicio)} — ${hhmm(fim)}`;
 
 function turnoDe(plantao: Pick<Plantao, 'horarioInicio' | 'duracaoHoras'>): Turno {
   if (plantao.duracaoHoras >= 24) return '24h';
@@ -76,15 +76,21 @@ export class EscalaProfissionalService {
     situacao: 'proximos' | 'anteriores' = 'proximos',
     pagina = 1,
     limite = 20,
+    ano?: number,
+    mes?: number,
     agora = new Date(),
   ) {
     const meses: { ano: number; mes: number }[] = [];
-    const base = agora.getUTCFullYear() * 12 + agora.getUTCMonth();
-    const [de, ate] = situacao === 'proximos' ? [0, JANELA_PROXIMOS_MESES] : [-JANELA_ANTERIORES_MESES, 0];
-    // O plantão noturno do último dia do mês anterior ainda pode estar em andamento.
-    for (let delta = de - 1; delta <= ate; delta++) {
-      const indice = base + delta;
-      meses.push({ ano: Math.floor(indice / 12), mes: (indice % 12) + 1 });
+    if (ano !== undefined && mes !== undefined) {
+      meses.push({ ano, mes });
+    } else {
+      const base = agora.getUTCFullYear() * 12 + agora.getUTCMonth();
+      const [de, ate] = situacao === 'proximos' ? [0, JANELA_PROXIMOS_MESES] : [-JANELA_ANTERIORES_MESES, 0];
+      // O plantão noturno do último dia do mês anterior ainda pode estar em andamento.
+      for (let delta = de - 1; delta <= ate; delta++) {
+        const indice = base + delta;
+        meses.push({ ano: Math.floor(indice / 12), mes: (indice % 12) + 1 });
+      }
     }
     const publicados = await this.carregarMeses(meses);
     const meuId = String(profissionalId);
@@ -220,7 +226,7 @@ export class EscalaProfissionalService {
   private async carregarMeses(periodos: { ano: number; mes: number }[]): Promise<MesPublicado[]> {
     if (periodos.length === 0) return [];
     const escalas = await this.escalas
-      .find({ $or: periodos.map(({ ano, mes }) => ({ ano, mes })) }, { _id: 1, ano: 1, mes: 1 })
+      .find({ status: { $ne: StatusEscala.EXCLUIDA }, $or: periodos.map(({ ano, mes }) => ({ ano, mes })) }, { _id: 1, ano: 1, mes: 1 })
       .lean()
       .exec();
     if (escalas.length === 0) return [];

@@ -1,6 +1,6 @@
 import { api, apiDownload } from './api'
 
-export type ScaleStatus = 'rascunho' | 'em_revisao' | 'validada' | 'publicada' | 'finalizada'
+export type ScaleStatus = 'rascunho' | 'em_revisao' | 'validada' | 'publicada' | 'finalizada' | 'excluida'
 export type ScaleShift = 'diurno' | 'noturno'
 export type CoverageShift = '24h' | ScaleShift
 export type ShiftOption = '24h' | '12d' | '12n'
@@ -18,6 +18,8 @@ export interface CoverageSummary {
 export interface CoverageVacancy {
   setorId: string
   setor: string
+  subsetorId?: string
+  subsetor?: string
   data: string
   turno: CoverageShift
   funcao: 'enfermeiros' | 'tecnicos'
@@ -34,6 +36,13 @@ export interface ScheduleProfessional {
   vinculo: 'concursado' | 'clt' | 'rpa'
   lideranca: boolean
   origemCobertura: CoverageOrigin
+  subsetor?: { id: string; nome: string } | null
+}
+
+export interface GeneralShiftLead {
+  data: string
+  id: string
+  nome: string
 }
 
 export interface ScheduledShift {
@@ -66,6 +75,7 @@ export interface ProfessionalWorkload {
   vinculo: string
   esperada: { plantoes24h: number; plantoes12h: number }
   atribuida: { plantoes24h: number; plantoes12h: number }
+  faltam?: { plantoes24h: number; plantoes12h: number }
   extras: number
 }
 
@@ -93,6 +103,7 @@ export interface ScaleDetail {
     extras?: number
     cobertura?: CoverageSummary
   }
+  chefesGerais?: GeneralShiftLead[]
   cobertura: CoverageSummary | null
   configuracaoUtilizada: Record<string, unknown> | null
   escopo: { setorIds: string[]; turnos: ScaleShift[] } | null
@@ -149,6 +160,7 @@ interface ApiScheduleProfessional {
   vinculo: ScheduleProfessional['vinculo']
   lideranca?: boolean
   origemCobertura?: CoverageOrigin
+  subsetor?: { id: string; nome: string } | null
 }
 
 interface ApiScheduledShift {
@@ -322,6 +334,13 @@ export async function exportScalePdf(
 
 export async function removeDraft(scaleId: string, revisaoEsperada: number): Promise<void> {
   await api<void>(`/escalas/${scaleId}`, {
+    method: 'DELETE',
+    body: JSON.stringify({ confirmar: true, revisaoEsperada }),
+  })
+}
+
+export async function excludePublishedScale(scaleId: string, revisaoEsperada: number): Promise<void> {
+  await api<void>(`/escalas/${scaleId}/publicada`, {
     method: 'DELETE',
     body: JSON.stringify({ confirmar: true, revisaoEsperada }),
   })

@@ -23,9 +23,14 @@ const shift = (overrides: Record<string, unknown> = {}) => ({
 const page = (itens: unknown[], extra: Record<string, unknown> = {}) => ({ itens, pagina: 1, limite: 20, total: itens.length, totalPaginas: 1, ...extra })
 
 describe('MyShiftsPage', () => {
-  afterEach(() => cleanup())
+  afterEach(() => {
+    cleanup()
+    vi.useRealTimers()
+  })
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(2026, 10, 25, 12))
     getMyShifts.mockImplementation((situacao: string) =>
       Promise.resolve(situacao === 'proximos' ? page([shift()]) : page([shift({ plantaoId: 'p0', data: '2026-10-09', status: 'trabalhado', tipo: 'extra' })])))
   })
@@ -34,14 +39,16 @@ describe('MyShiftsPage', () => {
     render(<MyShiftsPage />)
     expect(screen.getByRole('heading', { name: 'Meus plantões' })).not.toBeNull()
     expect(await screen.findByText('Setor A')).not.toBeNull()
-    expect(screen.getByText('24 horas · 07h—07h')).not.toBeNull()
+    expect(screen.getByText('24 horas · 07h — 07h')).not.toBeNull()
     expect(screen.getByText('Trabalhando')).not.toBeNull()
     expect(screen.getByText('Enfermeiro chefe: Ana Ribeiro')).not.toBeNull()
     expect(screen.getByText('Ana Ribeiro · Marina Freitas')).not.toBeNull()
     expect(screen.getByText('Outros técnicos')).not.toBeNull()
     expect(screen.getByText('Bruno Lima · Lívia Reis')).not.toBeNull()
-    expect(await screen.findByRole('button', { name: 'Conectar Google Agenda' })).not.toBeNull()
+    expect(await screen.findByRole('button', { name: 'Sincronizar' })).not.toBeNull()
+    expect(screen.getByRole('heading', { name: 'Meus plantões' }).parentElement?.parentElement?.querySelector('button')).not.toBeNull()
     expect(getMyShifts).toHaveBeenCalledTimes(1)
+    expect(getMyShifts).toHaveBeenCalledWith('proximos', 1, 50, 2026, 11)
     expect(screen.queryByRole('button', { name: /editar|publicar|gerar|excluir/i })).toBeNull()
   })
 
@@ -58,7 +65,7 @@ describe('MyShiftsPage', () => {
     expect(previous.getAttribute('aria-selected')).toBe('true')
     expect(await screen.findByText('Trabalhado')).not.toBeNull()
     expect(screen.getByText('Extra')).not.toBeNull()
-    expect(getMyShifts).toHaveBeenLastCalledWith('anteriores', 1)
+    expect(getMyShifts).toHaveBeenLastCalledWith('anteriores', 1, 50, 2026, 11)
   })
 
   it('distinguishes the empty state from a load failure and retries', async () => {
@@ -86,5 +93,13 @@ describe('MyShiftsPage', () => {
     expect(screen.getByText('Setor A')).not.toBeNull()
     const result = await axe.run(container, { rules: { 'color-contrast': { enabled: false }, region: { enabled: false } } })
     expect(result.violations.map((violation) => violation.id)).toEqual([])
+  })
+
+  it('navigates by month and requests only the selected month', async () => {
+    render(<MyShiftsPage />)
+    await screen.findByText('Setor A')
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Próximo mês' }))
+    expect(await screen.findByText('Dezembro de 2026')).not.toBeNull()
+    await waitFor(() => expect(getMyShifts).toHaveBeenLastCalledWith('proximos', 1, 50, 2026, 12))
   })
 })

@@ -1,16 +1,16 @@
 import type { FormationType, Professional, ProfessionalStatus, bondType } from "./types";
 
 export type ProfessionalFilters = {
-    formation: FormationType | "all";
-    status: ProfessionalStatus | "all";
-    bond: bondType | "all";
+    formation: FormationType[];
+    status: ProfessionalStatus[];
+    bond: bondType[];
     sort: "asc" | "desc";
 };
 
 export const initialFilters: ProfessionalFilters = {
-    formation: "all",
-    status: "all",
-    bond: "all",
+    formation: [],
+    status: [],
+    bond: [],
     sort: "asc",
 };
 
@@ -29,9 +29,9 @@ export function applyProfessionalView(professionals: Professional[], filters: Pr
     const term = search.trim().toLowerCase();
     const digits = term.replace(/\D/g, "");
     return professionals
-        .filter((professional) => filters.formation === "all" || professional.formation === filters.formation)
-        .filter((professional) => filters.status === "all" || statusOf(professional) === filters.status)
-        .filter((professional) => filters.bond === "all" || professional.bond === filters.bond)
+        .filter((professional) => filters.formation.length === 0 || filters.formation.includes(professional.formation))
+        .filter((professional) => filters.status.length === 0 || filters.status.includes(statusOf(professional)))
+        .filter((professional) => filters.bond.length === 0 || filters.bond.includes(professional.bond))
         .filter((p) =>
             !term
             || p.name.toLowerCase().includes(term)

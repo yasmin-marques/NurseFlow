@@ -17,4 +17,6 @@ export type Professional = {
     /** Setor fixo: o profissional só pode ser escalado neste setor. Vazio apenas em cadastros legados pendentes. */
     sectorId?: string | null,
     sectorName?: string | null,
+    subsectorId?: string | null,
+    subsectorName?: string | null,
 }

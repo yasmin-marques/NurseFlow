@@ -30,6 +30,7 @@ describe('Extras programados (e2e)', () => {
     await aplicarMigrations(banco.uri);
     process.env.MONGODB_URI = banco.uri;
     process.env.JWT_SECRET = 'segredo-de-teste-com-mais-de-16-caracteres';
+    process.env.PROFISSIONAL_SENHA_PADRAO = SENHA;
 
     const { AppModule } = await import('../src/app.module.js');
     const modulo = await Test.createTestingModule({ imports: [AppModule] }).compile();
@@ -70,7 +71,6 @@ describe('Extras programados (e2e)', () => {
         formacao: 'enfermeiro',
         tipoVinculo: 'clt',
         email: 'carla-extras@nurseflow.com',
-        senha: SENHA,
         setorId,
       })
       .expect(201);
@@ -87,7 +87,6 @@ describe('Extras programados (e2e)', () => {
         formacao: 'tecnico',
         tipoVinculo: 'rpa',
         email: 'diego-extras@nurseflow.com',
-        senha: SENHA,
         setorId,
       })
       .expect(201);

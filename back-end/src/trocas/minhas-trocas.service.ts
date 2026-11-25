@@ -13,6 +13,7 @@ import type { UsuarioAutenticado } from '../common/auth/usuario-autenticado';
 import { CriarMinhaTrocaDto, ListarMinhasTrocasDto } from './dto/minhas-trocas.dto';
 import { TrocasService } from './trocas.service';
 import { calcularBloqueiosDoProfissional } from '../escalas/montar-problema';
+import { chaveCompatibilidade } from './compatibilidade-troca';
 
 type ShiftSnapshot = Plantao & { _id: Types.ObjectId };
 type LinkSnapshot = PlantaoProfissional & { _id: Types.ObjectId };
@@ -99,17 +100,23 @@ export class MinhasTrocasService {
   async candidatos(usuario: UsuarioAutenticado, vinculoId: string) {
     const profissional = await this.profissionalDoUsuario(usuario);
     const meu = await this.vinculoOficial(vinculoId);
-    if (String(meu.vinculo.profissionalId) !== String(profissional._id)) throw new ForbiddenException('Este plant?o n?o pertence ao profissional autenticado.');
-    if (this.inicioPlantao(meu.plantao) <= new Date()) throw new ConflictException('O plant?o j? come?ou.');
+    if (String(meu.vinculo.profissionalId) !== String(profissional._id)) throw new ForbiddenException('Este plantão não pertence ao profissional autenticado.');
+    if (this.inicioPlantao(meu.plantao) <= new Date()) throw new ConflictException('O plantão já começou.');
 
     // Contexto carregado uma única vez para esta busca.
     const contexto = await this.regras.prepararContextoValidacaoCandidatos(String(meu.escala._id));
+    const cadastroAtual = contexto.profissionaisPorId.get(String(profissional._id));
+    if (!cadastroAtual) throw new ConflictException('Seu cadastro não foi encontrado na escala. Atualize e tente novamente.');
+    const chave = chaveCompatibilidade(cadastroAtual);
+    if (!chave) throw new UnprocessableEntityException('Defina seu setor fixo antes de solicitar uma troca.');
+    const idsCompativeis = new Set((contexto.profissionaisPorCategoriaSetorSubsetor.get(chave) ?? []).map((p) => String(p._id)));
     const agora = new Date();
     const inicioJanela = agora.getTime() + JANELA_TROCA_MIN_DIAS * 24 * 60 * 60 * 1000;
     const fimJanela = agora.getTime() + JANELA_TROCA_MAX_DIAS * 24 * 60 * 60 * 1000;
 
     const candidaturasBase: { v: LinkSnapshot; shift: ShiftSnapshot; escala: typeof meu.escala }[] = [];
-    for (const lista of contexto.plantoesPorProfissional.values()) {
+    for (const [profissionalId, lista] of contexto.plantoesPorProfissional) {
+      if (!idsCompativeis.has(profissionalId)) continue;
       for (const alocacao of lista) {
         if (String(alocacao.plantao.escalaId) !== String(meu.escala._id)) continue;
         if (String(alocacao.vinculo.profissionalId) === String(profissional._id)) continue;
@@ -137,10 +144,7 @@ export class MinhasTrocasService {
       const colega = contexto.profissionaisPorId.get(String(v.profissionalId));
       if (!colega || colega.status !== StatusProfissional.ATIVO) continue;
 
-      // 1. Mesma categoria
-      if (colega.formacao !== profissional.formacao) continue;
-
-      // 2. Apenas plantões futuros na janela configurável
+      // 1. Apenas plantões futuros na janela configurável
       const inicioCandidato = this.inicioPlantao(shift).getTime();
       if (inicioCandidato < inicioJanela || inicioCandidato > fimJanela) continue;
 

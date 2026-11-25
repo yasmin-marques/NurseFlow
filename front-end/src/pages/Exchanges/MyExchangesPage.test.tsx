@@ -23,6 +23,25 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.unstubAllGlobals() })
 
 describe('MyExchangesPage', () => {
+  it.each(['Enfermeiro', 'Técnico'])('renders green-accented selectable cards for %s exchange requests', async () => {
+    const user = userEvent.setup()
+    render(<MyExchangesPage />)
+    await user.click(await screen.findByRole('button', { name: 'Nova solicitação' }))
+
+    const shiftCard = await screen.findByRole('button', { name: /Bloco A/ })
+    expect(shiftCard.className).toContain('border-l-4')
+    expect(shiftCard.className).toContain('border-l-primary')
+    expect(shiftCard.className).toContain('pl-5')
+
+    await user.click(shiftCard)
+    const candidateCard = await screen.findByRole('button', { name: /Beatriz/ })
+    expect(candidateCard.className).toContain('border-l-4')
+    expect(candidateCard.className).toContain('border-l-primary')
+    expect(candidateCard.className).toContain('pl-5')
+    await user.click(candidateCard)
+    expect(await screen.findByText(/A escala oficial não muda com o aceite/)).not.toBeNull()
+  })
+
   it('sends only after the nurse completes the three review steps', async () => {
     const user = userEvent.setup()
     render(<MyExchangesPage />)
@@ -41,6 +60,7 @@ describe('MyExchangesPage', () => {
     vi.mocked(listarMinhasTrocas).mockResolvedValue({ itens: [request], total: 1, pagina: 1, limite: 50, totalPaginas: 1 })
     const user = userEvent.setup()
     render(<MyExchangesPage />)
+    await user.click(await screen.findByRole('button', { name: 'Ver detalhes' }))
     await user.click(await screen.findByRole('button', { name: 'Aceitar' }))
     expect(screen.getByText('Você aceitará a troca de plantão. A escala só muda após a decisão da Coordenação.')).not.toBeNull()
     expect(screen.queryByText(/Beatriz/)).toBeNull()
@@ -55,6 +75,25 @@ describe('MyExchangesPage', () => {
     await user.click(screen.getByRole('button', { name: 'Sim, quero aceitar' }))
     expect(await screen.findByText('Solicitação aceita. Aguardando Coordenação.')).not.toBeNull()
     expect(executarAcaoTroca).toHaveBeenCalledWith('request-1', 'aceite', 'operation-1')
+  })
+
+  it('keeps exchange cards compact until expanded, with independent open/close state', async () => {
+    vi.mocked(listarMinhasTrocas).mockResolvedValue({
+      itens: [request, { ...request, id: 'request-2', solicitante: { nome: 'Carla' } }],
+      total: 2, pagina: 1, limite: 50, totalPaginas: 1,
+    })
+    const user = userEvent.setup()
+    render(<MyExchangesPage />)
+
+    const cards = await screen.findAllByRole('button', { name: 'Ver detalhes' })
+    expect(cards).toHaveLength(2)
+    const firstDetails = cards[0].closest('li')?.querySelector('[id^="exchange-details-"]')
+    await user.click(cards[0])
+    expect(screen.getAllByRole('button', { name: 'Fechar detalhes' })).toHaveLength(1)
+    expect(firstDetails?.hasAttribute('hidden')).toBe(false)
+    await user.click(screen.getByRole('button', { name: 'Fechar detalhes' }))
+    expect(screen.getAllByRole('button', { name: 'Ver detalhes' })).toHaveLength(2)
+    expect(firstDetails?.hasAttribute('hidden')).toBe(true)
   })
 
   it('shows the correct colleague rejection perspective in received, sent, and coordination cases', async () => {

@@ -37,6 +37,7 @@ describe('Escala do profissional (e2e)', () => {
     await aplicarMigrations(banco.uri);
     process.env.MONGODB_URI = banco.uri;
     process.env.JWT_SECRET = 'segredo-de-teste-com-mais-de-16-caracteres';
+    process.env.PROFISSIONAL_SENHA_PADRAO = SENHA;
     const { AppModule } = await import('../src/app.module.js');
     const modulo = await Test.createTestingModule({ imports: [AppModule] }).compile();
     app = modulo.createNestApplication(); configurarApp(app); await app.init();
@@ -48,7 +49,7 @@ describe('Escala do profissional (e2e)', () => {
     tokenCoord = await login('coord-ep@nurseflow.com', 'coordenacao');
     const setor = await http.post('/setores').set(auth(tokenCoord)).send({ nome: 'Setor A', plantao24h: { enfermeiros: 0, tecnicos: 0 } }).expect(201);
     const criar = async (nome: string, cpf: string, coren: string, formacao: string, email: string) =>
-      new ObjectId((await http.post('/profissionais').set(auth(tokenCoord)).send({ nome, cpf, coren, formacao, tipoVinculo: 'clt', email, senha: SENHA, setorId: setor.body.id }).expect(201)).body.id);
+      new ObjectId((await http.post('/profissionais').set(auth(tokenCoord)).send({ nome, cpf, coren, formacao, tipoVinculo: 'clt', email, setorId: setor.body.id }).expect(201)).body.id);
     const ana = await criar('Ana Ribeiro', '529.982.247-25', 'COREN-CE 710001', 'enfermeiro', 'ana-ep@nurseflow.com');
     const camila = await criar('Camila Souza', '390.533.447-05', 'COREN-CE 710002', 'tecnico', 'camila-ep@nurseflow.com');
     const bruno = await criar('Bruno Lima', '168.995.350-09', 'COREN-CE 710003', 'tecnico', 'bruno-ep@nurseflow.com');
@@ -105,6 +106,8 @@ describe('Escala do profissional (e2e)', () => {
 
   it('valida parâmetros', async () => {
     await http.get('/escala-profissional/meus-plantoes?situacao=outro').set(auth(tokenAna)).expect(400);
+    await http.get(`/escala-profissional/meus-plantoes?ano=${futuro.ano}`).set(auth(tokenAna)).expect(400);
+    await http.get('/escala-profissional/meus-plantoes?mes=13').set(auth(tokenAna)).expect(400);
     await http.get('/escala-profissional/geral?ano=2026&mes=13').set(auth(tokenAna)).expect(400);
     await http.get('/escala-profissional/geral/dia?data=2026-02-31').set(auth(tokenAna)).expect(400);
     await http.get('/escala-profissional/geral/dia?data=10/11/2026').set(auth(tokenAna)).expect(400);
@@ -127,6 +130,16 @@ describe('Escala do profissional (e2e)', () => {
     expect(ana.body.itens).toHaveLength(1);
   });
 
+  it('filtra plantões do profissional pelo mês solicitado', async () => {
+    const res = await http.get(`/escala-profissional/meus-plantoes?situacao=proximos&ano=${futuro.ano}&mes=${futuro.mes}`)
+      .set(auth(tokenCamila)).expect(200);
+    expect(res.body.itens.map((item: { data: string }) => item.data)).toEqual([dia(futuro, 5), dia(futuro, 6)]);
+
+    const vazio = await http.get(`/escala-profissional/meus-plantoes?situacao=proximos&ano=${futuro.ano}&mes=${passado.mes}`)
+      .set(auth(tokenCamila)).expect(200);
+    expect(vazio.body.itens).toEqual([]);
+  });
+
   it('não aceita identificador de outro profissional e não vaza dados pessoais', async () => {
     const res = await http.get('/escala-profissional/meus-plantoes?situacao=anteriores&profissionalId=64b7f0f0f0f0f0f0f0f0f0f0').set(auth(tokenAna));
     expect([200, 400]).toContain(res.status);
@@ -147,10 +160,10 @@ describe('Escala do profissional (e2e)', () => {
     ]);
     const detalhe = await http.get(`/escala-profissional/geral/dia?data=${dia(passado, 10)}`).set(auth(tokenCamila)).expect(200);
     expect(detalhe.body.chefe).toMatchObject({ nome: 'Ana Ribeiro', setores: ['Setor A'] });
-    expect(detalhe.body.enfermeiros).toEqual([{ nome: 'Ana Ribeiro', cargo: 'Enfermeiro chefe', setores: ['Setor A'], regime: '24 horas · 07h—07h' }]);
+    expect(detalhe.body.enfermeiros).toEqual([{ nome: 'Ana Ribeiro', cargo: 'Enfermeiro chefe', setores: ['Setor A'], regime: '24 horas · 07h — 07h' }]);
     expect(detalhe.body.tecnicos.map((t: { nome: string; regime: string }) => [t.nome, t.regime])).toEqual([
-      ['Bruno Lima', '24 horas · 07h—07h · restrição'],
-      ['Camila Souza', '24 horas · 07h—07h'],
+      ['Bruno Lima', '24 horas · 07h — 07h · restrição'],
+      ['Camila Souza', '24 horas · 07h — 07h'],
     ]);
     expect(detalhe.body.contagens).toEqual({ enfermeiros: 1, tecnicos: 2 });
   });

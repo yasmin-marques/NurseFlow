@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { Plus } from "../../components/icons";
 import { Toast } from "../../components/ui/Toast";
+import { ProfessionalAvatar } from "../../components/ui/ProfessionalAvatar";
+import { ProfessionalStatusIndicator } from "../../components/ui/ProfessionalStatusIndicator";
 import {
   createRestriction,
   deleteRestriction,
@@ -299,12 +301,7 @@ export function DisponibilityPage() {
                     >
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
-                          <span
-                            aria-hidden="true"
-                            className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[#e4efe2] text-xs font-bold text-primary"
-                          >
-                            {initials}
-                          </span>
+                          <ProfessionalAvatar initials={initials} decorative />
                           <span className="min-w-0">
                             <span className="block truncate text-sm font-semibold text-text">
                               {record.name}
@@ -322,13 +319,7 @@ export function DisponibilityPage() {
                         {record.period}
                       </td>
                       <td className="px-5 py-4">
-                        <span className="inline-flex items-center gap-2 text-sm font-medium text-text">
-                          <span
-                            className={`size-2 rounded-full ${isActive ? "bg-success" : "bg-gray-400"}`}
-                            aria-hidden="true"
-                          />
-                          {statusLabel}
-                        </span>
+                        <ProfessionalStatusIndicator active={isActive} label={statusLabel} />
                       </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex justify-end gap-2">

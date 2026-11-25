@@ -56,7 +56,7 @@ export function ScaleReview({ scale, onEdit }: ScaleReviewProps) {
                             <div>
                               <h5 className="text-sm font-bold text-text">{shift.setor.nome}</h5>
                               <p className="mt-1 text-xs text-text-muted">
-                                {shift.horarioInicio}–{shift.horarioFim} · {shiftLabel(shift)} · {shift.tipo === 'extra' ? 'Extra' : 'Regular'}
+                                {shift.horarioInicio} – {shift.horarioFim} · {shiftLabel(shift)} · {shift.tipo === 'extra' ? 'Extra' : 'Regular'}
                               </p>
                             </div>
                             {editable ? (
