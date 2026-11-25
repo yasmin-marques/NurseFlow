@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { getMyShifts, type MyShift, type ShiftSituation } from '../../services/professionalSchedule'
 import { GoogleCalendarPanel } from './GoogleCalendarPanel'
-import { dayNumber, timeRange, weekdayLabel } from '../professionalDates'
+import { capitalized, dayNumber, monthName, timeRange, weekdayLabel } from '../professionalDates'
 
 const TABS: { id: ShiftSituation; label: string }[] = [
   { id: 'proximos', label: 'Próximos' },
@@ -64,6 +64,10 @@ function ShiftCard({ shift }: { shift: MyShift }) {
 
 export function MyShiftsPage() {
   const [tab, setTab] = useState<ShiftSituation>('proximos')
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const now = new Date()
+    return new Date(now.getFullYear(), now.getMonth(), 1)
+  })
   const [items, setItems] = useState<MyShift[]>([])
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
@@ -73,9 +77,9 @@ export function MyShiftsPage() {
   const tabRefs = useRef<Record<ShiftSituation, HTMLButtonElement | null>>({ proximos: null, anteriores: null })
 
   /** Busca uma página; só atualiza o estado nos retornos assíncronos (seguro para efeitos). */
-  const fetchPage = useCallback((situation: ShiftSituation, pageNumber: number) => {
+  const fetchPage = useCallback((situation: ShiftSituation, pageNumber: number, month = selectedMonth) => {
     const current = ++requestId.current
-    getMyShifts(situation, pageNumber)
+    getMyShifts(situation, pageNumber, 50, month.getFullYear(), month.getMonth() + 1)
       .then((result) => {
         if (current !== requestId.current) return
         setItems((previous) => (pageNumber === 1 ? result.itens : [...previous, ...result.itens]))
@@ -89,21 +93,21 @@ export function MyShiftsPage() {
       .finally(() => {
         if (current === requestId.current) setLoading(false)
       })
-  }, [])
+  }, [selectedMonth])
 
   /** Inicia uma busca a partir de uma ação do usuário, sinalizando carregamento. */
-  const load = useCallback((situation: ShiftSituation, pageNumber: number) => {
+  const load = useCallback((situation: ShiftSituation, pageNumber: number, month = selectedMonth) => {
     setLoading(true)
     setError(null)
-    fetchPage(situation, pageNumber)
-  }, [fetchPage])
+    fetchPage(situation, pageNumber, month)
+  }, [fetchPage, selectedMonth])
 
   useEffect(() => {
-    fetchPage('proximos', 1)
+    fetchPage(tab, 1)
     return () => {
       requestId.current += 1
     }
-  }, [fetchPage])
+  }, [fetchPage, tab])
 
   const selectTab = (next: ShiftSituation) => {
     if (next === tab) return
@@ -111,7 +115,18 @@ export function MyShiftsPage() {
     setPage(1)
     setTotalPages(1)
     setTab(next)
-    load(next, 1)
+    setLoading(true)
+    setError(null)
+  }
+
+  const changeMonth = (delta: number) => {
+    const nextMonth = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + delta, 1)
+    setItems([])
+    setPage(1)
+    setTotalPages(1)
+    setLoading(true)
+    setError(null)
+    setSelectedMonth(nextMonth)
   }
 
   const onTabKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
@@ -125,15 +140,36 @@ export function MyShiftsPage() {
 
   return (
     <div className="mx-auto w-full max-w-[1280px] px-5 py-8 sm:px-8">
-      <header className="flex flex-wrap items-start justify-between gap-4">
+      <header className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-primary">Minha escala</p>
           <h1 className="mt-2 text-3xl font-bold tracking-tight text-text">Meus plantões</h1>
           <p className="mt-2 text-sm text-text-muted">Consulte seus próximos turnos em ordem cronológica.</p>
         </div>
+        <GoogleCalendarPanel />
       </header>
 
-      <GoogleCalendarPanel />
+      <div className="mt-6 flex items-center justify-center gap-8 rounded-2xl border border-border bg-surface px-5 py-4 shadow-(--shadow-soft)">
+        <button
+          type="button"
+          onClick={() => changeMonth(-1)}
+          aria-label="Mês anterior"
+          className="flex size-11 items-center justify-center rounded-lg text-lg font-bold text-primary hover:bg-neutral focus-visible:outline-2 focus-visible:outline-primary"
+        >
+          ‹
+        </button>
+        <p aria-live="polite" className="min-w-40 text-center text-sm font-bold text-text">
+          {capitalized(monthName(selectedMonth.getMonth() + 1))} de {selectedMonth.getFullYear()}
+        </p>
+        <button
+          type="button"
+          onClick={() => changeMonth(1)}
+          aria-label="Próximo mês"
+          className="flex size-11 items-center justify-center rounded-lg text-lg font-bold text-primary hover:bg-neutral focus-visible:outline-2 focus-visible:outline-primary"
+        >
+          ›
+        </button>
+      </div>
 
       <div role="tablist" aria-label="Situação dos plantões" className="mt-6 flex gap-1 border-b border-border">
         {TABS.map((item) => {

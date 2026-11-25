@@ -62,8 +62,9 @@ export interface GeneralDayDetails {
 
 const BASE = '/escala-profissional'
 
-export function getMyShifts(situacao: ShiftSituation, pagina = 1, limite = 20): Promise<MyShiftsPage> {
-  return api<MyShiftsPage>(`${BASE}/meus-plantoes?situacao=${situacao}&pagina=${pagina}&limite=${limite}`)
+export function getMyShifts(situacao: ShiftSituation, pagina = 1, limite = 20, ano?: number, mes?: number): Promise<MyShiftsPage> {
+  const periodo = ano !== undefined && mes !== undefined ? `&ano=${ano}&mes=${mes}` : ''
+  return api<MyShiftsPage>(`${BASE}/meus-plantoes?situacao=${situacao}&pagina=${pagina}&limite=${limite}${periodo}`)
 }
 
 export function getGeneralMonth(ano: number, mes: number): Promise<GeneralMonth> {

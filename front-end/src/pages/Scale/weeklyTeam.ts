@@ -72,7 +72,7 @@ function hours(time: string) {
 }
 
 export function describeShift(shift: ScheduledShift) {
-  const range = `${hours(shift.horarioInicio)}—${hours(shift.horarioFim)}`
+  const range = `${hours(shift.horarioInicio)} — ${hours(shift.horarioFim)}`
   if (shift.duracaoHoras === 24) return `24 horas · ${range}`
   return `${shift.horarioInicio === '07:00' ? 'Diurno' : 'Noturno'} · ${range}`
 }
@@ -81,7 +81,7 @@ export function describeShiftBadge(
   professional: ScheduleProfessional,
   shift: ScheduledShift,
 ) {
-  const range = `${hours(shift.horarioInicio)}—${hours(shift.horarioFim)}`
+  const range = `${hours(shift.horarioInicio)} — ${hours(shift.horarioFim)}`
   if (professional.origemCobertura === 'restricao') {
     return { label: `Baixa · ${range} · restrição`, tone: 'covered' as const }
   }

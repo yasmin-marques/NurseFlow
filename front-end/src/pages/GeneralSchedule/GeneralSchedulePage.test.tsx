@@ -11,12 +11,12 @@ vi.mock('../../services/professionalSchedule', () => ({ getGeneralMonth, getGene
 const dia = (data: string, extra: Record<string, unknown> = {}) => ({
   data, turnos: [{ turno: 'diurno', horarioInicio: '07:00', horarioFim: '19:00' }], chefe: { nome: 'Ana Ribeiro' }, setores: ['Bloco A'], ...extra,
 })
-const staff = (nome: string, regime = '24 horas · 07h—07h') => ({ nome, cargo: 'Técnico de enfermagem', setores: ['Setor A'], regime })
+const staff = (nome: string, regime = '24 horas · 07h — 07h') => ({ nome, cargo: 'Técnico de enfermagem', setores: ['Setor A'], regime })
 const details = {
   data: '2026-06-10', publicada: true,
-  chefe: { nome: 'Lucas Mendes', setores: ['Setor A', 'Setor B'], regime: '24 horas · 07h—07h' },
-  enfermeiros: [{ nome: 'Lucas Mendes', cargo: 'Enfermeiro chefe', setores: ['Setor A', 'Setor B'], regime: '24 horas · 07h—07h' }],
-  tecnicos: [staff('Heitor Vaz'), staff('André Silva', 'Diurno · 07h—19h · restrição'), staff('Célia Luz', 'Noturno · 19h—07h · cobertura')],
+  chefe: { nome: 'Lucas Mendes', setores: ['Setor A', 'Setor B'], regime: '24 horas · 07h — 07h' },
+  enfermeiros: [{ nome: 'Lucas Mendes', cargo: 'Enfermeiro chefe', setores: ['Setor A', 'Setor B'], regime: '24 horas · 07h — 07h' }],
+  tecnicos: [staff('Heitor Vaz'), staff('André Silva', 'Diurno · 07h — 19h · restrição'), staff('Célia Luz', 'Noturno · 19h — 07h · cobertura')],
   contagens: { enfermeiros: 1, tecnicos: 3 },
 }
 
@@ -42,7 +42,7 @@ describe('GeneralSchedulePage', () => {
     expect(screen.getByText('Junho de 2026')).not.toBeNull()
     expect(screen.getByText('7—13 de junho')).not.toBeNull()
     expect(screen.getAllByRole('listitem')).toHaveLength(7)
-    expect(screen.getByText('24 HORAS · 07h—07h')).not.toBeNull()
+    expect(screen.getByText('24 HORAS · 07h — 07h')).not.toBeNull()
     expect(screen.getAllByText('Sem escala publicada neste dia').length).toBe(4)
     expect(getGeneralMonth).toHaveBeenCalledWith(2026, 6)
   })
@@ -92,8 +92,8 @@ describe('GeneralSchedulePage', () => {
     expect(await within(dialog).findByText('Enfermeiro chefe · Liderança geral')).not.toBeNull()
     expect(within(dialog).getByText('Cobertura diária')).not.toBeNull()
     expect(within(dialog).getByText('Técnicos · 3')).not.toBeNull()
-    expect(within(dialog).getByText('Diurno · 07h—19h · restrição')).not.toBeNull()
-    expect(within(dialog).getByText('Noturno · 19h—07h · cobertura')).not.toBeNull()
+    expect(within(dialog).getByText('Diurno · 07h — 19h · restrição')).not.toBeNull()
+    expect(within(dialog).getByText('Noturno · 19h — 07h · cobertura')).not.toBeNull()
     expect(within(dialog).getByTestId('modal-body').className).toContain('overflow-y-auto')
     expect(document.body.style.overflow).toBe('hidden')
     const result = await axe.run(container.ownerDocument.body, { rules: { 'color-contrast': { enabled: false }, region: { enabled: false } } })

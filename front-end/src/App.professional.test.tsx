@@ -9,7 +9,14 @@ vi.mock('./services/auth', () => ({ currentUser, logout: vi.fn() }))
 vi.mock('./services/api', () => ({ api: vi.fn().mockResolvedValue({ contadores: { aguardandoCoordenacao: 2 } }), UNAUTHORIZED_EVENT: 'nurseflow:unauthorized' }))
 vi.mock('./components/layout/NotificationCenter', () => ({ NotificationCenter: () => <button type="button" aria-label="Notificações" /> }))
 vi.mock('./pages/MyShifts/MyShiftsPage', () => ({ MyShiftsPage: () => <h1>Tela Meus plantões</h1> }))
-vi.mock('./pages/Overview/ProfessionalOverviewPage', () => ({ ProfessionalOverviewPage: () => <h1>Visão geral profissional</h1> }))
+vi.mock('./pages/Overview/ProfessionalOverviewPage', () => ({
+  ProfessionalOverviewPage: (props: { onNavigate: (id: 'escala-geral' | 'trocas') => void }) => (
+    <>
+      <h1>Visão geral profissional</h1>
+      <button type="button" onClick={() => props.onNavigate('escala-geral')}>Atalho Escala geral</button>
+    </>
+  ),
+}))
 vi.mock('./pages/GeneralSchedule/GeneralSchedulePage', () => ({ GeneralSchedulePage: () => <h1>Tela Escala geral</h1> }))
 vi.mock('./pages/Scale/ScalePage', () => ({ ScalePage: () => <h1>Gestão de escala</h1> }))
 vi.mock('./pages/Exchanges/ExchangesPage', () => ({ ExchangesPage: () => <h1>Trocas da Coordenação</h1> }))
@@ -85,6 +92,16 @@ describe('App routing by profile', () => {
     await user.click(within(nav).getByRole('button', { name: 'Trocas' }))
     expect(screen.getByRole('heading', { name: 'Minhas trocas do profissional' })).not.toBeNull()
     expect(screen.queryByText('Esta área ainda está sendo preparada.')).toBeNull()
+  })
+
+  it.each(['enfermeiro', 'tecnico'])('opens Escala geral from the quick-access card for %s', async (perfil) => {
+    currentUser.mockResolvedValue(session(perfil))
+    const user = userEvent.setup()
+    render(<App />)
+    const nav = await screen.findByRole('navigation', { name: 'Áreas do profissional' })
+    await user.click(screen.getByRole('button', { name: 'Atalho Escala geral' }))
+    expect(screen.getByRole('heading', { name: 'Tela Escala geral' })).not.toBeNull()
+    expect(within(nav).getByRole('button', { name: 'Escala geral' }).getAttribute('aria-current')).toBe('page')
   })
 
   it('keeps the existing side-menu layout for the Coordenação', async () => {

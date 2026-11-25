@@ -105,6 +105,8 @@ describe('Escala do profissional (e2e)', () => {
 
   it('valida parâmetros', async () => {
     await http.get('/escala-profissional/meus-plantoes?situacao=outro').set(auth(tokenAna)).expect(400);
+    await http.get(`/escala-profissional/meus-plantoes?ano=${futuro.ano}`).set(auth(tokenAna)).expect(400);
+    await http.get('/escala-profissional/meus-plantoes?mes=13').set(auth(tokenAna)).expect(400);
     await http.get('/escala-profissional/geral?ano=2026&mes=13').set(auth(tokenAna)).expect(400);
     await http.get('/escala-profissional/geral/dia?data=2026-02-31').set(auth(tokenAna)).expect(400);
     await http.get('/escala-profissional/geral/dia?data=10/11/2026').set(auth(tokenAna)).expect(400);
@@ -127,6 +129,16 @@ describe('Escala do profissional (e2e)', () => {
     expect(ana.body.itens).toHaveLength(1);
   });
 
+  it('filtra plantões do profissional pelo mês solicitado', async () => {
+    const res = await http.get(`/escala-profissional/meus-plantoes?situacao=proximos&ano=${futuro.ano}&mes=${futuro.mes}`)
+      .set(auth(tokenCamila)).expect(200);
+    expect(res.body.itens.map((item: { data: string }) => item.data)).toEqual([dia(futuro, 5), dia(futuro, 6)]);
+
+    const vazio = await http.get(`/escala-profissional/meus-plantoes?situacao=proximos&ano=${futuro.ano}&mes=${passado.mes}`)
+      .set(auth(tokenCamila)).expect(200);
+    expect(vazio.body.itens).toEqual([]);
+  });
+
   it('não aceita identificador de outro profissional e não vaza dados pessoais', async () => {
     const res = await http.get('/escala-profissional/meus-plantoes?situacao=anteriores&profissionalId=64b7f0f0f0f0f0f0f0f0f0f0').set(auth(tokenAna));
     expect([200, 400]).toContain(res.status);
@@ -147,10 +159,10 @@ describe('Escala do profissional (e2e)', () => {
     ]);
     const detalhe = await http.get(`/escala-profissional/geral/dia?data=${dia(passado, 10)}`).set(auth(tokenCamila)).expect(200);
     expect(detalhe.body.chefe).toMatchObject({ nome: 'Ana Ribeiro', setores: ['Setor A'] });
-    expect(detalhe.body.enfermeiros).toEqual([{ nome: 'Ana Ribeiro', cargo: 'Enfermeiro chefe', setores: ['Setor A'], regime: '24 horas · 07h—07h' }]);
+    expect(detalhe.body.enfermeiros).toEqual([{ nome: 'Ana Ribeiro', cargo: 'Enfermeiro chefe', setores: ['Setor A'], regime: '24 horas · 07h — 07h' }]);
     expect(detalhe.body.tecnicos.map((t: { nome: string; regime: string }) => [t.nome, t.regime])).toEqual([
-      ['Bruno Lima', '24 horas · 07h—07h · restrição'],
-      ['Camila Souza', '24 horas · 07h—07h'],
+      ['Bruno Lima', '24 horas · 07h — 07h · restrição'],
+      ['Camila Souza', '24 horas · 07h — 07h'],
     ]);
     expect(detalhe.body.contagens).toEqual({ enfermeiros: 1, tecnicos: 2 });
   });

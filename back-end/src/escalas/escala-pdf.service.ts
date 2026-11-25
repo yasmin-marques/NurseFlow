@@ -129,7 +129,7 @@ export class EscalaPdfService {
         doc.font('Helvetica-Bold').fontSize(8).fillColor('#175b32').text(String(dia), x + 3, y + 3);
         const data = `${dados.escala.ano}-${String(dados.escala.mes).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
         const doDia = plantoes.filter((plantao) => plantao.data === data).sort((a, b) => a.horarioInicio.localeCompare(b.horarioInicio));
-        const linhasEquipe = doDia.map((plantao) => `${plantao.horarioInicio}–${plantao.horarioFim}\n${plantao.profissionais.map((profissional) => profissional.nome).join(', ') || 'Sem equipe'}`).join('\n');
+        const linhasEquipe = doDia.map((plantao) => `${plantao.horarioInicio} – ${plantao.horarioFim}\n${plantao.profissionais.map((profissional) => profissional.nome).join(', ') || 'Sem equipe'}`).join('\n');
         doc.font('Helvetica').fontSize(5.5).fillColor('#222222')
           .text(linhasEquipe || 'Sem plantão', x + 3, y + 14, { width: larguraCelula - 6, height: alturaCelula - 16, ellipsis: true });
       }

@@ -46,7 +46,7 @@ export function ProfessionalLayout({ activeTab, onNavigate, onProfileClick, onOp
             </div>
           </button>
 
-          <nav aria-label="Áreas do profissional" className="order-last -mb-2 flex w-full gap-1 overflow-x-auto md:order-0 md:mb-0 md:w-auto md:flex-1 md:justify-center">
+          <nav aria-label="Áreas do profissional" className="order-last -mb-2 flex w-full justify-between gap-0 md:order-0 md:mb-0 md:w-auto md:flex-1 md:justify-center md:gap-1">
             {PROFESSIONAL_TABS.map((tab) => {
               const active = tab.id === activeTab
               return (
@@ -56,12 +56,12 @@ export function ProfessionalLayout({ activeTab, onNavigate, onProfileClick, onOp
                   aria-current={active ? 'page' : undefined}
                   aria-label={tab.id === 'trocas' && incomingCount !== null && incomingCount > 0 ? `${tab.label} ${incomingCount}` : tab.label}
                   onClick={() => onNavigate(tab.id)}
-                  className={`relative flex h-18.5 shrink-0 items-center px-4 text-[13px] font-semibold transition-colors focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary ${
+                  className={`relative flex h-14 min-w-0 flex-1 items-center justify-center px-1 text-[10px] font-semibold transition-colors focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary sm:px-2 sm:text-xs md:h-18.5 md:flex-none md:px-4 md:text-[13px] ${
                     active ? 'text-primary' : 'text-text-muted hover:text-text'
                   }`}
                 >
-                  <span className="flex items-center gap-1.5 whitespace-nowrap">
-                    <span>{tab.label}</span>
+                  <span className="flex min-w-0 flex-wrap items-center justify-center gap-1.5">
+                    <span className="min-w-0 whitespace-normal text-center leading-tight">{tab.label}</span>
                     {tab.id === 'trocas' && incomingCount !== null && incomingCount !== undefined ? <CountBadge count={incomingCount} /> : null}
                   </span>
                   {tab.id === 'trocas' && countError ? <span className="sr-only">, contagem indisponível</span> : null}
@@ -78,7 +78,7 @@ export function ProfessionalLayout({ activeTab, onNavigate, onProfileClick, onOp
               type="button"
               onClick={onProfileClick}
               aria-label={`Abrir meu perfil — ${user.name}, ${user.role}`}
-              className="flex items-center gap-3 rounded-xl p-1 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+              className="flex items-center gap-3 rounded-xl p-1 text-left transition-colors hover:bg-neutral focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
             >
               <UserAvatar initials={user.initials} sizeClassName="size-9" textClassName="text-[11px] font-bold text-primary" decorative />
               <span className="hidden leading-tight sm:block">

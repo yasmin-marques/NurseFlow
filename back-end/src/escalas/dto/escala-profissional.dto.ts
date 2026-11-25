@@ -7,6 +7,14 @@ export class MeusPlantoesQueryDto {
   @IsOptional() @IsIn(['proximos', 'anteriores'])
   situacao?: 'proximos' | 'anteriores';
 
+  @ApiPropertyOptional({ minimum: 1, maximum: 9999, description: 'Usado junto com mes para filtrar o mês de início dos plantões.' })
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(9999)
+  ano?: number;
+
+  @ApiPropertyOptional({ minimum: 1, maximum: 12, description: 'Usado junto com ano para filtrar o mês de início dos plantões.' })
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(12)
+  mes?: number;
+
   @ApiPropertyOptional({ minimum: 1, default: 1 })
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(1000)
   pagina?: number;
