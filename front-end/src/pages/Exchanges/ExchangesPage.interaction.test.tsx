@@ -89,6 +89,23 @@ describe('ExchangesPage accessibility and interaction', () => {
     expect((await screen.findByRole('status')).textContent).toContain('Troca recusada e confirmada pelo servidor.')
   })
 
+  it('keeps the details dropdown closed while loading a decision confirmation', async () => {
+    let resolveDetails: (detail: typeof request) => void = () => {}
+    obterTroca.mockReturnValueOnce(new Promise<typeof request>((resolve) => { resolveDetails = resolve }))
+    const user = userEvent.setup()
+    render(<ExchangesPage />)
+
+    const reject = await screen.findByRole('button', { name: 'Recusar' })
+    const card = reject.closest('li')!
+    await user.click(reject)
+    await waitFor(() => expect(obterTroca).toHaveBeenCalledWith('exchange-1'))
+    expect(within(card).getByRole('button', { name: 'Ver detalhes' }).getAttribute('aria-expanded')).toBe('false')
+
+    resolveDetails(request)
+    await screen.findByRole('dialog', { name: 'Tem certeza que deseja recusar?' })
+    expect(within(card).getByRole('button', { name: 'Ver detalhes' }).getAttribute('aria-expanded')).toBe('false')
+  })
+
   it('recuses without a reason and omits empty reason text from details and history', async () => {
     const user = userEvent.setup()
     render(<ExchangesPage />)

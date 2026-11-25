@@ -99,18 +99,30 @@ export function GoogleCalendarPanel({ redirect = (url) => window.location.assign
   }
 
   const connected = status?.estado === 'conectada'
-  const primary = 'rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-60'
+  const actionLabel = busy === 'connect'
+    ? 'Conectando ao Google Agenda'
+    : busy === 'disable'
+      ? 'Desativando sincronização com o Google Agenda'
+      : connected
+        ? 'Dessincronizar do Google Agenda'
+        : 'Sincronizar com o Google Agenda'
   const disabled = busy !== null
 
   return (
     <div className="flex flex-col items-start gap-1 sm:items-end">
       <button
         type="button"
-        className={primary}
+        aria-label={actionLabel}
+        className="inline-flex min-h-[30px] items-center gap-1.5 rounded-lg border border-[#d1d1ce] bg-[#f2f2ef] px-3 py-1 text-[8px] font-bold leading-none text-[#292929] hover:bg-[#e9e9e6] disabled:cursor-not-allowed disabled:opacity-60"
         disabled={disabled || !status || !status.configurada}
         onClick={() => (connected ? void disable() : void connect())}
       >
-        {busy === 'connect' ? 'Conectando…' : busy === 'disable' ? 'Dessincronizando…' : connected ? 'Dessincronizar' : 'Sincronizar'}
+        <svg aria-hidden="true" viewBox="0 0 16 16" fill="none" className="size-5 shrink-0">
+          <rect x="2.25" y="3.25" width="11.5" height="10.5" rx="1.5" stroke="currentColor" strokeWidth="1.2" />
+          <path d="M5 2v2.5M11 2v2.5M2.5 6h11" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+          <path d="M8 8v3M6.5 9.5h3" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
+        </svg>
+        <span>{busy === 'connect' ? 'Conectando…' : busy === 'disable' ? 'Dessincronizando…' : connected ? 'Dessincronizar' : 'Google Agenda'}</span>
       </button>
       {status ? (
         <p className="text-[10px] font-medium text-text-muted" data-testid="google-calendar-state">

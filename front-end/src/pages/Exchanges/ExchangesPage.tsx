@@ -114,8 +114,8 @@ export function ExchangesPage({ onCountChange }: { onCountChange?: (count: numbe
     return () => { cancelled = true }
   }, [load])
 
-  const openDetails = async (item: Troca) => {
-    setSelected(item); setDetailsOpen(true); setValidation(null); setError(null)
+  const openDetails = async (item: Troca, expand = true) => {
+    setSelected(item); setDetailsOpen(expand); setValidation(null); setError(null)
     try {
       const detail = await obterTroca(item.id)
       setSelected(detail)
@@ -180,7 +180,7 @@ export function ExchangesPage({ onCountChange }: { onCountChange?: (count: numbe
   }
   const askDecision = async (item: Troca, decision: 'approve' | 'reject', trigger: HTMLElement) => {
     focusReturnRef.current = trigger
-    const loaded = await openDetails(item)
+    const loaded = await openDetails(item, false)
     if (loaded) {
       if (decision === 'approve' && !loaded.validation) return
       setException(false)
