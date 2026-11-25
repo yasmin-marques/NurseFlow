@@ -111,7 +111,7 @@ export function ProfessionalFormModal({ professional, isCreating = false, onClos
             ...(!form.formation ? { formation: "Escolha o tipo de formação." } : {}),
             ...(!form.sectorId ? { sectorId: "Selecione um setor." } : {}),
             ...(form.formation === "Técnico" && form.subsectorId && selectedSector && !activeSubsectors.some((subsector) => subsector.id === form.subsectorId)
-                ? { subsectorId: "Selecione um sub-setor válido ou nenhum." } : {}),
+                ? { subsectorId: "Selecione um subsetor válido ou nenhum." } : {}),
         };
         setFieldErrors(errors);
         if (!form.formation || !form.sectorId || errors.subsectorId) return;
@@ -251,7 +251,7 @@ export function ProfessionalFormModal({ professional, isCreating = false, onClos
 
                         {form.formation === "Técnico" ? (
                             <label className="block text-[11px] font-semibold text-text">
-                                Sub-setor (opcional)
+                                Subsetor (opcional)
                                 <span className="relative mt-1.5 block">
                                     <select
                                         value={form.subsectorId ?? ""}
@@ -264,18 +264,18 @@ export function ProfessionalFormModal({ professional, isCreating = false, onClos
                                         className={selectClassName}
                                         aria-describedby="subsector-hint"
                                     >
-                                        <option value="">Nenhum sub-setor</option>
+                                        <option value="">Nenhum subsetor</option>
                                         {activeSubsectors.map((subsector) => (
                                             <option key={subsector.id} value={subsector.id}>{subsector.name}</option>
                                         ))}
                                         {form.subsectorId && !activeSubsectors.some((subsector) => subsector.id === form.subsectorId) ? (
-                                            <option value={form.subsectorId} disabled>{form.subsectorName ?? "Sub-setor atual"} (indisponível)</option>
+                                            <option value={form.subsectorId} disabled>{form.subsectorName ?? "Subsetor atual"} (indisponível)</option>
                                         ) : null}
                                     </select>
                                     <ChevronRight aria-hidden="true" className="pointer-events-none absolute right-3.5 top-1/2 size-4 -translate-y-1/2 rotate-90 text-text" />
                                 </span>
                                 <span id="subsector-hint" className={`mt-1 block text-[10px] font-normal leading-tight ${fieldErrors.subsectorId ? "text-danger" : "text-text-muted"}`}>
-                                    {fieldErrors.subsectorId || (!form.sectorId ? "Escolha um setor primeiro." : selectedSector && activeSubsectors.length === 0 ? (selectedSector.subsectors.length ? "Este setor não tem sub-setores ativos." : "Este setor não tem sub-setores") : "")}
+                                    {fieldErrors.subsectorId || (!form.sectorId ? "Escolha um setor primeiro." : selectedSector && activeSubsectors.length === 0 ? (selectedSector.subsectors.length ? "Este setor não tem subsetores ativos." : "Este setor não tem subsetores") : "")}
                                 </span>
                             </label>
                         ) : null}

@@ -46,7 +46,6 @@ describe('Subsetores e vínculo de profissionais (e2e)', () => {
       coren: `COREN-CE ${700000 + seq}`,
       formacao: 'tecnico',
       tipoVinculo: 'clt',
-      senha: 'senha-do-profissional',
       ...sobrescrever,
     };
   };
@@ -57,6 +56,7 @@ describe('Subsetores e vínculo de profissionais (e2e)', () => {
     await aplicarMigrations(banco.uri);
     process.env.MONGODB_URI = banco.uri;
     process.env.JWT_SECRET = 'segredo-de-teste-com-mais-de-16-caracteres';
+    process.env.PROFISSIONAL_SENHA_PADRAO = 'senha-do-profissional';
     const { AppModule } = await import('../src/app.module.js');
     const modulo = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(SenhaNotifier)

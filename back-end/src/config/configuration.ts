@@ -7,6 +7,8 @@ export interface AppConfig {
   jwt: { secret: string; expiresInSeconds: number };
   login: { maxAttempts: number; lockMinutes: number };
   passwordResetTtlMinutes: number;
+  /** Senha inicial de novos profissionais (nunca exposta em respostas ou logs). `null` quando não configurada. */
+  profissionais: { senhaPadrao: string | null };
   otimizador: { url: string; timeoutMs: number; tempoLimiteSegundos: number };
   googleAgenda: {
     /** Verdadeiro somente quando todas as credenciais OAuth e a chave de criptografia estão definidas. */
@@ -55,6 +57,9 @@ export function validateEnv(env: Env): Env {
   toInt(env.LOGIN_MAX_ATTEMPTS, 5, 'LOGIN_MAX_ATTEMPTS');
   toInt(env.LOGIN_LOCK_MINUTES, 15, 'LOGIN_LOCK_MINUTES');
   toInt(env.PASSWORD_RESET_TTL_MINUTES, 30, 'PASSWORD_RESET_TTL_MINUTES');
+  if (typeof env.PROFISSIONAL_SENHA_PADRAO === 'string' && env.PROFISSIONAL_SENHA_PADRAO !== '' && (env.PROFISSIONAL_SENHA_PADRAO.length < 8 || env.PROFISSIONAL_SENHA_PADRAO.length > 72)) {
+    throw new Error('Variável de ambiente PROFISSIONAL_SENHA_PADRAO deve ter de 8 a 72 caracteres.');
+  }
   toInt(env.RATE_LIMIT_WINDOW_MS, 60000, 'RATE_LIMIT_WINDOW_MS');
   toInt(env.RATE_LIMIT_MAX_REQUESTS, 120, 'RATE_LIMIT_MAX_REQUESTS');
   toInt(env.RATE_LIMIT_IP_MAX_REQUESTS, 1200, 'RATE_LIMIT_IP_MAX_REQUESTS');
@@ -99,6 +104,7 @@ export default (): AppConfig => {
       lockMinutes: toInt(env.LOGIN_LOCK_MINUTES, 15, 'LOGIN_LOCK_MINUTES'),
     },
     passwordResetTtlMinutes: toInt(env.PASSWORD_RESET_TTL_MINUTES, 30, 'PASSWORD_RESET_TTL_MINUTES'),
+    profissionais: { senhaPadrao: typeof env.PROFISSIONAL_SENHA_PADRAO === 'string' && env.PROFISSIONAL_SENHA_PADRAO !== '' ? env.PROFISSIONAL_SENHA_PADRAO : null },
     otimizador: {
       url: env.OPTIMIZER_URL || 'http://localhost:8000',
       timeoutMs: toInt(env.OPTIMIZER_TIMEOUT_MS, 120000, 'OPTIMIZER_TIMEOUT_MS'),

@@ -126,6 +126,7 @@ describe('Integração com o Google Agenda (e2e, API do Google simulada)', () =>
     await aplicarMigrations(banco.uri);
     process.env.MONGODB_URI = banco.uri;
     process.env.JWT_SECRET = 'segredo-de-teste-com-mais-de-16-caracteres';
+    process.env.PROFISSIONAL_SENHA_PADRAO = SENHA;
     process.env.GOOGLE_CLIENT_ID = 'cliente.apps.googleusercontent.com';
     process.env.GOOGLE_CLIENT_SECRET = 'segredo-do-cliente';
     process.env.GOOGLE_REDIRECT_URI = 'http://localhost:3000/integracoes/google-agenda/callback';
@@ -153,7 +154,7 @@ describe('Integração com o Google Agenda (e2e, API do Google simulada)', () =>
     setorId = new mongoose.Types.ObjectId(setor.body.id);
     const criar = async (nome: string, cpf: string, coren: string, formacao: string, email: string) =>
       new mongoose.Types.ObjectId(
-        (await http.post('/profissionais').set(auth(tokenCoord)).send({ nome, cpf, coren, formacao, tipoVinculo: 'clt', email, senha: SENHA, setorId: setor.body.id }).expect(201)).body.id,
+        (await http.post('/profissionais').set(auth(tokenCoord)).send({ nome, cpf, coren, formacao, tipoVinculo: 'clt', email, setorId: setor.body.id }).expect(201)).body.id,
       );
     pro = {
       A: await criar('Ana Souza', '529.982.247-25', 'COREN-CE 810001', 'enfermeiro', 'ana-agenda@nurseflow.com'),

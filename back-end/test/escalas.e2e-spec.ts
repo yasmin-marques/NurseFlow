@@ -129,6 +129,7 @@ describe('Geração automática de escalas (e2e)', () => {
     await aplicarMigrations(banco.uri);
     process.env.MONGODB_URI = banco.uri;
     process.env.JWT_SECRET = 'segredo-de-teste-com-mais-de-16-caracteres';
+    process.env.PROFISSIONAL_SENHA_PADRAO = SENHA;
 
     const { AppModule } = await import('../src/app.module.js');
     const modulo = await Test.createTestingModule({ imports: [AppModule] })
@@ -162,7 +163,7 @@ describe('Geração automática de escalas (e2e)', () => {
         await http
           .post('/profissionais')
           .set(auth(tokenCoord))
-          .send({ nome, cpf, coren, formacao, tipoVinculo: 'clt', email, senha: SENHA, setorId: setorBase })
+          .send({ nome, cpf, coren, formacao, tipoVinculo: 'clt', email, setorId: setorBase })
           .expect(201)
       ).body.id as string;
     idEnf = await criar('Ana Souza', '529.982.247-25', 'COREN-CE 111111', 'enfermeiro', 'ana@nurseflow.com');
@@ -282,14 +283,14 @@ describe('Geração automática de escalas (e2e)', () => {
         await http
           .post('/profissionais')
           .set(auth(tokenCoord))
-          .send({ nome: 'Bia Emergência', cpf: '12345678062', coren: 'COREN-CE 333333', formacao: 'enfermeiro', tipoVinculo: 'clt', email: 'bia@nurseflow.com', senha: SENHA, setorId: setorB })
+          .send({ nome: 'Bia Emergência', cpf: '12345678062', coren: 'COREN-CE 333333', formacao: 'enfermeiro', tipoVinculo: 'clt', email: 'bia@nurseflow.com', setorId: setorB })
           .expect(201)
       ).body.id as string;
       idTecB = (
         await http
           .post('/profissionais')
           .set(auth(tokenCoord))
-          .send({ nome: 'Teo Emergência', cpf: '98765432029', coren: 'COREN-CE 444444', formacao: 'tecnico', tipoVinculo: 'clt', email: 'teo@nurseflow.com', senha: SENHA, setorId: setorB })
+          .send({ nome: 'Teo Emergência', cpf: '98765432029', coren: 'COREN-CE 444444', formacao: 'tecnico', tipoVinculo: 'clt', email: 'teo@nurseflow.com', setorId: setorB })
           .expect(201)
       ).body.id as string;
       await http.patch('/configuracoes/limites?ano=2026&mes=10').set(auth(tokenCoord)).send({

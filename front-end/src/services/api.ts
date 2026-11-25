@@ -37,7 +37,8 @@ async function request(
       {
         ...init,
         headers: {
-          'Content-Type': 'application/json',
+          // Em FormData o navegador define o Content-Type (com o boundary do multipart).
+          ...(init.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
           ...(token
             ? { Authorization: `Bearer ${token}` }
             : {}),

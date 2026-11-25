@@ -4,11 +4,14 @@ import { ProfessionalCard } from "./components/ProfesssionalCard";
 import { ProfessionalFiltersModal } from "./components/ProfessionalFiltersModal";
 import { applyProfessionalView, initialFilters, STATUS_LABEL, type ProfessionalFilters } from "./filters";
 import { ProfessionalFormModal } from "./components/ProfessionalFormModal";
+import { ImportProfessionalsModal } from "./components/ImportProfessionalsModal";
+import { Toast } from "../../components/ui/Toast";
 import type { Professional as ProfessionalData } from "./types";
 import { exportProfessionalsXlsx } from "../../services/professionalsExport";
 import { createProfessional, listProfessionals, updateProfessional } from "../../services/professionals";
+import type { ImportResult } from "../../services/professionalsImport";
 
-export function Professional({ onImportarPlanilha }: { onImportarPlanilha?: () => void } = {}) {
+export function Professional() {
     const [professionals, setProfessionals] = useState<ProfessionalData[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
@@ -19,6 +22,8 @@ export function Professional({ onImportarPlanilha }: { onImportarPlanilha?: () =
     const [filters, setFilters] = useState<ProfessionalFilters>(initialFilters);
     const [filtersAtOpen, setFiltersAtOpen] = useState<ProfessionalFilters>(initialFilters);
     const [exporting, setExporting] = useState(false);
+    const [showImport, setShowImport] = useState(false);
+    const [toast, setToast] = useState<string | null>(null);
     const visibleProfessionals = applyProfessionalView(professionals, filters, search);
     const hasFilters = Boolean(search.trim() || filters.formation.length || filters.status.length || filters.bond.length);
     const clearFilters = () => {
@@ -51,6 +56,24 @@ export function Professional({ onImportarPlanilha }: { onImportarPlanilha?: () =
         } finally {
             setExporting(false);
         }
+    };
+
+    useEffect(() => {
+        if (!toast) return;
+        const timer = setTimeout(() => setToast(null), 6000);
+        return () => clearTimeout(timer);
+    }, [toast]);
+
+    const handleImported = (result: ImportResult) => {
+        const { cadastrados, atualizados, ignorados } = result.resumo;
+        setToast(`Importação concluída: ${cadastrados} cadastrado(s), ${atualizados} atualizado(s), ${ignorados} ignorado(s).`);
+        // Atualiza a listagem sem recarregar a página.
+        listProfessionals()
+            .then((items) => {
+                setProfessionals(items);
+                setError("");
+            })
+            .catch((err: Error) => setError(err.message));
     };
 
     useEffect(() => {
@@ -115,10 +138,9 @@ export function Professional({ onImportarPlanilha }: { onImportarPlanilha?: () =
                                 <Download className="size-4 shrink-0" />
                                 {exporting ? "Exportando..." : "Exportar planilha"}
                             </button>
-                            {/* A lógica de importação será implementada posteriormente. */}
                             <button
                                 type="button"
-                                onClick={onImportarPlanilha}
+                                onClick={() => setShowImport(true)}
                                 aria-label="Importar planilha"
                                 title="Importar planilha"
                                 className="inline-flex h-11 max-w-full items-center gap-2 rounded-xl border border-border bg-white px-4 text-sm font-semibold text-text hover:bg-neutral focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
@@ -157,6 +179,10 @@ export function Professional({ onImportarPlanilha }: { onImportarPlanilha?: () =
                         </div>
                 </section>
             </div>
+            {showImport ? (
+                <ImportProfessionalsModal onClose={() => setShowImport(false)} onImported={handleImported} />
+            ) : null}
+            <Toast message={toast} />
             {showFilters ? (
                 <ProfessionalFiltersModal
                     filters={filters}

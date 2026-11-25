@@ -1,7 +1,8 @@
-import { ConflictException, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
+import { ConflictException, Injectable, InternalServerErrorException, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/mongoose';
-import { randomBytes } from 'crypto';
-import { type Model, type PipelineStage, Types } from 'mongoose';
+import { type ClientSession, type Model, type PipelineStage, Types } from 'mongoose';
+import type { AppConfig } from '../config/configuration';
 import { AuthService } from '../auth/auth.service';
 import { formatarCpf, somenteDigitos } from '../common/utils/cpf';
 import { COLLATION_PT, escaparRegex, regexSemAcentos } from '../common/utils/text';
@@ -33,28 +34,38 @@ export class ProfissionaisService {
     @InjectModel(Subsetor.name) private readonly subsetorModel: Model<Subsetor>,
     private readonly usuariosService: UsuariosService,
     private readonly plantoesFuturos: PlantoesFuturosChecker,
+    private readonly config: ConfigService<AppConfig, true>,
   ) {}
 
-  /** DA02: cadastra o profissional (usuário de acesso + dados profissionais). */
-  async criar(dto: CreateProfissionalDto): Promise<ProfissionalResponseDto> {
-    await this.garantirNaoCadastrado({ cpf: dto.cpf, coren: dto.coren, email: dto.email });
-    const setor = await this.exigirSetorAtivo(dto.setorId);
-    const subsetorId = await this.resolverSubsetor(dto.formacao, setor, dto.subsetorId);
+  /** Hash da senha padrão do .env (única fonte de senha inicial: cadastro manual e importação passam por aqui). */
+  private async hashSenhaPadrao(): Promise<string> {
+    const senhaPadrao = this.config.get('profissionais', { infer: true }).senhaPadrao;
+    if (!senhaPadrao) throw new InternalServerErrorException('Senha padrão de profissionais não configurada no servidor.');
+    return AuthService.gerarHashSenha(senhaPadrao);
+  }
 
-    const senhaTemporaria = !dto.senha;
-    const senha = await AuthService.gerarHashSenha(dto.senha ?? randomBytes(24).toString('base64url'));
-    const usuario = await this.usuariosService.criar({
-      nome: dto.nome,
-      email: dto.email,
-      cpf: dto.cpf,
-      senha,
-      senhaTemporaria,
-      tipoUsuario: TipoUsuario.PROFISSIONAL_DA_SAUDE,
-    });
+  /** DA02: cadastra o profissional (usuário de acesso + dados profissionais). */
+  async criar(dto: CreateProfissionalDto, session?: ClientSession): Promise<ProfissionalResponseDto> {
+    await this.garantirNaoCadastrado({ cpf: dto.cpf, coren: dto.coren, email: dto.email }, undefined, session);
+    const setor = await this.exigirSetorAtivo(dto.setorId, session);
+    const subsetorId = await this.resolverSubsetor(dto.formacao, setor, dto.subsetorId, session);
+
+    const senha = await this.hashSenhaPadrao();
+    const usuario = await this.usuariosService.criar(
+      {
+        nome: dto.nome,
+        email: dto.email,
+        cpf: dto.cpf,
+        senha,
+        senhaTemporaria: true,
+        tipoUsuario: TipoUsuario.PROFISSIONAL_DA_SAUDE,
+      },
+      session,
+    );
 
     try {
       const status = dto.status ?? StatusProfissional.ATIVO;
-      const profissional = await this.profissionalModel.create({
+      const dados = {
         usuarioId: usuario._id,
         coren: dto.coren,
         formacao: dto.formacao,
@@ -63,11 +74,12 @@ export class ProfissionaisService {
         subsetorId,
         status,
         desativadoEm: status === StatusProfissional.DESATIVADO ? new Date() : null,
-      });
-      return this.paraResposta(profissional, usuario, setor.nome, await this.nomeDoSubsetor(subsetorId));
+      };
+      const profissional = session ? (await this.profissionalModel.create([dados], { session }))[0] : await this.profissionalModel.create(dados);
+      return this.paraResposta(profissional, usuario, setor.nome, await this.nomeDoSubsetor(subsetorId, session));
     } catch (erro) {
-      // Mongo standalone não tem transações: desfaz o usuário criado na primeira etapa.
-      await this.usuariosService.removerCriacaoParcial(usuario._id);
+      // Sem sessão não há transação: desfaz o usuário criado na primeira etapa. Com sessão, o rollback é do chamador.
+      if (!session) await this.usuariosService.removerCriacaoParcial(usuario._id);
       throw erro;
     }
   }
@@ -166,19 +178,20 @@ export class ProfissionaisService {
   }
 
   /** DA03: edição. Se o status passar para "desativado", aplica a regra do DA04. */
-  async atualizar(id: string, dto: UpdateProfissionalDto): Promise<ProfissionalResponseDto> {
-    const { profissional, usuario } = await this.carregar(id);
+  async atualizar(id: string, dto: UpdateProfissionalDto, session?: ClientSession): Promise<ProfissionalResponseDto> {
+    const { profissional, usuario } = await this.carregar(id, session);
     await this.garantirNaoCadastrado(
       { email: dto.email },
       { usuarioId: usuario._id, profissionalId: profissional._id },
+      session,
     );
 
     if (dto.setorId !== undefined || dto.subsetorId !== undefined || dto.formacao !== undefined) {
       const setor =
         dto.setorId !== undefined
-          ? await this.exigirSetorAtivo(dto.setorId)
+          ? await this.exigirSetorAtivo(dto.setorId, session)
           : profissional.setorId
-            ? await this.setorModel.findById(profissional.setorId).lean().exec()
+            ? await this.setorModel.findById(profissional.setorId).session(session ?? null).lean().exec()
             : null;
       const mudouSetor = setor !== null && !setor._id.equals(profissional.setorId ?? undefined);
       if (mudouSetor) await this.exigirSemPlantoesFuturosAoMudarSetor(profissional);
@@ -193,7 +206,7 @@ export class ProfissionaisService {
         const atual = mudouSetor ? null : (profissional.subsetorId?.toString() ?? null);
         // Ao virar enfermeiro, um subsetor herdado deixa de se aplicar (enfermeiro é vinculado só ao setor).
         const solicitado = herdado ? (formacao === Formacao.ENFERMEIRO ? null : atual) : dto.subsetorId;
-        profissional.subsetorId = await this.resolverSubsetor(formacao, setor, solicitado);
+        profissional.subsetorId = await this.resolverSubsetor(formacao, setor, solicitado, session);
         profissional.setorId = setor._id;
       }
     }
@@ -204,9 +217,9 @@ export class ProfissionaisService {
 
     usuario.set(semUndefined({ email: dto.email }));
     profissional.set(semUndefined({ formacao: dto.formacao, tipoVinculo: dto.tipoVinculo }));
-    await usuario.save();
-    await profissional.save();
-    return this.paraResposta(profissional, usuario, await this.nomeDoSetor(profissional.setorId), await this.nomeDoSubsetor(profissional.subsetorId));
+    await usuario.save({ session });
+    await profissional.save({ session });
+    return this.paraResposta(profissional, usuario, await this.nomeDoSetor(profissional.setorId, session), await this.nomeDoSubsetor(profissional.subsetorId, session));
   }
 
   /** DA04: desativação lógica. O registro é preservado e nenhum DELETE físico é feito. */
@@ -235,8 +248,8 @@ export class ProfissionaisService {
   }
 
   /** O setor fixo precisa existir e estar ativo (validação no backend, independente do formulário). */
-  private async exigirSetorAtivo(setorId: string) {
-    const setor = Types.ObjectId.isValid(setorId) ? await this.setorModel.findById(setorId).lean().exec() : null;
+  private async exigirSetorAtivo(setorId: string, session?: ClientSession) {
+    const setor = Types.ObjectId.isValid(setorId) ? await this.setorModel.findById(setorId).session(session ?? null).lean().exec() : null;
     if (!setor) {
       throw new UnprocessableEntityException({ message: 'Setor não encontrado.', erros: ['Selecione um setor cadastrado.'] });
     }
@@ -257,6 +270,7 @@ export class ProfissionaisService {
     formacao: Formacao,
     setor: { _id: Types.ObjectId; nome: string; possuiSubsetores?: boolean },
     subsetorId: string | null | undefined,
+    session?: ClientSession,
   ): Promise<Types.ObjectId | null> {
     const erro = (message: string) => new UnprocessableEntityException({ message, erros: [message] });
     if (formacao === Formacao.ENFERMEIRO) {
@@ -268,7 +282,7 @@ export class ProfissionaisService {
       return null;
     }
     if (!subsetorId) return null;
-    const subsetor = Types.ObjectId.isValid(subsetorId) ? await this.subsetorModel.findById(subsetorId).lean().exec() : null;
+    const subsetor = Types.ObjectId.isValid(subsetorId) ? await this.subsetorModel.findById(subsetorId).session(session ?? null).lean().exec() : null;
     if (!subsetor) throw erro('Subsetor não encontrado.');
     if (!subsetor.setorId.equals(setor._id)) throw erro('O subsetor selecionado pertence a outro setor.');
     if (!subsetor.ativo) throw erro('Subsetor inativo: selecione um subsetor ativo.');
@@ -287,19 +301,19 @@ export class ProfissionaisService {
     }
   }
 
-  private async nomeDoSetor(setorId: Types.ObjectId | null | undefined): Promise<string | null> {
+  private async nomeDoSetor(setorId: Types.ObjectId | null | undefined, session?: ClientSession): Promise<string | null> {
     if (!setorId) return null;
-    return (await this.setorModel.findById(setorId, { nome: 1 }).lean().exec())?.nome ?? null;
+    return (await this.setorModel.findById(setorId, { nome: 1 }).session(session ?? null).lean().exec())?.nome ?? null;
   }
 
-  private async nomeDoSubsetor(subsetorId: Types.ObjectId | null | undefined): Promise<string | null> {
+  private async nomeDoSubsetor(subsetorId: Types.ObjectId | null | undefined, session?: ClientSession): Promise<string | null> {
     if (!subsetorId) return null;
-    return (await this.subsetorModel.findById(subsetorId, { nome: 1 }).lean().exec())?.nome ?? null;
+    return (await this.subsetorModel.findById(subsetorId, { nome: 1 }).session(session ?? null).lean().exec())?.nome ?? null;
   }
 
-  private async carregar(id: string): Promise<{ profissional: ProfissionalDocument; usuario: UsuarioDocument }> {
-    const profissional = await this.profissionalModel.findById(id).exec();
-    const usuario = profissional ? await this.usuariosService.buscarPorId(profissional.usuarioId) : null;
+  private async carregar(id: string, session?: ClientSession): Promise<{ profissional: ProfissionalDocument; usuario: UsuarioDocument }> {
+    const profissional = await this.profissionalModel.findById(id).session(session ?? null).exec();
+    const usuario = profissional ? await this.usuariosService.buscarPorId(profissional.usuarioId, session) : null;
     if (!profissional || !usuario) throw new NotFoundException('Profissional não encontrado.');
     return { profissional, usuario };
   }
@@ -308,12 +322,12 @@ export class ProfissionaisService {
   private async garantirNaoCadastrado(
     campos: { cpf?: string; coren?: string; email?: string },
     proprio?: { usuarioId: Types.ObjectId; profissionalId: Types.ObjectId },
+    session?: ClientSession,
   ): Promise<void> {
-    const [porCpf, porEmail, porCoren] = await Promise.all([
-      campos.cpf ? this.usuariosService.buscarPorCpf(campos.cpf) : null,
-      campos.email ? this.usuariosService.buscarPorEmail(campos.email) : null,
-      campos.coren ? this.profissionalModel.findOne({ coren: campos.coren }).exec() : null,
-    ]);
+    // Sequencial: operações concorrentes numa mesma sessão transacional não são suportadas.
+    const porCpf = campos.cpf ? await this.usuariosService.buscarPorCpf(campos.cpf, session) : null;
+    const porEmail = campos.email ? await this.usuariosService.buscarPorEmail(campos.email, false, session) : null;
+    const porCoren = campos.coren ? await this.profissionalModel.findOne({ coren: campos.coren }).session(session ?? null).exec() : null;
 
     const conflitos: string[] = [];
     if (porCpf && !porCpf._id.equals(proprio?.usuarioId)) conflitos.push('CPF');

@@ -40,6 +40,7 @@ describe('Trocas administrativas (e2e)', () => {
     await aplicarMigrations(banco.uri);
     process.env.MONGODB_URI = banco.uri;
     process.env.JWT_SECRET = 'segredo-de-teste-com-mais-de-16-caracteres';
+    process.env.PROFISSIONAL_SENHA_PADRAO = SENHA;
     process.env.TROCA_JANELA_MAX_DIAS = '120';
     const { AppModule } = await import('../src/app.module.js');
     const modulo = await Test.createTestingModule({ imports: [AppModule] }).compile();
@@ -50,12 +51,12 @@ describe('Trocas administrativas (e2e)', () => {
     await usuarios.criarAdministrador(coord._id);
     tokenCoord = await login('coord-trocas@nurseflow.com', 'coordenacao');
     const setorTrocas = await http.post('/setores').set(auth(tokenCoord)).send({ nome: 'Unidade de teste de trocas', plantao24h: { enfermeiros: 0, tecnicos: 0 } }).expect(201);
-    const profissional = await http.post('/profissionais').set(auth(tokenCoord)).send({ nome: 'Ana Souza', cpf: '529.982.247-25', coren: 'COREN-CE 700001', formacao: 'enfermeiro', tipoVinculo: 'clt', email: 'ana-trocas@nurseflow.com', senha: SENHA, setorId: setorTrocas.body.id }).expect(201);
+    const profissional = await http.post('/profissionais').set(auth(tokenCoord)).send({ nome: 'Ana Souza', cpf: '529.982.247-25', coren: 'COREN-CE 700001', formacao: 'enfermeiro', tipoVinculo: 'clt', email: 'ana-trocas@nurseflow.com', setorId: setorTrocas.body.id }).expect(201);
     tokenEnfermeiro = await login('ana-trocas@nurseflow.com');
-    const profissionalBResponse = await http.post('/profissionais').set(auth(tokenCoord)).send({ nome: 'Beatriz Lima', cpf: '390.533.447-05', coren: 'COREN-CE 700002', formacao: 'enfermeiro', tipoVinculo: 'clt', email: 'bia-trocas@nurseflow.com', senha: SENHA, setorId: setorTrocas.body.id }).expect(201);
+    const profissionalBResponse = await http.post('/profissionais').set(auth(tokenCoord)).send({ nome: 'Beatriz Lima', cpf: '390.533.447-05', coren: 'COREN-CE 700002', formacao: 'enfermeiro', tipoVinculo: 'clt', email: 'bia-trocas@nurseflow.com', setorId: setorTrocas.body.id }).expect(201);
     tokenEnfermeiraB = await login('bia-trocas@nurseflow.com');
-    const tecnicoAResponse = await http.post('/profissionais').set(auth(tokenCoord)).send({ nome: 'Rafael Técnico', cpf: '168.995.350-09', coren: 'COREN-CE 700003', formacao: 'tecnico', tipoVinculo: 'clt', email: 'rafael-tecnico-trocas@nurseflow.com', senha: SENHA, setorId: setorTrocas.body.id }).expect(201);
-    const tecnicoBResponse = await http.post('/profissionais').set(auth(tokenCoord)).send({ nome: 'Daniel Técnico', cpf: '86288366757', coren: 'COREN-CE 700004', formacao: 'tecnico', tipoVinculo: 'clt', email: 'daniel-tecnico-trocas@nurseflow.com', senha: SENHA, setorId: setorTrocas.body.id }).expect(201);
+    const tecnicoAResponse = await http.post('/profissionais').set(auth(tokenCoord)).send({ nome: 'Rafael Técnico', cpf: '168.995.350-09', coren: 'COREN-CE 700003', formacao: 'tecnico', tipoVinculo: 'clt', email: 'rafael-tecnico-trocas@nurseflow.com', setorId: setorTrocas.body.id }).expect(201);
+    const tecnicoBResponse = await http.post('/profissionais').set(auth(tokenCoord)).send({ nome: 'Daniel Técnico', cpf: '86288366757', coren: 'COREN-CE 700004', formacao: 'tecnico', tipoVinculo: 'clt', email: 'daniel-tecnico-trocas@nurseflow.com', setorId: setorTrocas.body.id }).expect(201);
     tokenTecnicoA = await login('rafael-tecnico-trocas@nurseflow.com');
     tokenTecnicoB = await login('daniel-tecnico-trocas@nurseflow.com');
     tecnicoAId = new mongoose.Types.ObjectId(tecnicoAResponse.body.id);

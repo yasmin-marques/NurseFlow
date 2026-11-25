@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import type { Model, Types } from 'mongoose';
+import type { ClientSession, Model, Types } from 'mongoose';
 import { Perfil } from '../common/enums/perfil.enum';
 import { Formacao } from '../profissionais/profissionais.enums';
 import { Profissional, type ProfissionalDocument } from '../profissionais/schemas/profissional.schema';
@@ -27,13 +27,13 @@ export class UsuariosService {
     @InjectModel(Setor.name) private readonly setorModel: Model<Setor>,
   ) {}
 
-  buscarPorEmail(email: string, comSenha = false): Promise<UsuarioDocument | null> {
-    const query = this.usuarioModel.findOne({ email: email.trim().toLowerCase() });
+  buscarPorEmail(email: string, comSenha = false, session?: ClientSession): Promise<UsuarioDocument | null> {
+    const query = this.usuarioModel.findOne({ email: email.trim().toLowerCase() }).session(session ?? null);
     return (comSenha ? query.select('+senha') : query).exec();
   }
 
-  buscarPorId(id: string | Types.ObjectId): Promise<UsuarioDocument | null> {
-    return this.usuarioModel.findById(id).exec();
+  buscarPorId(id: string | Types.ObjectId, session?: ClientSession): Promise<UsuarioDocument | null> {
+    return this.usuarioModel.findById(id).session(session ?? null).exec();
   }
 
   buscarProfissionalDoUsuario(usuarioId: string | Types.ObjectId) {
@@ -89,12 +89,17 @@ export class UsuariosService {
     return setor?.nome ?? null;
   }
 
-  buscarPorCpf(cpf: string): Promise<UsuarioDocument | null> {
-    return this.usuarioModel.findOne({ cpf }).exec();
+  buscarPorCpf(cpf: string, session?: ClientSession): Promise<UsuarioDocument | null> {
+    return this.usuarioModel.findOne({ cpf }).session(session ?? null).exec();
   }
 
-  criar(dados: Pick<Usuario, 'nome' | 'email' | 'senha' | 'cpf' | 'tipoUsuario'> & Partial<Pick<Usuario, 'senhaTemporaria'>>): Promise<UsuarioDocument> {
-    return this.usuarioModel.create(dados);
+  async criar(
+    dados: Pick<Usuario, 'nome' | 'email' | 'senha' | 'cpf' | 'tipoUsuario'> & Partial<Pick<Usuario, 'senhaTemporaria'>>,
+    session?: ClientSession,
+  ): Promise<UsuarioDocument> {
+    if (!session) return this.usuarioModel.create(dados);
+    const [usuario] = await this.usuarioModel.create([dados], { session });
+    return usuario;
   }
 
   async criarAdministrador(usuarioId: Types.ObjectId): Promise<void> {

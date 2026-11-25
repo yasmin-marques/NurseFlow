@@ -150,9 +150,11 @@ Erros seguem um formato único: `{ statusCode, error, message, details?, path, t
 | PATCH | `/profissionais/:id` | Edição parcial (DA03) |
 | PATCH | `/profissionais/:id/desativar` | Desativação lógica (DA04). Nunca há DELETE físico |
 
-Campos: `nome`, `cpf` (com ou sem máscara; armazenado só com dígitos, devolvido como `000.000.000-00`), `email`, `coren` (normalizado em maiúsculas), `formacao` (`enfermeiro`\|`tecnico`), `tipoVinculo` (`concursado`\|`clt`\|`rpa`), `status` (`ativo`\|`desativado`\|`afastado`\|`ferias`), `senha` (opcional no cadastro).
+Campos: `nome`, `cpf` (com ou sem máscara; armazenado só com dígitos, devolvido como `000.000.000-00`), `email`, `coren` (normalizado em maiúsculas), `formacao` (`enfermeiro`\|`tecnico`), `tipoVinculo` (`concursado`\|`clt`\|`rpa`), `status` (`ativo`\|`desativado`\|`afastado`\|`ferias`).
 
-Se `senha` for omitida, o sistema gera uma senha aleatória descartável (`senhaTemporaria: true`) e o profissional define a sua via `recuperar-senha` / `redefinir-senha`.
+A senha inicial de todo novo profissional (cadastro manual e importação) é a definida em `PROFISSIONAL_SENHA_PADRAO` no `.env` (8–72 caracteres); o campo `senha` não é aceito.
+
+O hash é gravado com `senhaTemporaria: true`; a senha nunca é devolvida pela API nem registrada em log. Sem a variável configurada o cadastro responde 500. Na importação, apenas profissionais novos recebem a senha padrão; os existentes mantêm a sua.
 
 ### `/setores`
 

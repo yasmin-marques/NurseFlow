@@ -37,6 +37,7 @@ describe('Escala do profissional (e2e)', () => {
     await aplicarMigrations(banco.uri);
     process.env.MONGODB_URI = banco.uri;
     process.env.JWT_SECRET = 'segredo-de-teste-com-mais-de-16-caracteres';
+    process.env.PROFISSIONAL_SENHA_PADRAO = SENHA;
     const { AppModule } = await import('../src/app.module.js');
     const modulo = await Test.createTestingModule({ imports: [AppModule] }).compile();
     app = modulo.createNestApplication(); configurarApp(app); await app.init();
@@ -48,7 +49,7 @@ describe('Escala do profissional (e2e)', () => {
     tokenCoord = await login('coord-ep@nurseflow.com', 'coordenacao');
     const setor = await http.post('/setores').set(auth(tokenCoord)).send({ nome: 'Setor A', plantao24h: { enfermeiros: 0, tecnicos: 0 } }).expect(201);
     const criar = async (nome: string, cpf: string, coren: string, formacao: string, email: string) =>
-      new ObjectId((await http.post('/profissionais').set(auth(tokenCoord)).send({ nome, cpf, coren, formacao, tipoVinculo: 'clt', email, senha: SENHA, setorId: setor.body.id }).expect(201)).body.id);
+      new ObjectId((await http.post('/profissionais').set(auth(tokenCoord)).send({ nome, cpf, coren, formacao, tipoVinculo: 'clt', email, setorId: setor.body.id }).expect(201)).body.id);
     const ana = await criar('Ana Ribeiro', '529.982.247-25', 'COREN-CE 710001', 'enfermeiro', 'ana-ep@nurseflow.com');
     const camila = await criar('Camila Souza', '390.533.447-05', 'COREN-CE 710002', 'tecnico', 'camila-ep@nurseflow.com');
     const bruno = await criar('Bruno Lima', '168.995.350-09', 'COREN-CE 710003', 'tecnico', 'bruno-ep@nurseflow.com');

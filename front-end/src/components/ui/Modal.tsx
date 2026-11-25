@@ -7,6 +7,8 @@ interface ModalProps {
   labelledBy?: string
   onClose: () => void
   escapeDisabled?: boolean
+  /** Largura máxima do painel (classe Tailwind). */
+  widthClassName?: string
   /** Cabeçalho fixo (fica visível enquanto o corpo rola). */
   header: ReactNode
   children: ReactNode
@@ -15,7 +17,7 @@ interface ModalProps {
 const FOCUSABLE = 'button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])'
 
 /** Diálogo centralizado com cabeçalho fixo e corpo rolável; prende o foco e o devolve ao elemento de origem. */
-export function Modal({ id, label, labelledBy, onClose, escapeDisabled = false, header, children }: ModalProps) {
+export function Modal({ id, label, labelledBy, onClose, escapeDisabled = false, widthClassName = 'max-w-105', header, children }: ModalProps) {
   const panelRef = useRef<HTMLElement>(null)
   const onCloseRef = useRef(onClose)
   const escapeDisabledRef = useRef(escapeDisabled)
@@ -64,7 +66,7 @@ export function Modal({ id, label, labelledBy, onClose, escapeDisabled = false, 
         aria-label={labelledBy ? undefined : label}
         aria-labelledby={labelledBy}
         data-modal-id={id}
-        className="relative flex max-h-[calc(100dvh-2rem)] w-full max-w-105 flex-col overflow-hidden rounded-panel bg-surface shadow-[0_20px_48px_rgba(22,29,24,0.18)] outline-none animate-[modal-in_180ms_ease-out]"
+        className={`relative flex max-h-[calc(100dvh-2rem)] w-full ${widthClassName} flex-col overflow-hidden rounded-panel bg-surface shadow-[0_20px_48px_rgba(22,29,24,0.18)] outline-none animate-[modal-in_180ms_ease-out]`}
       >
         <div className="shrink-0">{header}</div>
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain" data-testid="modal-body">{children}</div>

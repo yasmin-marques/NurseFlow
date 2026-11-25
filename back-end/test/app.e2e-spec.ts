@@ -36,7 +36,6 @@ describe('NurseFlow API (e2e)', () => {
     coren: 'COREN-CE 123456',
     formacao: 'enfermeiro',
     tipoVinculo: 'clt',
-    senha: SENHA_PROFISSIONAL,
     setorId,
     ...sobrescrever,
   });
@@ -47,6 +46,7 @@ describe('NurseFlow API (e2e)', () => {
 
     process.env.MONGODB_URI = banco.uri;
     process.env.JWT_SECRET = 'segredo-de-teste-com-mais-de-16-caracteres';
+    process.env.PROFISSIONAL_SENHA_PADRAO = SENHA_PROFISSIONAL;
     process.env.LOGIN_MAX_ATTEMPTS = '3';
     process.env.LOGIN_LOCK_MINUTES = '15';
     tokensRecuperacao = {};
@@ -187,11 +187,13 @@ describe('NurseFlow API (e2e)', () => {
       await login('ana.souza@nurseflow.com', SENHA_PROFISSIONAL, 'tecnico').expect(401);
     });
 
-    it('cria técnico sem senha (senha temporária definida via recuperação de senha)', async () => {
+    it('cria técnico com a senha padrão do .env (temporária) e rejeita senha enviada pelo cliente', async () => {
       await http.post('/profissionais').set(auth(tokenCoordenacao)).send(novoProfissional({
         nome: 'Rafael Martins Lima', cpf: '86288366757', email: 'rafael.lima@nurseflow.com',
-        coren: 'coren-ce  234567', formacao: 'tecnico', tipoVinculo: 'concursado', senha: undefined,
-      })).expect(201).expect((res) => expect(res.body.coren).toBe('COREN-CE 234567'));
+        coren: 'coren-ce  234567', formacao: 'tecnico', tipoVinculo: 'concursado',
+      })).expect(201).expect((res) => { expect(res.body.coren).toBe('COREN-CE 234567'); expect(JSON.stringify(res.body)).not.toContain(SENHA_PROFISSIONAL); });
+      await http.post('/profissionais').set(auth(tokenCoordenacao)).send(novoProfissional({ senha: 'outra-senha-123' })).expect(400);
+      await login('rafael.lima@nurseflow.com', SENHA_PROFISSIONAL, 'técnico').expect(200);
 
       await http.post('/auth/recuperar-senha').send({ email: 'rafael.lima@nurseflow.com' }).expect(202);
       const token = tokensRecuperacao['rafael.lima@nurseflow.com'];

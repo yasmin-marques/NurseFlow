@@ -54,15 +54,4 @@ export class CreateProfissionalDto {
   @IsOptional()
   @IsEnum(StatusProfissional, { message: 'Status inválido' })
   status?: StatusProfissional;
-
-  @ApiPropertyOptional({
-    minLength: 8,
-    maxLength: 72,
-    description: 'Senha inicial. Se omitida, o sistema gera uma senha temporária e o profissional define a sua via recuperação de senha.',
-  })
-  @IsOptional()
-  @IsString()
-  @MinLength(8, { message: 'A senha deve ter ao menos 8 caracteres' })
-  @MaxLength(72, { message: 'A senha deve ter no máximo 72 caracteres' })
-  senha?: string;
 }
