@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import axe from 'axe-core'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -88,12 +88,28 @@ describe('MyExchangesPage', () => {
     const cards = await screen.findAllByRole('button', { name: 'Ver detalhes' })
     expect(cards).toHaveLength(2)
     const firstDetails = cards[0].closest('li')?.querySelector('[id^="exchange-details-"]')
-    await user.click(cards[0])
+    await user.click(within(cards[0].closest('li')!).getByText('Ana enviou uma solicitação'))
     expect(screen.getAllByRole('button', { name: 'Fechar detalhes' })).toHaveLength(1)
-    expect(firstDetails?.hasAttribute('hidden')).toBe(false)
+    expect(firstDetails?.getAttribute('aria-hidden')).toBe('false')
     await user.click(screen.getByRole('button', { name: 'Fechar detalhes' }))
     expect(screen.getAllByRole('button', { name: 'Ver detalhes' })).toHaveLength(2)
-    expect(firstDetails?.hasAttribute('hidden')).toBe(true)
+    expect(firstDetails?.getAttribute('aria-hidden')).toBe('true')
+    expect(firstDetails?.className).toContain('grid-rows-[0fr]')
+  })
+
+  it('styles the sent-request cancellation action as a red button with white text', async () => {
+    vi.mocked(listarMinhasTrocas).mockResolvedValue({
+      itens: [{ ...request, direcao: 'enviada' }],
+      total: 1, pagina: 1, limite: 50, totalPaginas: 1,
+    })
+    const user = userEvent.setup()
+    render(<MyExchangesPage />)
+
+    await user.click(await screen.findByRole('tab', { name: 'Enviadas' }))
+    await user.click(await screen.findByRole('button', { name: 'Ver detalhes' }))
+    const cancelButton = await screen.findByRole('button', { name: 'Cancelar solicitação' })
+    expect(cancelButton.className).toContain('bg-danger')
+    expect(cancelButton.className).toContain('text-white')
   })
 
   it('shows the correct colleague rejection perspective in received, sent, and coordination cases', async () => {

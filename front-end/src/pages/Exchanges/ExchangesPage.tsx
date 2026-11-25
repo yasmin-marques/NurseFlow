@@ -87,6 +87,7 @@ export function ExchangesPage({ onCountChange }: { onCountChange?: (count: numbe
   const [items, setItems] = useState<Troca[]>([])
   const [counts, setCounts] = useState<Record<TrocaTab, number>>({ pendentes: 0, aprovadas: 0, recusadas: 0 })
   const [selected, setSelected] = useState<Troca | null>(null)
+  const [detailsOpen, setDetailsOpen] = useState(false)
   const [validation, setValidation] = useState<ValidacaoTroca | null>(null)
   const [dialog, setDialog] = useState<'approve' | 'reject' | null>(null)
   const [reason, setReason] = useState('')
@@ -97,7 +98,7 @@ export function ExchangesPage({ onCountChange }: { onCountChange?: (count: numbe
   const [notice, setNotice] = useState<string | null>(null)
   const dialogRef = useRef<HTMLDivElement>(null)
   const focusReturnRef = useRef<HTMLElement | null>(null)
-  const changeTab = (next: TrocaTab) => { setSelected(null); setValidation(null); setTab(next) }
+  const changeTab = (next: TrocaTab) => { setSelected(null); setDetailsOpen(false); setValidation(null); setTab(next) }
 
   const load = useCallback(async () => {
     setLoading(true); setError(null)
@@ -114,7 +115,7 @@ export function ExchangesPage({ onCountChange }: { onCountChange?: (count: numbe
   }, [load])
 
   const openDetails = async (item: Troca) => {
-    setSelected(item); setValidation(null); setError(null)
+    setSelected(item); setDetailsOpen(true); setValidation(null); setError(null)
     try {
       const detail = await obterTroca(item.id)
       setSelected(detail)
@@ -165,7 +166,7 @@ export function ExchangesPage({ onCountChange }: { onCountChange?: (count: numbe
         excecaoLimite: exception, justificativa: exception ? reason.trim() : undefined })
       else await recusarTroca(selected.id, { revisaoEsperada: 0, operacaoId, justificativa: reason.trim() || undefined })
       setNotice(dialog === 'approve' ? 'Troca aprovada e confirmada pelo servidor.' : 'Troca recusada e confirmada pelo servidor.')
-      setDialog(null); setSelected(null); setValidation(null); setReason(''); setException(false)
+      setDialog(null); setSelected(null); setDetailsOpen(false); setValidation(null); setReason(''); setException(false)
       window.dispatchEvent(new Event('nurseflow:trocas-updated'))
       await load()
     } catch (cause) {
@@ -203,6 +204,7 @@ export function ExchangesPage({ onCountChange }: { onCountChange?: (count: numbe
         yearAriaLabel="Ano das solicitações"
         onChange={(next) => {
           setSelected(null)
+          setDetailsOpen(false)
           setValidation(null)
           setSelectedDate(next)
         }}
@@ -215,7 +217,7 @@ export function ExchangesPage({ onCountChange }: { onCountChange?: (count: numbe
     {loading ? <p role="status" className="py-12 text-center text-sm text-text-muted">Carregando solicitações…</p> : items.length === 0 ? <div className="mt-6 rounded-2xl border border-border bg-white px-6 py-14 text-center"><p className="font-semibold text-text">Nenhuma solicitação neste período</p><p className="mt-1 text-sm text-text-muted">Quando houver solicitações registradas, elas aparecerão aqui.</p></div> : <ul className="mt-5 space-y-4">{items.map((item) => {
       const shift = item.plantaoSolicitante
       const completed = tab !== 'pendentes'
-      const expanded = selected?.id === item.id && !dialog
+      const expanded = selected?.id === item.id && detailsOpen && !dialog
       const solicitacaoInvalida = expanded && validation?.impedimentos.some((item) =>
         item.codigo === 'VINCULOS_INVALIDOS' ||
         item.codigo === 'PLANTAO_AUSENTE' ||
@@ -223,15 +225,42 @@ export function ExchangesPage({ onCountChange }: { onCountChange?: (count: numbe
       const outroPendenteParaEstePlantao = temOutroPendenteParaEstePlantao(item, items)
       return <li key={item.id} className="min-w-0 rounded-2xl border border-border bg-white p-4 shadow-(--shadow-soft) sm:p-5">
         <div className="grid min-w-0 grid-cols-[3.5rem_minmax(0,1fr)] gap-3 sm:grid-cols-[3.5rem_minmax(0,1fr)_auto] sm:items-center sm:gap-4">
+          <button
+            data-focus-return="true"
+            type="button"
+            aria-label={expanded ? 'Fechar detalhes' : 'Ver detalhes'}
+            aria-expanded={expanded}
+            aria-controls={`exchange-details-${item.id}`}
+            onClick={() => {
+              if (expanded) setDetailsOpen(false)
+              else if (selected?.id === item.id) setDetailsOpen(true)
+              else void openDetails(item)
+            }}
+            className="col-span-2 grid min-w-0 grid-cols-[3.5rem_minmax(0,1fr)] gap-3 rounded-lg text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary sm:col-span-2 sm:grid-cols-[3.5rem_minmax(0,1fr)_auto] sm:items-center sm:gap-4"
+          >
           <div className="row-span-1 flex size-14 flex-col items-center justify-center rounded-xl bg-secondary text-primary"><span className="text-[9px] font-bold uppercase">{shift ? new Date(shift.data).toLocaleString('pt-BR', { month: 'short', timeZone: 'UTC' }) : '—'}</span><span className="text-lg font-bold leading-tight">{shift ? new Date(shift.data).getUTCDate() : '—'}</span></div>
           <div className="min-w-0"><p className="wrap-break-word text-sm font-bold leading-5 text-text">{item.solicitante.nome} <span aria-hidden>→</span> {item.profissionalSolicitado.nome}</p><p className="mt-1 wrap-break-word text-xs leading-5 text-text-muted">{shift ? `Plantão ${shift.tipo} · ${shift.setor} · ${shift.horarioInicio} — ${shift.horarioFim}` : 'Dados do plantão indisponíveis'}</p><p className="mt-1 wrap-break-word text-[11px] leading-4 text-text-muted">Solicitado em {dateLabel(item.criadaEm)}{item.decisaoCoordenacao?.justificativa ? ` · ${item.decisaoCoordenacao.justificativa}` : ''}</p>{outroPendenteParaEstePlantao ? <p className="mt-2 rounded-lg bg-amber-50 px-2.5 py-1.5 text-[11px] font-semibold text-amber-800">Há outra solicitação pendente para este plantão</p> : null}</div>
-          <div className="col-span-2 flex min-w-0 flex-wrap items-center justify-end gap-2 sm:col-span-1">
+          <span className="col-start-2 flex min-w-0 items-center justify-between gap-3 sm:col-start-3 sm:justify-end">
             {completed ? <span className={`rounded-lg px-3 py-2 text-xs font-semibold ${tab === 'aprovadas' ? 'bg-highlight text-primary' : 'bg-red-50 text-red-700'}`}>{tab === 'aprovadas' ? 'Solicitação aprovada' : recusaLabelCoordenacao(item)}</span> : null}
-            <button data-focus-return="true" type="button" aria-expanded={expanded} aria-controls={`exchange-details-${item.id}`} onClick={() => { if (expanded) { setSelected(null); setValidation(null) } else void openDetails(item) }} className="min-h-10 rounded-lg border border-border px-3 py-2 text-[11px] font-semibold text-text-muted hover:bg-neutral hover:text-text">Detalhes</button>
-            {!completed ? <><button type="button" disabled={item.status !== 'aguardando_coordenacao'} onClick={(event) => void askDecision(item, 'reject', event.currentTarget)} className="min-h-10 rounded-lg bg-red-50 px-4 py-2.5 text-xs font-bold text-red-700 hover:bg-red-100 disabled:opacity-50">{solicitacaoInvalida ? 'Recusar solicitação inválida' : 'Recusar'}</button><button type="button" disabled={item.status !== 'aguardando_coordenacao'} onClick={(event) => void askDecision(item, 'approve', event.currentTarget)} className="min-h-10 rounded-lg bg-primary px-4 py-2.5 text-xs font-bold text-white hover:brightness-95 disabled:opacity-50">Aprovar</button></> : null}
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 20 20"
+              fill="none"
+              className={`size-4 shrink-0 text-text-muted transition-transform duration-200 motion-reduce:transition-none ${expanded ? 'rotate-180' : ''}`}
+            >
+              <path d="m5 7.5 5 5 5-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </span>
+          </button>
+          {!completed ? <div className="col-span-2 flex min-w-0 flex-wrap items-center justify-end gap-2 sm:col-span-2">
+            <button type="button" disabled={item.status !== 'aguardando_coordenacao'} onClick={(event) => void askDecision(item, 'reject', event.currentTarget)} className="min-h-10 rounded-lg bg-red-50 px-4 py-2.5 text-xs font-bold text-red-700 hover:bg-red-100 disabled:opacity-50">{solicitacaoInvalida ? 'Recusar solicitação inválida' : 'Recusar'}</button><button type="button" disabled={item.status !== 'aguardando_coordenacao'} onClick={(event) => void askDecision(item, 'approve', event.currentTarget)} className="min-h-10 rounded-lg bg-primary px-4 py-2.5 text-xs font-bold text-white hover:brightness-95 disabled:opacity-50">Aprovar</button>
+          </div> : null}
+        </div>
+        <div id={`exchange-details-${item.id}`} aria-hidden={!expanded} inert={!expanded} className={`grid min-w-0 overflow-hidden transition-[grid-template-rows] duration-300 ease-in-out motion-reduce:transition-none ${expanded && selected ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+          <div className={`min-h-0 overflow-hidden transition-opacity duration-200 motion-reduce:transition-none ${expanded && selected ? 'opacity-100' : 'opacity-0'}`}>
+            {selected?.id === item.id ? <ExchangeDetails troca={selected} validation={validation} onClose={() => setDetailsOpen(false)} /> : null}
           </div>
         </div>
-        {expanded && selected ? <div id={`exchange-details-${item.id}`} className="min-w-0"><ExchangeDetails troca={selected} validation={validation} onClose={() => { setSelected(null); setValidation(null) }} /></div> : null}
       </li>
     })}</ul>}
     </div>

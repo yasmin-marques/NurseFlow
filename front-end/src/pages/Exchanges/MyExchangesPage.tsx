@@ -110,7 +110,19 @@ export function MyExchangesPage({ exchangeId }: { exchangeId?: string | null }) 
             const myDirection = tab === 'recebidas' || (tab === 'historico' && item.direcao === 'recebida')
             return (
               <li key={item.id} className="rounded-xl border border-border bg-white p-3 shadow-(--shadow-soft) sm:p-4">
-                <div className="flex flex-wrap items-center justify-between gap-3">
+                <button
+                  type="button"
+                  aria-label={expanded ? 'Fechar detalhes' : 'Ver detalhes'}
+                  aria-expanded={expanded}
+                  aria-controls={detailsId}
+                  onClick={() => setExpandedExchanges((current) => {
+                    const next = new Set<string>(current)
+                    if (next.has(item.id)) next.delete(item.id)
+                    else next.add(item.id)
+                    return next
+                  })}
+                  className="flex w-full flex-wrap items-center justify-between gap-3 rounded-lg text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                >
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-bold text-text">
                       {tab === 'recebidas'
@@ -124,22 +136,22 @@ export function MyExchangesPage({ exchangeId }: { exchangeId?: string | null }) 
                   <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${statusClasses(item)}`}>
                     {statusLabel(item)}
                   </span>
-                  <button
-                    type="button"
-                    aria-expanded={expanded}
-                    aria-controls={detailsId}
-                    onClick={() => setExpandedExchanges((current) => {
-                      const next = new Set<string>(current)
-                      if (next.has(item.id)) next.delete(item.id)
-                      else next.add(item.id)
-                      return next
-                    })}
-                    className="min-h-9 rounded-lg border border-border px-3 text-xs font-semibold text-primary hover:bg-neutral"
+                  <svg
+                    aria-hidden="true"
+                    viewBox="0 0 20 20"
+                    fill="none"
+                    className={`size-4 shrink-0 text-text-muted transition-transform duration-200 motion-reduce:transition-none ${expanded ? 'rotate-180' : ''}`}
                   >
-                    {expanded ? 'Fechar detalhes' : 'Ver detalhes'}
-                  </button>
-                </div>
-                <div id={detailsId} hidden={!expanded}>
+                    <path d="m5 7.5 5 5 5-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </button>
+                <div
+                  id={detailsId}
+                  aria-hidden={!expanded}
+                  inert={!expanded}
+                  className={`grid overflow-hidden transition-[grid-template-rows] duration-300 ease-in-out motion-reduce:transition-none ${expanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}
+                >
+                  <div className={`min-h-0 overflow-hidden transition-opacity duration-200 motion-reduce:transition-none ${expanded ? 'opacity-100' : 'opacity-0'}`}>
                   <div className="mt-3 grid gap-2 sm:grid-cols-2">
                     {myDirection ? (
                       <>
@@ -190,11 +202,12 @@ export function MyExchangesPage({ exchangeId }: { exchangeId?: string | null }) 
                           dialogOpener.current = event.currentTarget
                           setDialog({ item, action: 'cancelar' })
                         }}
-                        className="min-h-9 rounded-lg border border-danger px-3 text-xs font-bold text-danger"
+                        className="min-h-9 rounded-lg bg-danger px-3 text-xs font-bold text-white hover:brightness-95"
                       >
                         Cancelar solicitação
                       </button>
                     ) : null}
+                  </div>
                   </div>
                 </div>
               </li>
