@@ -11,7 +11,7 @@
 ## 2. Leitura oficial e validação compartilhada
 
 - [ ] 2.1 Implementar consultas paginadas dos plantões próprios futuros e dos pares colega–plantão elegíveis com base nos snapshots oficiais. **Verificar:** excluir terceiros na etapa 1 e rascunhos em todas as etapas; manter pares distinguíveis para um colega com vários vínculos; rejeitar plantão iniciado, competências distintas e vínculo repetido.
-- [ ] 2.2 Extrair/reusar validação da permuta sem depender de estado administrativo. **Verificar:** aptidão dos dois, liderança/função, descanso com virada de mês, carga/extras, ausência, conflito, vínculo externo e cobertura antes/depois, sem impor regra de mesmo setor. Testar casos de Enfermeiro e Técnico no mesmo serviço.
+- [ ] 2.2 Extrair/reusar validação da permuta sem depender de estado administrativo. **Verificar:** aptidão dos dois, mesma formação e setor fixo, mesmo subsetor para técnicos, liderança/função, descanso com virada de mês, carga/extras, ausência, conflito, vínculo externo e cobertura antes/depois. Testar casos de Enfermeiro e Técnico no mesmo serviço.
 - [ ] 2.3 Integrar o limite vigente e a contagem de aprovadas à criação, aceite e Coordenação conforme v1. **Verificar:** casos abaixo/no limite, zero, configuração ausente, aumento/redução após abertura e limite do destinatário; sem contagem em ações profissionais e sem expor cota do colega.
 
 ## 3. Escrita, consultas profissionais e notificações

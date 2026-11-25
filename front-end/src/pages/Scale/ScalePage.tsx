@@ -5,18 +5,14 @@ import { ExportScaleDrawer } from './ExportScaleDrawer'
 import { PublishScaleDialog } from './PublishScaleDialog'
 import { ScaleShiftDialog } from './ScaleShiftDialog'
 import { canEditScale, formatValidationErrors, stageShiftChanges } from './review'
-import { calendarDate, calendarDays, dateKey, dayIndicators, formatMonth, formatWeek, summarizeDayShifts, type CalendarView } from './calendar'
+import { calendarDate, calendarDays, dateKey, dayIndicators, formatWeek, summarizeDayShifts, type CalendarView } from './calendar'
 import { getScaleWorkflow } from './workflow'
 import { CoverageAlert } from '../../components/ui/ScaleComponents'
 import { coverageSurfaceClass } from '../../components/ui/coverageStyles'
 import { WeeklyDayCard } from './WeeklyDayCard'
+import { MonthPeriodNavigation, monthLabel } from './MonthPeriodNavigation'
 
 const WEEKDAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
-
-function monthLabel(date: Date) {
-  const label = formatMonth(date)
-  return label.charAt(0).toUpperCase() + label.slice(1)
-}
 
 function statusStyle(state: ReturnType<typeof dayIndicators>['state']) {
   return coverageSurfaceClass(state)
@@ -103,7 +99,7 @@ function CalendarDay({
       aria-label={`${date.toLocaleDateString('pt-BR', { dateStyle: 'full' })}: ${stateLabel}, ${shifts.length} plantões`}
       aria-pressed={selected}
       onClick={onSelect}
-      className={`min-h-[176px] w-full min-w-0 border p-2 text-left transition-colors hover:bg-neutral sm:p-3 ${statusStyle(indicators.state)} ${outsideMonth ? 'opacity-55' : ''} ${selected ? 'ring-2 ring-inset ring-primary' : ''}`}
+      className={`min-h-44 w-full min-w-0 border p-2 text-left transition-colors hover:bg-neutral sm:p-3 ${statusStyle(indicators.state)} ${outsideMonth ? 'opacity-55' : ''} ${selected ? 'ring-2 ring-inset ring-primary' : ''}`}
     >
       <span className={`inline-flex size-7 items-center justify-center rounded-lg text-xs font-bold ${indicators.state === 'conflict' ? 'bg-error text-danger' : indicators.state === 'partial' || indicators.state === 'restricted' ? 'bg-warning text-warning-text' : 'bg-highlight text-primary'}`}>
         {date.getDate()}
@@ -132,7 +128,7 @@ function CalendarDay({
 
 export function GenerationLoading() {
   return (
-    <section role="status" aria-live="polite" aria-label="Gerando a escala" className="flex min-h-[480px] flex-col items-center justify-center rounded-2xl border border-border bg-white px-6 text-center shadow-(--shadow-soft)">
+    <section role="status" aria-live="polite" aria-label="Gerando a escala" className="flex min-h-120 flex-col items-center justify-center rounded-2xl border border-border bg-white px-6 text-center shadow-(--shadow-soft)">
       <span aria-hidden="true" className="size-20 animate-spin rounded-full border-[9px] border-neutral border-r-primary" />
       <h3 className="mt-4 text-base font-bold text-text">Gerando a escala...</h3>
       <p className="mt-5 max-w-2xl text-xs leading-relaxed text-text-muted">
@@ -411,25 +407,24 @@ export function ScalePage() {
 
       {generationInProgress ? <GenerationLoading /> : <>
         <section aria-label="Navegação do calendário" className="flex flex-col gap-4 rounded-2xl border border-border bg-white px-4 py-4 shadow-(--shadow-soft) sm:flex-row sm:items-center sm:justify-between sm:px-6">
-          <div className="flex items-center justify-between gap-3 sm:justify-start">
-            <button type="button" aria-label={view === 'week' ? 'Semana anterior' : 'Mês anterior'} onClick={() => changePeriod(-1)} className={`flex items-center justify-center rounded-lg border border-border font-semibold hover:bg-page ${view === 'week' ? 'px-3 py-2 text-xs' : 'size-9 text-lg'}`}>
-              {view === 'week' ? '‹ Semana anterior' : '‹'}
-            </button>
-            <div className="flex items-center gap-2">
-              <h3 aria-live="polite" className="min-w-[180px] text-center text-base font-bold text-text">{calendarTitle}</h3>
-              <label className="sr-only" htmlFor="scale-year">Ano da escala</label>
-              <select id="scale-year" aria-label="Ano da escala" value={year} onChange={(event) => {
-                const next = new Date(selectedDate)
-                next.setFullYear(Number(event.target.value))
+          {view === 'month' ? (
+            <MonthPeriodNavigation
+              selectedDate={selectedDate}
+              title={calendarTitle}
+              yearId="scale-year"
+              yearAriaLabel="Ano da escala"
+              onChange={(next) => {
+                if (stagedChanges.length > 0) { setBatchError('Salve ou descarte as alterações staged antes de mudar de período.'); return }
                 setLoading(true); setError(''); setSelectedDate(next)
-              }} className="rounded-lg border border-border bg-white px-2 py-2 text-xs font-semibold text-text">
-                {Array.from({ length: 11 }, (_, index) => year - 5 + index).filter((item) => item >= 1 && item <= 9999).map((item) => <option key={item} value={item}>{item}</option>)}
-              </select>
+              }}
+            />
+          ) : (
+            <div className="flex items-center justify-between gap-3 sm:justify-start">
+              <button type="button" aria-label="Semana anterior" onClick={() => changePeriod(-1)} className="flex items-center justify-center rounded-lg border border-border px-3 py-2 text-xs font-semibold hover:bg-page">‹ Semana anterior</button>
+              <h3 aria-live="polite" className="min-w-45 text-center text-base font-bold text-text">{calendarTitle}</h3>
+              <button type="button" aria-label="Próxima semana" onClick={() => changePeriod(1)} className="flex items-center justify-center rounded-lg border border-border px-3 py-2 text-xs font-semibold hover:bg-page">Próxima semana ›</button>
             </div>
-            <button type="button" aria-label={view === 'week' ? 'Próxima semana' : 'Próximo mês'} onClick={() => changePeriod(1)} className={`flex items-center justify-center rounded-lg border border-border font-semibold hover:bg-page ${view === 'week' ? 'px-3 py-2 text-xs' : 'size-9 text-lg'}`}>
-              {view === 'week' ? 'Próxima semana ›' : '›'}
-            </button>
-          </div>
+          )}
           <div role="group" aria-label="Visualização do calendário" className="flex rounded-xl bg-page p-1">
             <button type="button" aria-pressed={view === 'month'} onClick={() => {
               if (view !== 'month') { setLoading(true); setError(''); setView('month') }

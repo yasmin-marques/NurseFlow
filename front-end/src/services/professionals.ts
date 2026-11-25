@@ -12,6 +12,8 @@ type ApiProfessional = {
   status: 'ativo' | 'desativado' | 'afastado' | 'ferias'
   setorId?: string | null
   setorNome?: string | null
+  subsetorId?: string | null
+  subsetorNome?: string | null
   createdAt?: string
   updatedAt?: string
 }
@@ -30,6 +32,8 @@ const fromApi = (p: ApiProfessional): Professional => ({
   apiStatus: p.status,
   sectorId: p.setorId ?? null,
   sectorName: p.setorNome ?? null,
+  subsectorId: p.subsetorId ?? null,
+  subsectorName: p.subsetorNome ?? null,
   createdAt: p.createdAt,
   updatedAt: p.updatedAt,
   formation: p.formacao === 'enfermeiro' ? 'Enfemeiro' : 'Técnico',
@@ -46,6 +50,7 @@ const toApi = (p: Professional) => {
     // Setor fixo obrigatório: o backend valida (400/422); aqui só omitimos o vazio.
     setorId: p.sectorId || undefined,
   }
+  if (p.subsectorId !== undefined) body.subsetorId = p.formation === 'Técnico' ? p.subsectorId || null : null
   // Férias/afastamento não são editáveis aqui: só envia o status se o toggle mudou.
   if (!p.id || p.status !== (p.apiStatus === 'ativo')) body.status = p.status ? 'ativo' : 'desativado'
   return body

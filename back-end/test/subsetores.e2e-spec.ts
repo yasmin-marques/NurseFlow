@@ -213,10 +213,20 @@ describe('Subsetores e vínculo de profissionais (e2e)', () => {
       await http.post('/profissionais').set(auth()).send(novo({ setorId: emergenciaId, subsetorId: uti.subsetores[0].id })).expect(422);
     });
 
-    it('técnico de setor com subsetores exige subsetor válido do mesmo setor', async () => {
-      await http.post('/profissionais').set(auth()).send(novo({ setorId: uti.id })).expect(422);
+    it('técnico de setor com subsetores pode escolher subsetor válido ou nenhum', async () => {
+      const sem = await http.post('/profissionais').set(auth()).send(novo({ setorId: uti.id })).expect(201);
+      expect(sem.body.subsetorId).toBeNull();
       const res = await http.post('/profissionais').set(auth()).send(novo({ setorId: uti.id, subsetorId: uti.subsetores[0].id })).expect(201);
       expect(res.body).toMatchObject({ setorId: uti.id, subsetorId: uti.subsetores[0].id, subsetorNome: 'UTI Adulto' });
+    });
+
+    it('rejeita múltiplos setores ou subsetores para ambas as formações', async () => {
+      for (const formacao of ['enfermeiro', 'tecnico']) {
+        const setores = await http.post('/profissionais').set(auth()).send(novo({ formacao, setorId: [uti.id, emergenciaId] })).expect(400);
+        expect(JSON.stringify(setores.body)).toMatch(/Setor inválido/);
+        const subsetores = await http.post('/profissionais').set(auth()).send(novo({ formacao, setorId: uti.id, subsetorId: [uti.subsetores[0].id, uti.subsetores[1].id] })).expect(400);
+        expect(JSON.stringify(subsetores.body)).toMatch(/Subsetor inválido/);
+      }
     });
 
     it('não vincula profissional a subsetor de outro setor', async () => {
@@ -236,24 +246,35 @@ describe('Subsetores e vínculo de profissionais (e2e)', () => {
       const emSetorSemSubsetores = await http.post('/profissionais').set(auth()).send(novo({ formacao: 'enfermeiro', setorId: emergenciaId })).expect(201);
       expect(emSetorSemSubsetores.body).toMatchObject({ setorId: emergenciaId, subsetorId: null });
       await http.post('/profissionais').set(auth()).send(novo({ formacao: 'enfermeiro', setorId: uti.id, subsetorId: uti.subsetores[0].id })).expect(422);
+      await http.patch(`/profissionais/${emSetorComSubsetores.body.id}`).set(auth()).send({ subsetorId: uti.subsetores[0].id }).expect(422);
+    });
+
+    it('rejeita subsetor na edição de profissional legado sem setor', async () => {
+      const criado = await http.post('/profissionais').set(auth()).send(novo({ formacao: 'enfermeiro', setorId: uti.id })).expect(201);
+      const model = app.get<Model<Profissional>>(getModelToken(Profissional.name));
+      await model.updateOne({ _id: criado.body.id }, { $set: { setorId: null } });
+      const res = await http.patch(`/profissionais/${criado.body.id}`).set(auth()).send({ subsetorId: uti.subsetores[0].id }).expect(422);
+      expect(JSON.stringify(res.body)).toMatch(/Selecione um setor antes/);
     });
 
     it('persiste setorId e subsetorId no banco', async () => {
       const profissionalModel = app.get<Model<Profissional>>(getModelToken(Profissional.name));
       const tecnicos = await profissionalModel.find({ formacao: 'tecnico' }).lean();
       expect(tecnicos.every((t) => t.setorId)).toBe(true);
-      expect(tecnicos.find((t) => String(t.setorId) === uti.id)?.subsetorId?.toString()).toBe(uti.subsetores[0].id);
+      expect(tecnicos.some((t) => String(t.setorId) === uti.id && String(t.subsetorId) === uti.subsetores[0].id)).toBe(true);
       expect(tecnicos.find((t) => String(t.setorId) === emergenciaId)?.subsetorId).toBeNull();
     });
 
-    it('edição: trocar para setor com subsetores exige subsetor; trocar de setor não herda o subsetor antigo', async () => {
+    it('edição: troca de setor não herda subsetor e permite ausência de subsetor', async () => {
       const criado = await http.post('/profissionais').set(auth()).send(novo({ setorId: uti.id, subsetorId: uti.subsetores[0].id })).expect(201);
       const id = criado.body.id;
       // para o setor sem subsetores: subsetor antigo é descartado
       const semSub = await http.patch(`/profissionais/${id}`).set(auth()).send({ setorId: emergenciaId }).expect(200);
       expect(semSub.body).toMatchObject({ setorId: emergenciaId, subsetorId: null });
-      // de volta ao setor com subsetores sem informar subsetor: rejeitado
-      await http.patch(`/profissionais/${id}`).set(auth()).send({ setorId: uti.id }).expect(422);
+      const voltou = await http.patch(`/profissionais/${id}`).set(auth()).send({ setorId: uti.id }).expect(200);
+      expect(voltou.body).toMatchObject({ setorId: uti.id, subsetorId: null });
+      await http.patch(`/profissionais/${id}`).set(auth()).send({ setorId: [uti.id, emergenciaId] }).expect(400);
+      await http.patch(`/profissionais/${id}`).set(auth()).send({ subsetorId: [uti.subsetores[0].id, uti.subsetores[1].id] }).expect(400);
       // com subsetor de outro setor: rejeitado
       await http.patch(`/profissionais/${id}`).set(auth()).send({ setorId: uti.id, subsetorId: outroSetorComSubsetores.subsetorId }).expect(422);
       const ok = await http.patch(`/profissionais/${id}`).set(auth()).send({ setorId: uti.id, subsetorId: uti.subsetores[1].id }).expect(200);
@@ -284,7 +305,7 @@ describe('Subsetores e vínculo de profissionais (e2e)', () => {
       expect(res.body.plantao24h.tecnicos).toBeNull();
 
       const pendentes = await http.get('/profissionais?semSubsetor=true').set(auth()).expect(200);
-      expect(pendentes.body.data).toHaveLength(antes);
+      expect(pendentes.body.data.filter((p: { setorId: string }) => p.setorId === emergenciaId)).toHaveLength(antes);
       expect(pendentes.body.data.every((p: { subsetorId: unknown }) => p.subsetorId === null)).toBe(true);
       // Nenhum subsetor foi atribuído automaticamente.
       expect(await profissionalModel.countDocuments({ setorId: new Types.ObjectId(emergenciaId), subsetorId: { $ne: null } })).toBe(0);

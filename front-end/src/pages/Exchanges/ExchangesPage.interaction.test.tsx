@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import axe from 'axe-core'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ExchangesPage } from './ExchangesPage'
+import { monthLabel } from '../Scale/MonthPeriodNavigation'
 
 const { listarTrocas, obterTroca, validarTroca, aprovarTroca, recusarTroca } = vi.hoisted(() => ({
   listarTrocas: vi.fn(), obterTroca: vi.fn(), validarTroca: vi.fn(), aprovarTroca: vi.fn(), recusarTroca: vi.fn(),
@@ -118,22 +119,25 @@ describe('ExchangesPage accessibility and interaction', () => {
     await user.click(within(tablist).getByRole('tab', { name: /^Recusadas/ }))
     expect(await screen.findByText('Recusada pela Coordenação')).not.toBeNull()
     expect(screen.queryByRole('button', { name: 'Recusar' })).toBeNull()
-    await user.selectOptions(screen.getByLabelText('Mês'), '10')
-    await waitFor(() => expect(listarTrocas).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'recusadas', mes: 10 })))
+    await user.click(screen.getByRole('button', { name: 'Próximo mês' }))
+    await waitFor(() => expect(listarTrocas).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'recusadas', mes: new Date().getMonth() + 2 > 12 ? 1 : new Date().getMonth() + 2 })))
   })
 
-  it('loads all months without sending an invalid month filter', async () => {
+  it('starts with the current month and advances, returns, and changes the year while preserving the tab', async () => {
     const user = userEvent.setup()
     render(<ExchangesPage />)
     await screen.findByRole('button', { name: 'Aprovar' })
-
-    await user.selectOptions(screen.getByLabelText('Mês'), '')
-
-    await waitFor(() => expect(listarTrocas).toHaveBeenLastCalledWith(expect.objectContaining({
-      status: 'pendentes',
-      ano: new Date().getFullYear(),
-      mes: undefined,
-    })))
+    const now = new Date()
+    expect(screen.getByText(monthLabel(now))).not.toBeNull()
+    await user.click(screen.getByRole('tab', { name: /^Aprovadas/ }))
+    await user.click(screen.getByRole('button', { name: 'Próximo mês' }))
+    await waitFor(() => expect(listarTrocas).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'aprovadas', mes: now.getMonth() + 2 > 12 ? 1 : now.getMonth() + 2 })))
+    expect(screen.getByRole('tab', { name: /^Aprovadas/ }).getAttribute('aria-selected')).toBe('true')
+    await user.click(screen.getByRole('button', { name: 'Mês anterior' }))
+    await waitFor(() => expect(listarTrocas).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'aprovadas', mes: now.getMonth() + 1 })))
+    await user.selectOptions(screen.getByLabelText('Ano das solicitações'), String(now.getFullYear() + 1))
+    await waitFor(() => expect(listarTrocas).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'aprovadas', ano: now.getFullYear() + 1, mes: now.getMonth() + 1 })))
+    expect(screen.getByRole('tab', { name: /^Aprovadas/ }).getAttribute('aria-selected')).toBe('true')
   })
 
   it('expands details below the summary in all tabs and keeps real impediments visible', async () => {

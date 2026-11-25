@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react'
-import { Bell, Search, X } from '../../components/icons'
-import { NotificationCenter } from '../../components/layout/NotificationCenter'
+import { useCallback, useEffect, useState, type FormEvent, type KeyboardEvent } from 'react'
+import { Bell, BellOff, LogOut, X } from '../../components/icons'
 import { Drawer } from '../../components/ui/Drawer'
+import { Modal } from '../../components/ui/Modal'
 import { ToggleSwitch } from '../../components/ui/ToggleSwitch'
+import { UserAvatar } from '../../components/ui/UserAvatar'
 import type { SessionUser } from '../../services/auth'
 import { getUserProfile, updateUserProfile, type UserProfile } from '../../services/profile'
-import logo from '../../assets/logo.png'
 
 type ProfilePageProps = {
   user: SessionUser
@@ -19,17 +19,6 @@ const PROFILE_LABELS: Record<string, string> = {
   enfermeiro: 'Enfermeiro',
   tecnico: 'Técnico',
 }
-
-const FORMATION_LABELS = {
-  enfermeiro: 'Enfermeira',
-  tecnico: 'Técnica',
-} as const
-
-const BOND_LABELS = {
-  concursado: 'Concursado',
-  clt: 'CLT',
-  rpa: 'RPA',
-} as const
 
 export function ProfilePage({ user, onClose, onUserUpdated, onLogout }: ProfilePageProps) {
   const [profile, setProfile] = useState<UserProfile | null>(null)
@@ -71,24 +60,12 @@ export function ProfilePage({ user, onClose, onUserUpdated, onLogout }: ProfileP
     .join('')
     .toUpperCase()
   const userRole = PROFILE_LABELS[user.perfil] ?? user.perfil
-  const isHealthcareProfessional = user.perfil === 'enfermeiro' || user.perfil === 'tecnico'
-  const profession = profile?.formacao
-    ? FORMATION_LABELS[profile.formacao]
-    : userRole
-  const professionalDetails = [
-    profession,
-    profile?.coren ? (profile.coren.toLocaleLowerCase('pt-BR').startsWith('coren') ? profile.coren : `COREN ${profile.coren}`) : null,
-  ].filter(Boolean).join(' · ')
-  const profileMetrics = isHealthcareProfessional
-    ? [
-        { label: 'Vínculo', value: profile?.tipoVinculo ? BOND_LABELS[profile.tipoVinculo] : '—' },
-        { label: 'Próximo setor', value: profile?.proximoSetor ?? '—' },
-        { label: 'COREN', value: profile?.coren ?? '—' },
-      ]
-    : [
-        { label: 'Perfil', value: userRole || '—' },
-        { label: 'Notificações', value: loading || loadError ? '—' : notificationsEnabled ? 'Ativas' : 'Desativadas' },
-      ]
+
+  const cancelEmailEdit = () => {
+    setIsEditingEmail(false)
+    setEmailDraft(profile?.email ?? user.email)
+    setActionError(null)
+  }
 
   const saveEmail = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -107,6 +84,14 @@ export function ProfilePage({ user, onClose, onUserUpdated, onLogout }: ProfileP
     }
   }
 
+  const handleEmailKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      event.stopPropagation()
+      cancelEmailEdit()
+    }
+  }
+
   const savePreferences = async () => {
     setSavingPreferences(true)
     setActionError(null)
@@ -121,62 +106,38 @@ export function ProfilePage({ user, onClose, onUserUpdated, onLogout }: ProfileP
     }
   }
 
+  const header = (
+    <div className="relative flex items-center gap-3 px-5 pb-4 pt-5 pr-14">
+      <UserAvatar initials={initials} sizeClassName="size-16" textClassName="text-lg font-semibold text-primary" decorative />
+      <div className="min-w-0 leading-tight">
+        <h2 id="profile-modal-name" className="truncate text-lg font-semibold text-text">
+          {user.nome}
+        </h2>
+        <p className="mt-1 text-sm text-text-muted">{userRole}</p>
+      </div>
+      <button
+        type="button"
+        onClick={onClose}
+        aria-label="Fechar perfil"
+        className="absolute right-4 top-4 flex size-9 items-center justify-center rounded-xl text-text-muted transition-colors hover:bg-neutral focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+      >
+        <X className="size-4" strokeWidth={1.8} />
+      </button>
+    </div>
+  )
+
   return (
-    <div className="flex h-[100dvh] min-h-[580px] w-full flex-col overflow-y-auto bg-[#fafbf7] text-[#20231f]">
-      <header className="flex h-[76px] shrink-0 items-center justify-between border-b border-[#e9ebe5] bg-white px-5 sm:px-8">
-        <div className="flex min-w-0 items-center gap-3">
-          <img src={logo} alt="NurseFlow" className="size-9 shrink-0 object-contain" />
-          <div className="leading-tight">
-            <p className="text-[17px] font-bold tracking-tight text-[#20231f]">NurseFlow</p>
-            <p className="mt-1 text-[11px] text-[#777d74]">Gestão de escalas</p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 sm:gap-3">
-          <span aria-hidden="true" className="flex size-10 items-center justify-center rounded-xl border border-[#e5e7e2] bg-white text-[#666d64]">
-            <Search className="size-4" strokeWidth={1.8} />
-          </span>
-          <NotificationCenter />
-          <div className="ml-1 flex min-w-0 items-center gap-2.5">
-            <span aria-hidden="true" className="flex size-9 shrink-0 items-center justify-center rounded-full bg-[#e7f2e3] text-[11px] font-bold text-[#27653b]">
-              {initials}
-            </span>
-            <div className="hidden min-w-0 leading-tight sm:block">
-              <p className="max-w-40 truncate text-[11px] font-semibold text-[#20231f]">{user.nome}</p>
-              <p className="mt-1 text-[10px] text-[#777d74]">{userRole}</p>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <main className="flex min-h-0 flex-1 items-center justify-center px-4 py-8">
-        <section
-          aria-label="Perfil do usuário"
-          className="relative w-full max-w-[304px] rounded-[20px] border border-[#e8eae5] bg-white px-6 pb-6 pt-[27px] shadow-[0_12px_30px_rgba(27,35,25,0.07)]"
-        >
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Fechar perfil"
-            className="absolute right-[29px] top-[24px] flex size-8 items-center justify-center rounded-[10px] border border-[#e7e9e4] text-[#777d74] transition-colors hover:bg-[#f5f6f2] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2e783d]"
-          >
-            <X className="size-4" strokeWidth={1.7} />
-          </button>
-
-          <div className="flex flex-col items-center text-center">
-            <span aria-hidden="true" className="flex size-16 items-center justify-center rounded-full bg-[#e7f2e3] text-[17px] font-bold text-[#27653b]">
-              {initials}
-            </span>
-            <h1 className="mt-[19px] max-w-full break-words text-[25px] font-bold leading-tight tracking-[-0.045em] text-[#20231f]">
-              {user.nome}
-            </h1>
-            <p className="mt-[22px] min-h-[18px] text-[14px] text-[#777d74]">
-              {loading ? 'Carregando perfil...' : professionalDetails}
-            </p>
-          </div>
-
+    <>
+      <Modal
+        id="profile"
+        labelledBy="profile-modal-name"
+        escapeDisabled={isEditingEmail || preferencesOpen}
+        onClose={onClose}
+        header={header}
+      >
+        <div className="px-5 pb-5">
           {loadError ? (
-            <div role="alert" className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-800">
+            <div role="alert" className="mb-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">
               <p>Falha ao carregar o perfil: {loadError}</p>
               <button type="button" onClick={() => void loadProfile()} className="mt-1 font-semibold underline">
                 Tentar novamente
@@ -184,77 +145,85 @@ export function ProfilePage({ user, onClose, onUserUpdated, onLogout }: ProfileP
             </div>
           ) : null}
 
-          <dl className={`mt-[27px] grid min-h-[75px] overflow-hidden rounded-[14px] border border-[#e8eae5] ${isHealthcareProfessional ? 'grid-cols-3' : 'grid-cols-2'}`}>
-            {profileMetrics.map((metric, index) => (
-              <div key={metric.label} className={`flex min-w-0 flex-col items-center justify-center px-1.5 py-3 ${index < profileMetrics.length - 1 ? 'border-r border-[#e8eae5]' : ''}`}>
-                <dt className="text-[9px] text-[#777d74]">{metric.label}</dt>
-                <dd className="mt-1.5 max-w-full truncate text-[11px] font-bold text-[#20231f]">
-                  {loading ? '—' : metric.value}
-                </dd>
+          <dl className="border-y border-border">
+            <div className="grid min-h-16 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-border py-3">
+              <div className="min-w-0">
+                <dt className="text-xs text-text-muted">E-mail</dt>
+                {isEditingEmail ? null : (
+                  <dd className="mt-1 truncate text-sm text-text">{profile?.email ?? user.email}</dd>
+                )}
               </div>
-            ))}
-          </dl>
-
-          <div className="mt-[27px]">
-            {isEditingEmail ? (
-              <form onSubmit={(event) => void saveEmail(event)} className="rounded-xl border border-[#dfe2db] bg-[#f7f8f5] p-2.5">
-                <label htmlFor="profile-email" className="sr-only">E-mail</label>
-                <input
-                  id="profile-email"
-                  type="email"
-                  required
-                  autoComplete="email"
-                  value={emailDraft}
-                  onChange={(event) => setEmailDraft(event.target.value)}
-                  disabled={savingEmail}
-                  className="w-full rounded-lg border border-[#e0e3dc] bg-white px-2.5 py-2 text-[11px] text-[#343a32] outline-none focus:border-[#2e783d]"
-                />
-                <div className="mt-2 flex justify-end gap-2">
-                  <button type="button" onClick={() => { setIsEditingEmail(false); setEmailDraft(profile?.email ?? user.email); setActionError(null) }} className="rounded-md px-2 py-1 text-[10px] font-semibold text-[#666d64] hover:bg-white">
-                    Cancelar
-                  </button>
-                  <button type="submit" disabled={savingEmail} className="rounded-md bg-[#e5f1e1] px-2.5 py-1 text-[10px] font-bold text-[#27653b] disabled:opacity-60">
-                    {savingEmail ? 'Salvando...' : 'Salvar'}
-                  </button>
+              {isEditingEmail ? (
+                <div className="col-span-2 min-w-0">
+                  <form onSubmit={(event) => void saveEmail(event)} className="space-y-2">
+                    <label htmlFor="profile-email" className="sr-only">E-mail</label>
+                    <input
+                      id="profile-email"
+                      type="email"
+                      required
+                      autoComplete="email"
+                      value={emailDraft}
+                      onChange={(event) => setEmailDraft(event.target.value)}
+                      onKeyDown={handleEmailKeyDown}
+                      disabled={savingEmail}
+                      className="h-10 w-full rounded-lg border border-border bg-white px-3 text-sm text-text outline-none focus:border-primary"
+                    />
+                    {actionError ? <p role="alert" className="text-xs text-danger">{actionError}</p> : null}
+                    <div className="flex justify-end gap-2">
+                      <button type="button" onClick={cancelEmailEdit} disabled={savingEmail} className="rounded-lg px-3 py-2 text-xs font-semibold text-text-muted hover:bg-neutral">
+                        Cancelar
+                      </button>
+                      <button type="submit" disabled={savingEmail} className="rounded-lg bg-primary px-3 py-2 text-xs font-bold text-white disabled:opacity-60">
+                        {savingEmail ? 'Salvando...' : 'Salvar'}
+                      </button>
+                    </div>
+                  </form>
                 </div>
-              </form>
-            ) : (
-              <div className="flex min-h-[31px] items-center justify-center gap-2 rounded-[11px] border border-[#dfe2db] bg-[#f7f8f5] px-2.5 py-1.5">
-                <span className="min-w-0 truncate text-[10px] text-[#626960]">{profile?.email ?? user.email}</span>
+              ) : (
                 <button
                   type="button"
                   onClick={() => { setIsEditingEmail(true); setActionError(null) }}
                   disabled={loading || Boolean(loadError)}
-                  className="shrink-0 rounded-md bg-[#e5f1e1] px-1.5 py-0.5 text-[8px] font-semibold leading-3 text-[#27653b] disabled:cursor-not-allowed disabled:opacity-50"
+                  className="rounded-lg px-2 py-1 text-xs font-semibold text-primary hover:bg-secondary/70 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Editar
                 </button>
-              </div>
-            )}
-            {actionError && !preferencesOpen ? <p role="alert" className="mt-1.5 text-center text-[10px] text-red-700">{actionError}</p> : null}
-          </div>
+              )}
+            </div>
+            <div className="grid min-h-16 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-3">
+              <dt className="text-xs text-text-muted">Notificações</dt>
+              <dd className="flex items-center gap-2 text-sm text-text">
+                {!loading && !loadError ? notificationsEnabled ? (
+                  <Bell className="size-4 text-primary" strokeWidth={1.75} aria-hidden="true" />
+                ) : (
+                  <BellOff className="size-4 text-text-muted" strokeWidth={1.75} aria-hidden="true" />
+                ) : null}
+                {loading || loadError ? '—' : notificationsEnabled ? 'Ativas' : 'Desativadas'}
+              </dd>
+            </div>
+          </dl>
 
-          <button
-            type="button"
-            onClick={() => { setActionError(null); setPreferencesOpen(true) }}
-            disabled={loading || Boolean(loadError)}
-            className="mt-[15px] flex h-[34px] w-full items-center justify-center gap-2 rounded-[11px] border border-[#dfe2db] bg-white px-3 text-[11px] font-semibold text-[#20231f] transition-colors hover:bg-[#f7f8f5] disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <Bell className="size-[14px]" strokeWidth={1.9} />
-            Preferências de notificação
-          </button>
-
-          <div className="mt-[15px] flex justify-center">
+          <div className="mt-5 space-y-2">
+            <button
+              type="button"
+              onClick={() => { setActionError(null); setPreferencesOpen(true) }}
+              disabled={loading || Boolean(loadError)}
+              className="flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-border bg-white px-3 text-sm font-semibold text-text hover:bg-neutral disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Bell className="size-4" strokeWidth={1.8} />
+              Preferências de notificação
+            </button>
             <button
               type="button"
               onClick={onLogout}
-              className="h-[39px] rounded-[11px] bg-[#fff0f0] px-4 text-[12px] font-bold text-[#b83232] transition-colors hover:bg-[#ffe6e6] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#b83232]"
+              className="flex h-10 w-full items-center justify-center gap-2 rounded-lg px-3 text-sm font-semibold text-danger hover:bg-error focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-danger"
             >
+              <LogOut className="size-4" strokeWidth={1.8} />
               Sair
             </button>
           </div>
-        </section>
-      </main>
+        </div>
+      </Modal>
 
       {preferencesOpen ? (
         <Drawer
@@ -265,20 +234,20 @@ export function ProfilePage({ user, onClose, onUserUpdated, onLogout }: ProfileP
           closeDisabled={savingPreferences}
           footer={(
             <div className="flex justify-end gap-2">
-              <button type="button" disabled={savingPreferences} onClick={() => setPreferencesOpen(false)} className="rounded-xl border border-[#e0e3dc] px-4 py-2.5 text-sm font-semibold text-[#343a32] disabled:opacity-50">
+              <button type="button" disabled={savingPreferences} onClick={() => setPreferencesOpen(false)} className="rounded-xl border border-border px-4 py-2.5 text-sm font-semibold text-text disabled:opacity-50">
                 Cancelar
               </button>
-              <button type="button" disabled={savingPreferences} onClick={() => void savePreferences()} className="rounded-xl bg-[#2e783d] px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50">
+              <button type="button" disabled={savingPreferences} onClick={() => void savePreferences()} className="rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50">
                 {savingPreferences ? 'Salvando...' : 'Salvar preferências'}
               </button>
             </div>
           )}
         >
-          {actionError ? <p role="alert" className="mb-3 rounded-lg bg-red-50 p-3 text-sm text-red-800">{actionError}</p> : null}
-          <div className="flex items-center justify-between gap-5 rounded-xl border border-[#e8eae5] p-4">
+          {actionError ? <p role="alert" className="mb-3 rounded-lg bg-error p-3 text-sm text-danger">{actionError}</p> : null}
+          <div className="flex items-center justify-between gap-5 rounded-xl border border-border p-4">
             <div>
-              <p className="text-sm font-semibold text-[#20231f]">Publicação de escalas</p>
-              <p className="mt-1 text-xs leading-relaxed text-[#777d74]">Receber notificações sobre publicação ou atualização das suas escalas.</p>
+              <p className="text-sm font-semibold text-text">Publicação de escalas</p>
+              <p className="mt-1 text-xs leading-relaxed text-text-muted">Receber notificações sobre publicação ou atualização das suas escalas.</p>
             </div>
             <ToggleSwitch
               label="Receber notificações de escalas"
@@ -288,6 +257,6 @@ export function ProfilePage({ user, onClose, onUserUpdated, onLogout }: ProfileP
           </div>
         </Drawer>
       ) : null}
-    </div>
+    </>
   )
 }

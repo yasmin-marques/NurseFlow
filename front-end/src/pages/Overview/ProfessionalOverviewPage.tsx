@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { ArrowLeftRight, Building2, CalendarDays, CalendarPlus, ChevronRight, Clock, Users } from '../../components/icons'
 import type { NavItemId } from '../../components/layout/navItems'
 import { getIncomingExchangeCount, getMyShifts, type MyShift } from '../../services/my-shifts'
+import { CountBadge } from '../../components/ui/CountBadge'
 
 type OverviewPageProps = {
   userName: string
@@ -94,7 +95,7 @@ function ShiftDetailPage({
         <button
           type="button"
           onClick={onRequestExchange}
-          className="inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-lg bg-[#169b4e] px-6 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#128343] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+          className="inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-lg bg-[#169b4e] px-6 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#128343] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
         >
           <ArrowLeftRight size={16} />
           Solicitar troca
@@ -241,7 +242,7 @@ export function ProfessionalOverviewPage({ userName, onNavigate, onOpenGoogleCal
               <button
                 type="button"
                 onClick={() => setSelectedShift(nextShift)}
-                className="min-h-12 rounded-lg bg-[#169b4e] px-6 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#128343] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+                className="min-h-12 rounded-lg bg-[#169b4e] px-6 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#128343] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
               >
                 Ver detalhes
               </button>
@@ -315,7 +316,7 @@ export function ProfessionalOverviewPage({ userName, onNavigate, onOpenGoogleCal
                   {exchangeError ?? (incomingExchanges === null ? 'Carregando solicitações...' : `${incomingExchanges} solicitação(ões) recebida(s)`)}
                 </span>
               </span>
-              {incomingExchanges ? <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-badge-red text-[10px] font-bold text-badge-red-text">{incomingExchanges}</span> : null}
+              {incomingExchanges ? <CountBadge count={incomingExchanges} size="md" /> : null}
               <ChevronRight className="size-5 text-text-muted transition-transform group-hover:translate-x-0.5" />
             </button>
             <button type="button" onClick={onOpenGoogleCalendar} disabled={!onOpenGoogleCalendar} className="group flex w-full items-center gap-4 py-4 text-left disabled:opacity-60">

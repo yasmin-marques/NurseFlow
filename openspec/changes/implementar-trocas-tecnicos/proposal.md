@@ -16,7 +16,7 @@ A mudança `implementar-trocas-enfermeiro` é a responsável pelo **domínio e c
 - Permitir **aceitar** ou **recusar** uma solicitação recebida que aguarda resposta e **cancelar** uma solicitação enviada ainda pendente, sempre com modais de confirmação e resultado do servidor.
 - Distinguir os resultados: `aguardando_resposta`, `aguardando_coordenacao`, `recusada_pelo_profissional`, `recusada_pela_coordenacao`, `aprovada` e `cancelada`; preservar o significado de Enviadas, Recebidas e Histórico.
 - Integrar a contagem real de pedidos recebidos aguardando resposta, as notificações internas e o acompanhamento da decisão final da Coordenação, sem alterar a escala localmente após aceite.
-- Permitir troca entre setores diferentes para Técnicos e Enfermeiros. Restringir a seleção e a ação pela mesma formação/função, mantendo disponibilidade, descanso, carga, extras, cobertura mínima por setor/turno e limitações de liderança.
+- Restringir a troca à mesma formação e setor fixo; Técnicos também devem compartilhar o mesmo subsetor, inclusive quando ambos não têm subsetor. Manter disponibilidade, descanso, carga, extras, cobertura mínima por setor/turno e limitações de liderança.
 - Cobrir autorização entre perfis, isolamento por sessão e participantes, conflitos, concorrência, idempotência, estados vazios/erros e acessibilidade, utilizando chamadas reais da API nos testes integrados.
 
 ## Capabilities

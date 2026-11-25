@@ -1,14 +1,14 @@
 import { useEffect, useState } from "react";
-import { Download, Filter, Plus, Search } from "../../components/icons";
+import { Download, Filter, Plus, Search, Upload, X } from "../../components/icons";
 import { ProfessionalCard } from "./components/ProfesssionalCard";
 import { ProfessionalFiltersModal } from "./components/ProfessionalFiltersModal";
-import { applyProfessionalView, initialFilters, type ProfessionalFilters } from "./filters";
+import { applyProfessionalView, initialFilters, STATUS_LABEL, type ProfessionalFilters } from "./filters";
 import { ProfessionalFormModal } from "./components/ProfessionalFormModal";
 import type { Professional as ProfessionalData } from "./types";
 import { exportProfessionalsXlsx } from "../../services/professionalsExport";
 import { createProfessional, listProfessionals, updateProfessional } from "../../services/professionals";
 
-export function Professional() {
+export function Professional({ onImportarPlanilha }: { onImportarPlanilha?: () => void } = {}) {
     const [professionals, setProfessionals] = useState<ProfessionalData[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
@@ -17,8 +17,29 @@ export function Professional() {
     const [editingProfessional, setEditingProfessional] = useState<ProfessionalData | null>(null);
     const [isCreatingProfessional, setIsCreatingProfessional] = useState(false);
     const [filters, setFilters] = useState<ProfessionalFilters>(initialFilters);
+    const [filtersAtOpen, setFiltersAtOpen] = useState<ProfessionalFilters>(initialFilters);
     const [exporting, setExporting] = useState(false);
     const visibleProfessionals = applyProfessionalView(professionals, filters, search);
+    const hasFilters = Boolean(search.trim() || filters.formation.length || filters.status.length || filters.bond.length);
+    const clearFilters = () => {
+        setSearch("");
+        setFilters((current) => ({ ...initialFilters, sort: current.sort }));
+    };
+    const chips = [
+        ...(search.trim() ? [{ label: `Busca: ${search.trim()}`, remove: () => setSearch("") }] : []),
+        ...filters.formation.map((value) => ({
+            label: value === "Enfemeiro" ? "Enfermeiro" : value,
+            remove: () => setFilters((current) => ({ ...current, formation: current.formation.filter((item) => item !== value) })),
+        })),
+        ...filters.status.map((value) => ({
+            label: `Status: ${STATUS_LABEL[value]}`,
+            remove: () => setFilters((current) => ({ ...current, status: current.status.filter((item) => item !== value) })),
+        })),
+        ...filters.bond.map((value) => ({
+            label: `Vínculo: ${value}`,
+            remove: () => setFilters((current) => ({ ...current, bond: current.bond.filter((item) => item !== value) })),
+        })),
+    ];
 
     const handleExport = async () => {
         setExporting(true);
@@ -41,58 +62,91 @@ export function Professional() {
 
     return (
         <>
-            <div className="flex min-h-full w-full flex-col px-5 py-6 sm:px-7 lg:px-10 xl:px-12">
-                <div className="flex justify-between items-center">
-                    <header className="mb-6">
-                        <h2 className="text-[28px] font-bold leading-none tracking-[-0.04em] text-text">Profissionais</h2>
-                        <p className="mt-2.5 text-[14px] text-text-muted">
-                            {professionals.filter((p) => p.status).length} profissionais ativos na equipe.
-                        </p>
-                    </header>
+            <div className="mx-auto flex min-h-full w-full max-w-7xl flex-col px-5 py-6 sm:px-7 lg:px-10 xl:px-12">
+                <header className="mb-6 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+                    <div>
+                        <h2 className="text-[28px] font-bold leading-tight tracking-[-0.04em] text-text">Profissionais</h2>
+                        {!loading && !error ? (
+                            <p aria-live="polite" className="mt-2.5 text-[14px] text-text">
+                                {visibleProfessionals.length}{hasFilters ? ` de ${professionals.length}` : ""} {visibleProfessionals.length === 1 ? "profissional" : "profissionais"}
+                            </p>
+                        ) : null}
+                    </div>
                     <button
                         type="button"
                         onClick={() => setIsCreatingProfessional(true)}
-                        className="flex p-4 bg-primary rounded-2xl text-amber-50 font-bold text-2xl"
+                        className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-white transition-colors hover:bg-primary-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary motion-reduce:transition-none"
                     >
-                        <Plus /> Cadastrar profissional
+                        <Plus className="size-4" strokeWidth={2.4} /> Cadastrar profissional
                     </button>
-                </div>
-                <div className="g-12 p-4 md:p-12">
-                    <div className="flex flex-col g-6 w-full rounded-3xl border border-border bg-white p-4 md:p-8 shadow-(--shadow-soft) sm:p-12">
-                        <div className="flex w-full gap-4">
-                            <div className="flex items-center border-2 bg-card-header w-2xl border-border rounded-2xl p-2">
-                                <Search
-                                    className="text-text-muted h-7 w-7"
-                                />
+                </header>
+                <section aria-label="Lista de profissionais" className="min-w-0 rounded-2xl border border-border bg-white p-4 shadow-(--shadow-soft) sm:p-6">
+                        <div className="flex flex-wrap gap-3">
+                            <div className="flex h-11 min-w-0 flex-1 basis-full items-center gap-2 rounded-xl border border-border bg-neutral px-3 sm:basis-48">
+                                <Search className="size-4 shrink-0 text-text" />
                                 <input
                                     type="text"
+                                    aria-label="Buscar por nome, CPF ou COREN"
                                     placeholder="Buscar por nome, CPF ou COREN"
                                     value={search}
                                     onChange={(event) => setSearch(event.target.value)}
-                                    className="p-3 text-text-muted w-full rounded-2xl outline-0"
+                                    className="min-w-0 w-full bg-transparent text-sm text-text placeholder:text-text focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
                                 />
                             </div>
-                            <button type="button" onClick={() => setShowFilters(true)} className="flex items-center gap-1 p-2 md:px-6 py-0.5 border-2 border-border rounded-2xl">
-                                <Filter
-                                    className="h-7 w-7"
-                                />
-                                <p className="font-bold text-sx">Filtros</p>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setFiltersAtOpen(filters);
+                                    setShowFilters(true);
+                                }}
+                                className={`inline-flex h-11 items-center gap-2 rounded-xl border px-4 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${filters.formation.length || filters.status.length || filters.bond.length ? "border-primary bg-secondary text-primary-hover" : "border-border bg-white text-text hover:bg-neutral"}`}
+                            >
+                                <Filter className="size-4" />
+                                Filtros
                             </button>
                             <button
                                 type="button"
                                 onClick={handleExport}
+                                aria-label="Exportar planilha"
+                                title="Exportar planilha"
                                 disabled={loading || exporting || visibleProfessionals.length === 0}
-                                className="flex items-center gap-1 p-2 md:px-6 py-0.5 border-2 border-border rounded-2xl disabled:cursor-not-allowed disabled:opacity-50"
+                                className="inline-flex h-11 max-w-full items-center gap-2 rounded-xl border border-border bg-white px-4 text-sm font-semibold text-text hover:bg-neutral focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:cursor-not-allowed disabled:opacity-50"
                             >
-                                <Download className="h-7 w-7" />
-                                <p className="font-bold text-sx">{exporting ? "Exportando..." : "Exportar Excel"}</p>
+                                <Download className="size-4 shrink-0" />
+                                {exporting ? "Exportando..." : "Exportar planilha"}
+                            </button>
+                            {/* A lógica de importação será implementada posteriormente. */}
+                            <button
+                                type="button"
+                                onClick={onImportarPlanilha}
+                                aria-label="Importar planilha"
+                                title="Importar planilha"
+                                className="inline-flex h-11 max-w-full items-center gap-2 rounded-xl border border-border bg-white px-4 text-sm font-semibold text-text hover:bg-neutral focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                            >
+                                <Upload className="size-4 shrink-0" />
+                                Importar planilha
                             </button>
                         </div>
-                        <hr className="my-6 text-border" />
+                        {hasFilters ? (
+                            <div aria-label="Filtros aplicados" className="mt-4 flex flex-wrap items-center gap-2">
+                                {chips.map((chip) => (
+                                    <button key={chip.label} type="button" onClick={chip.remove} aria-label={`Remover filtro ${chip.label}`} className="inline-flex min-h-7 max-w-full items-center gap-1 rounded-full bg-secondary px-2.5 py-1 text-[13px] font-semibold text-primary-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
+                                        <span className="break-all">{chip.label}</span><X className="size-3 shrink-0" />
+                                    </button>
+                                ))}
+                                <button type="button" onClick={clearFilters} className="rounded-lg px-2 py-1 text-xs font-semibold text-badge-red-text underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">Limpar filtros</button>
+                            </div>
+                        ) : null}
+                        <hr className="my-5 border-border" />
                         {error ? <p role="alert" className="mb-4 text-sm text-danger">{error}</p> : null}
-                        {loading ? <p className="text-sm text-text-muted">Carregando profissionais...</p> : null}
-                        {!loading && !error && visibleProfessionals.length === 0 ? <p className="text-sm text-text-muted">Nenhum profissional encontrado.</p> : null}
-                        <div className="flex flex-col gap-8">
+                        {loading ? <p role="status" className="text-sm text-text">Carregando profissionais...</p> : null}
+                        {!loading && !error && visibleProfessionals.length === 0 ? (
+                            <div className="py-8 text-center text-sm text-text">
+                                <p className="font-semibold">Nenhum profissional encontrado.</p>
+                                {hasFilters ? <button type="button" onClick={clearFilters} className="mt-2 rounded-lg text-xs text-badge-red-text underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">Limpar filtros</button> : null}
+                            </div>
+                        ) : null}
+                        <div className="flex flex-col gap-1.5">
                             {visibleProfessionals.map((professional) => (
                                 <ProfessionalCard
                                     key={professional.id}
@@ -101,17 +155,17 @@ export function Professional() {
                                 />
                             ))}
                         </div>
-                    </div>
-                </div>
+                </section>
             </div>
             {showFilters ? (
                 <ProfessionalFiltersModal
-                    initialFilters={filters}
-                    onClose={() => setShowFilters(false)}
-                    onApply={(nextFilters) => {
-                        setFilters(nextFilters);
+                    filters={filters}
+                    onChange={setFilters}
+                    onClose={() => {
+                        setFilters(filtersAtOpen);
                         setShowFilters(false);
                     }}
+                    onApply={() => setShowFilters(false)}
                 />
             ) : null}
             {editingProfessional || isCreatingProfessional ? (

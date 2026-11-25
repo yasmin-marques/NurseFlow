@@ -3,6 +3,8 @@ import logo from '../../assets/logo.png'
 import { NotificationCenter } from './NotificationCenter'
 import { PROFESSIONAL_TABS, type ProfessionalTabId } from './professionalTabs'
 import { getIncomingExchangeCount } from '../../services/my-shifts'
+import { UserAvatar } from '../ui/UserAvatar'
+import { CountBadge } from '../ui/CountBadge'
 
 
 type ProfessionalLayoutProps = {
@@ -31,13 +33,18 @@ export function ProfessionalLayout({ activeTab, onNavigate, onProfileClick, onOp
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-page text-text">
       <header className="shrink-0 border-b border-border bg-surface">
         <div className="mx-auto flex min-h-18.5 w-full max-w-7xl flex-wrap items-center gap-x-6 gap-y-2 px-5 py-2 sm:px-8">
-          <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => onNavigate('inicio')}
+            aria-label="Ir para a visão geral"
+            className="flex cursor-pointer items-center gap-3 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+          >
             <img src={logo} alt="" className="size-10 rounded-xl" />
             <div className="leading-tight">
               <p className="text-lg font-bold tracking-tight">NurseFlow</p>
               <p className="text-xs text-text-muted">Gestão de escalas</p>
             </div>
-          </div>
+          </button>
 
           <nav aria-label="Áreas do profissional" className="order-last -mb-2 flex w-full gap-1 overflow-x-auto md:order-0 md:mb-0 md:w-auto md:flex-1 md:justify-center">
             {PROFESSIONAL_TABS.map((tab) => {
@@ -53,8 +60,10 @@ export function ProfessionalLayout({ activeTab, onNavigate, onProfileClick, onOp
                     active ? 'text-primary' : 'text-text-muted hover:text-text'
                   }`}
                 >
-                  {tab.label}
-                  {tab.id === 'trocas' && incomingCount !== null && incomingCount > 0 ? <span aria-hidden="true" className="ml-1.5 inline-flex min-w-5 shrink-0 items-center justify-center whitespace-nowrap rounded-full bg-badge-red px-1.5 py-0.5 align-middle text-[10px] font-bold leading-none text-badge-red-text">{incomingCount}</span> : null}
+                  <span className="flex items-center gap-1.5 whitespace-nowrap">
+                    <span>{tab.label}</span>
+                    {tab.id === 'trocas' && incomingCount !== null && incomingCount !== undefined ? <CountBadge count={incomingCount} /> : null}
+                  </span>
                   {tab.id === 'trocas' && countError ? <span className="sr-only">, contagem indisponível</span> : null}
                   {tab.id === 'trocas' && incomingCount === 0 ? <span className="sr-only">, nenhuma solicitação aguardando resposta</span> : null}
                   {active ? <span aria-hidden="true" className="absolute inset-x-0 bottom-0 h-0.75 rounded-t bg-primary" /> : null}
@@ -71,9 +80,7 @@ export function ProfessionalLayout({ activeTab, onNavigate, onProfileClick, onOp
               aria-label={`Abrir meu perfil — ${user.name}, ${user.role}`}
               className="flex items-center gap-3 rounded-xl p-1 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
             >
-              <span aria-hidden="true" className="flex size-9 items-center justify-center rounded-full bg-secondary text-[11px] font-bold text-primary">
-                {user.initials}
-              </span>
+              <UserAvatar initials={user.initials} sizeClassName="size-9" textClassName="text-[11px] font-bold text-primary" decorative />
               <span className="hidden leading-tight sm:block">
                 <span className="block text-[13px] font-semibold">{user.name}</span>
                 <span className="block text-[11px] text-text-muted">{user.role}</span>

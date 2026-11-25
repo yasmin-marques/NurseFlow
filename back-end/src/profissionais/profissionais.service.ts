@@ -182,6 +182,9 @@ export class ProfissionaisService {
             : null;
       const mudouSetor = setor !== null && !setor._id.equals(profissional.setorId ?? undefined);
       if (mudouSetor) await this.exigirSemPlantoesFuturosAoMudarSetor(profissional);
+      if (!setor && dto.subsetorId) {
+        throw new UnprocessableEntityException('Selecione um setor antes do subsetor.');
+      }
       // Cadastro legado sem setor e sem setorId no pedido: não há vínculo a validar.
       if (setor) {
         const formacao = dto.formacao ?? profissional.formacao;
@@ -247,7 +250,7 @@ export class ProfissionaisService {
    * Regra do vínculo setor/subsetor (validada no backend, independente do formulário):
    * - enfermeiro: só o setor, nunca subsetor;
    * - técnico de setor sem subsetores: só o setor, nunca subsetor;
-   * - técnico de setor com subsetores: subsetor obrigatório, ativo e pertencente a ESTE setor.
+   * - técnico de setor com subsetores: subsetor opcional; se informado, ativo e pertencente a ESTE setor.
    * Devolve o `subsetorId` a persistir (nulo quando não se aplica).
    */
   private async resolverSubsetor(
@@ -264,7 +267,7 @@ export class ProfissionaisService {
       if (subsetorId) throw erro(`O setor ${setor.nome} não possui subsetores.`);
       return null;
     }
-    if (!subsetorId) throw erro(`O setor ${setor.nome} possui subsetores: selecione o subsetor do técnico.`);
+    if (!subsetorId) return null;
     const subsetor = Types.ObjectId.isValid(subsetorId) ? await this.subsetorModel.findById(subsetorId).lean().exec() : null;
     if (!subsetor) throw erro('Subsetor não encontrado.');
     if (!subsetor.setorId.equals(setor._id)) throw erro('O subsetor selecionado pertence a outro setor.');

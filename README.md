@@ -575,7 +575,7 @@ Os parâmetros são armazenados com chave `<vínculo>_<diasDoMês>` (por exemplo
 As datas são persistidas em UTC, como indicado no script. A restrição recorrente contém dia da semana mas **não** um horário específico. Não há escala gerada automaticamente, nem aprovação de trocas no projeto atual.
 ### Exportação de profissionais (Excel)
 
-Em **Profissionais**, o botão **Exportar Excel** (ao lado de *Filtros*) baixa `nurseflow-profissionais-AAAA-MM-DD.xlsx` com a aba `Profissionais`. A planilha contém exatamente o que está na tela: aplica a busca, os filtros (formação, vínculo e situação: ativo, desativado, afastado ou férias) e a ordenação selecionados. Sem filtros, exporta todos. A planilha é gerada no navegador a partir dos dados já carregados pela API (acesso restrito à Coordenação) e não inclui dados de autenticação.
+Em **Profissionais**, o botão **Exportar planilha** (ao lado de *Filtros*) baixa `nurseflow-profissionais-AAAA-MM-DD.xlsx` com a aba `Profissionais`. A planilha contém exatamente o que está na tela: aplica a busca, os filtros (formação, vínculo e situação: ativo, desativado, afastado ou férias) e a ordenação selecionados. Sem filtros, exporta todos. A planilha é gerada no navegador a partir dos dados já carregados pela API (acesso restrito à Coordenação) e não inclui dados de autenticação.
 
 ### Verificação rápida de autorização
 

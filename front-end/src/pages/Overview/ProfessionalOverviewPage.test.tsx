@@ -47,6 +47,7 @@ describe('professional overview page', () => {
     expect(await screen.findByText('Olá, Ana.')).not.toBeNull()
     expect(await screen.findByText('Bloco A · Enfermagem')).not.toBeNull()
     expect(await screen.findByText('2 solicitação(ões) recebida(s)')).not.toBeNull()
+    expect(screen.getAllByText('2').some((element) => element.parentElement?.className.includes('text-[10px]') && element.parentElement?.className.includes('font-bold'))).toBe(true)
     expect(getMyShifts).toHaveBeenCalledOnce()
     expect(getIncomingExchangeCount).toHaveBeenCalledOnce()
 

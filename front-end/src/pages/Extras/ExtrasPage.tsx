@@ -15,6 +15,7 @@ import {
   type ScheduledExtra,
 } from '../../services/extras'
 import { CancelExtraDrawer, ExtraFormDrawer, RpaDrawer, type ExtraProfessional } from './ExtraDrawers'
+import { accentCardClass } from '../../components/ui/AccentCard'
 
 const REASONS: Array<{ value: string; label: string }> = [
   { value: 'ferias', label: 'Férias' },
@@ -65,7 +66,7 @@ function ExtraCard({ extra, onEdit, onCancel }: { extra: ScheduledExtra; onEdit:
   const substitute = personName(extra.substitutoId) ?? 'Profissional não informado'
   const covered = personName(extra.cobertoId)
   const bond = typeof extra.substitutoId === 'object' ? extra.substitutoId.tipoVinculo?.toUpperCase() : undefined
-  return <article className={`flex min-w-0 flex-col rounded-2xl border bg-white p-4 shadow-(--shadow-soft) ${extra.situacao === 'cancelado' ? 'border-border opacity-75' : 'border-l-4 border-l-warning'}`}>
+  return <article className={`flex min-w-0 flex-col p-4 pl-5 shadow-(--shadow-soft) ${accentCardClass(extra.situacao === 'cancelado' ? 'neutral' : 'warning', 'rounded-2xl')} ${extra.situacao === 'cancelado' ? 'opacity-75' : ''}`}>
     <div className="flex items-start justify-between gap-3">
       <div className="min-w-0">
         <span className="inline-flex rounded-md bg-warning px-2 py-1 text-[9px] font-bold uppercase tracking-wide text-warning-text">Extra programado</span>

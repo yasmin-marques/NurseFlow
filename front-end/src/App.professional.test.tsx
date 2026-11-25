@@ -41,6 +41,31 @@ describe('App routing by profile', () => {
     expect(screen.queryByText('Esta área ainda está sendo preparada.')).toBeNull()
   })
 
+  it('removes search and header screen titles for professional profiles', async () => {
+    currentUser.mockResolvedValue(session('enfermeiro', 'Ana Ribeiro'))
+    render(<App />)
+    await screen.findByRole('navigation', { name: 'Áreas do profissional' })
+    expect(screen.queryByRole('button', { name: 'Abrir pesquisa' })).toBeNull()
+  })
+
+  it('opens the same profile modal for Enfermeiro, Técnico, and Coordenação entry points', async () => {
+    const user = userEvent.setup()
+    currentUser.mockResolvedValue(session('enfermeiro', 'Ana Ribeiro'))
+    const professional = render(<App />)
+    await screen.findByRole('button', { name: /Abrir meu perfil — Ana Ribeiro, Enfermeiro/ })
+    await user.click(screen.getByRole('button', { name: /Abrir meu perfil — Ana Ribeiro, Enfermeiro/ }))
+    expect(await screen.findByRole('dialog', { name: 'Ana Ribeiro' })).not.toBeNull()
+    await user.click(screen.getByRole('button', { name: 'Fechar perfil' }))
+    professional.unmount()
+
+    currentUser.mockResolvedValue(session('coordenacao', 'Paloma Ferreira'))
+    render(<App />)
+    await screen.findByText('Profissionais')
+    await user.click(screen.getByRole('button', { name: 'Abrir meu perfil' }))
+    expect(await screen.findByRole('dialog', { name: 'Paloma Ferreira' })).not.toBeNull()
+    expect(screen.getByRole('dialog', { name: 'Paloma Ferreira' }).querySelector('[class*="border-primary"]')).not.toBeNull()
+  })
+
   it('opens shared Minhas trocas for Enfermeiro', async () => {
     currentUser.mockResolvedValue(session('enfermeiro', 'Ana Ribeiro'))
     const user = userEvent.setup()
@@ -68,6 +93,9 @@ describe('App routing by profile', () => {
     render(<App />)
     expect(await screen.findByText('Profissionais')).not.toBeNull()
     expect(screen.queryByRole('navigation', { name: 'Áreas do profissional' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Abrir pesquisa' })).toBeNull()
+    expect(screen.queryByRole('heading', { name: 'Visão geral', level: 1 })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Abrir meu perfil' }).querySelector('[class*="border-primary"]')).not.toBeNull()
     await user.click(screen.getByRole('link', { name: 'Histórico' }))
     expect(screen.getByRole('heading', { name: 'Histórico administrativo' })).not.toBeNull()
   })

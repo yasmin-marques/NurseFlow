@@ -23,6 +23,25 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.unstubAllGlobals() })
 
 describe('MyExchangesPage', () => {
+  it.each(['Enfermeiro', 'Técnico'])('renders green-accented selectable cards for %s exchange requests', async () => {
+    const user = userEvent.setup()
+    render(<MyExchangesPage />)
+    await user.click(await screen.findByRole('button', { name: 'Nova solicitação' }))
+
+    const shiftCard = await screen.findByRole('button', { name: /Bloco A/ })
+    expect(shiftCard.className).toContain('border-l-4')
+    expect(shiftCard.className).toContain('border-l-primary')
+    expect(shiftCard.className).toContain('pl-5')
+
+    await user.click(shiftCard)
+    const candidateCard = await screen.findByRole('button', { name: /Beatriz/ })
+    expect(candidateCard.className).toContain('border-l-4')
+    expect(candidateCard.className).toContain('border-l-primary')
+    expect(candidateCard.className).toContain('pl-5')
+    await user.click(candidateCard)
+    expect(await screen.findByText(/A escala oficial não muda com o aceite/)).not.toBeNull()
+  })
+
   it('sends only after the nurse completes the three review steps', async () => {
     const user = userEvent.setup()
     render(<MyExchangesPage />)

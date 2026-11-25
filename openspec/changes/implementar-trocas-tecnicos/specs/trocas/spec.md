@@ -118,11 +118,12 @@ O sistema MUST oferecer um fluxo de **três etapas** que consulte somente víncu
 - **WHEN** os vínculos selecionados pertencem a meses/anos ou escalas oficiais distintos, ou já começaram
 - **THEN** o backend recusa o envio, informa o impedimento aplicável e mantém a escala inalterada
 
-#### Scenario: Plantões pertencem a setores diferentes
+#### Scenario: Compatibilidade de setor fixo e subsetor
 
-- **WHEN** o Técnico ou Enfermeiro seleciona dois vínculos elegíveis em setores diferentes
-- **THEN** a troca permanece elegível quando formação/função, descanso, restrições individuais, carga e cobertura mínima forem preservadas
-- **AND** nenhum setor é usado como filtro exclusivo no candidato ou impedimento automático
+- **WHEN** o Técnico ou Enfermeiro seleciona um colega
+- **THEN** os profissionais devem ter a mesma formação e o mesmo setor fixo cadastrado
+- **AND** Técnicos devem ter o mesmo subsetor; ausência de subsetor corresponde somente a outra ausência
+- **AND** a cobertura continua sendo avaliada pelos setores dos plantões
 
 #### Scenario: Mudar o plantão na primeira etapa
 

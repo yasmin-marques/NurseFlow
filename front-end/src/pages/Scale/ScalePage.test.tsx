@@ -82,7 +82,7 @@ describe('scale page loading presentation', () => {
   it('stretches monthly day cards across each calendar grid column', () => {
     const markup = renderToStaticMarkup(<ScalePage />)
 
-    expect(markup).toContain('min-h-[176px] w-full min-w-0')
+    expect(markup).toContain('min-h-44 w-full min-w-0')
   })
 
   it('renders the generation and export drawers with the reference actions and labels', () => {
