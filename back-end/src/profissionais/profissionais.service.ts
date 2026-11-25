@@ -12,7 +12,7 @@ import { type ListProfissionaisQueryDto, Ordem } from './dto/list-profissionais-
 import type { ProfissionalListaDto, ProfissionalResponseDto } from './dto/profissional-response.dto';
 import type { UpdateProfissionalDto } from './dto/update-profissional.dto';
 import { PlantoesFuturosChecker } from './plantoes-futuros.checker';
-import { Formacao, StatusProfissional } from './profissionais.enums';
+import { Formacao, StatusProfissional, TipoVinculo } from './profissionais.enums';
 import { Setor } from '../setores/schemas/setor.schema';
 import { Subsetor } from '../setores/schemas/subsetor.schema';
 import { Profissional, type ProfissionalDocument } from './schemas/profissional.schema';
@@ -38,8 +38,8 @@ export class ProfissionaisService {
   /** DA02: cadastra o profissional (usuário de acesso + dados profissionais). */
   async criar(dto: CreateProfissionalDto): Promise<ProfissionalResponseDto> {
     await this.garantirNaoCadastrado({ cpf: dto.cpf, coren: dto.coren, email: dto.email });
-    const setor = await this.exigirSetorAtivo(dto.setorId);
-    const subsetorId = await this.resolverSubsetor(dto.formacao, setor, dto.subsetorId);
+    const setor = dto.tipoVinculo === TipoVinculo.RPA ? null : await this.exigirSetorAtivo(dto.setorId!);
+    const subsetorId = setor ? await this.resolverSubsetor(dto.formacao, setor, dto.subsetorId) : null;
 
     const senhaTemporaria = !dto.senha;
     const senha = await AuthService.gerarHashSenha(dto.senha ?? randomBytes(24).toString('base64url'));
@@ -59,12 +59,12 @@ export class ProfissionaisService {
         coren: dto.coren,
         formacao: dto.formacao,
         tipoVinculo: dto.tipoVinculo,
-        setorId: setor._id,
+        setorId: setor?._id ?? null,
         subsetorId,
         status,
         desativadoEm: status === StatusProfissional.DESATIVADO ? new Date() : null,
       });
-      return this.paraResposta(profissional, usuario, setor.nome, await this.nomeDoSubsetor(subsetorId));
+      return this.paraResposta(profissional, usuario, setor?.nome ?? null, await this.nomeDoSubsetor(subsetorId));
     } catch (erro) {
       // Mongo standalone não tem transações: desfaz o usuário criado na primeira etapa.
       await this.usuariosService.removerCriacaoParcial(usuario._id);

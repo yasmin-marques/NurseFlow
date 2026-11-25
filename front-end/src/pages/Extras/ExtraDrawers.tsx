@@ -1,14 +1,15 @@
-import { useState, type FormEvent } from 'react'
+import { useState, type FormEvent, type ReactNode } from 'react'
 import { Drawer } from '../../components/ui/Drawer'
 import { cancelarExtra, criarExtra, editarExtra, type ExtraInput, type ScheduledExtra } from '../../services/extras'
-import { createProfessional } from '../../services/professionals'
 import type { Professional } from '../Professionals/types'
+import { RpaFormModal } from './RpaFormModal'
 
 export type ExtraOption = '12d' | '12n' | '24h'
 export type ExtraSector = { id: string; name: string }
 export type ExtraProfessional = Professional & { id: string }
 
-const inputClass = 'mt-1 w-full rounded-xl border border-border bg-white px-3 py-2.5 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/15'
+const inputClass = 'mt-1.5 w-full rounded-xl border border-border bg-white px-3.5 py-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/15'
+const compactClass = 'mt-1.5 w-full min-h-12 rounded-xl border border-border bg-white px-3.5 py-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/15'
 const reasons = [
   ['ferias', 'Férias'], ['ausencia', 'Ausência'], ['atestado', 'Atestado médico'], ['reforco', 'Reforço'], ['outro', 'Outro'],
 ] as const
@@ -35,12 +36,16 @@ function initialForm(extra?: ScheduledExtra | null): ExtraInput {
 }
 
 function ProfessionalSelect({ label, value, onChange, professionals, required = false }: { label: string; value: string; onChange: (value: string) => void; professionals: ExtraProfessional[]; required?: boolean }) {
-  return <label className="block text-xs font-semibold text-text">{label}{required ? <span className="text-danger"> *</span> : null}
-    <select required={required} value={value} onChange={(event) => onChange(event.target.value)} className={inputClass}>
+  return <label className="block text-sm font-semibold text-text">{label}{label === 'Quem será coberto' ? <span className="sr-only"> (profissional coberto)</span> : null}{required ? <span className="text-danger"> *</span> : null}
+    <select aria-label={label === 'Quem será coberto' ? 'Profissional coberto' : undefined} required={required} value={value} onChange={(event) => onChange(event.target.value)} className={inputClass}>
       <option value="">Selecione</option>
       {professionals.map((person) => <option key={person.id} value={person.id}>{person.name} · {person.formation} · {person.bond}</option>)}
     </select>
   </label>
+}
+
+function FieldSelect({ label, value, onChange, children, required = false }: { label: string; value: string; onChange: (value: string) => void; children: ReactNode; required?: boolean }) {
+  return <label className="block text-sm font-semibold text-text">{label}{required ? <span className="text-danger"> *</span> : null}<select required={required} value={value} onChange={(event) => onChange(event.target.value)} className={compactClass}>{children}</select></label>
 }
 
 export function ExtraFormDrawer({ sectors, professionals, extra, onClose, onSaved }: FormProps) {
@@ -65,16 +70,19 @@ export function ExtraFormDrawer({ sectors, professionals, extra, onClose, onSave
     }
   }
 
-  return <Drawer id="extra-form" title={editing ? 'Editar extra' : 'Registrar extra'} description="Programe uma cobertura sem perder o histórico." onClose={onClose} closeDisabled={saving}
-    footer={<div className="flex items-center justify-end gap-2">{error ? <p role="alert" className="mr-auto text-xs font-semibold text-danger">{error}</p> : null}<button type="button" onClick={onClose} disabled={saving} className="rounded-xl border border-border px-4 py-2.5 text-xs font-bold">Cancelar</button><button form="extra-form-submit" type="submit" disabled={saving} className="rounded-xl bg-primary px-4 py-2.5 text-xs font-bold text-white">{saving ? 'Salvando…' : editing ? 'Salvar alterações' : 'Registrar extra'}</button></div>}>
-    <form id="extra-form-submit" onSubmit={submit} className="space-y-4">
-      <label className="block text-xs font-semibold text-text">Data civil *<input required type="date" value={form.data} onChange={(event) => set('data', event.target.value)} className={inputClass} /></label>
-      <div className="grid grid-cols-3 gap-2"><label className="block text-xs font-semibold text-text">Jornada *<select value={form.opcao} onChange={(event) => set('opcao', event.target.value as ExtraOption)} className={inputClass}><option value="12d">12d · 07–19h</option><option value="12n">12n · 19–07h</option><option value="24h">24h · 07–07h</option></select></label><label className="block text-xs font-semibold text-text">Função *<select value={form.funcao} onChange={(event) => set('funcao', event.target.value as ExtraInput['funcao'])} className={inputClass}><option value="enfermeiro">Enfermeiro</option><option value="tecnico">Técnico</option></select></label><label className="block text-xs font-semibold text-text">Setor *<select required value={form.setorId} onChange={(event) => set('setorId', event.target.value)} className={inputClass}><option value="">Selecione</option>{sectors.map((sector) => <option key={sector.id} value={sector.id}>{sector.name}</option>)}</select></label></div>
-      <label className="block text-xs font-semibold text-text">Motivo *<select value={form.motivo} onChange={(event) => set('motivo', event.target.value)} className={inputClass}>{reasons.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-      <ProfessionalSelect label="Substituto" required value={form.substitutoId} onChange={(value) => set('substitutoId', value)} professionals={professionals.filter((person) => person.status && (person.formation === 'Enfemeiro' ? form.funcao === 'enfermeiro' : form.funcao === 'tecnico'))} />
-      {form.motivo !== 'reforco' ? <ProfessionalSelect label="Profissional coberto" required value={form.cobertoId ?? ''} onChange={(value) => set('cobertoId', value)} professionals={professionals} /> : null}
-      <label className="block text-xs font-semibold text-text">Observação<textarea value={form.observacao ?? ''} onChange={(event) => set('observacao', event.target.value)} maxLength={500} rows={3} className={inputClass} /></label>
-      <p className="rounded-xl bg-neutral p-3 text-xs text-text-muted">A API revalida férias, ausências, descanso, vínculos externos, limites e escala oficial antes de persistir.</p>
+  const eligibleProfessionals = professionals.filter((person) => person.status && (person.formation === 'Enfemeiro' ? form.funcao === 'enfermeiro' : form.funcao === 'tecnico'))
+  return <Drawer id="extra-form" title={editing ? `Editar extra de ${typeof extra?.substitutoId === 'object' ? extra.substitutoId.nome ?? 'profissional' : 'profissional'}` : 'Registrar extra'} description="Informe os dados da cobertura" onClose={onClose} closeDisabled={saving}
+    footer={<div className="flex items-center justify-end gap-2">{error ? <p role="alert" className="mr-auto text-xs font-semibold text-danger">{error}</p> : null}<button type="button" onClick={onClose} disabled={saving} className="rounded-xl border border-border px-4 py-2.5 text-xs font-bold">Cancelar</button><button form="extra-form-submit" type="submit" disabled={saving} className="rounded-xl bg-primary px-4 py-2.5 text-xs font-bold text-white">{saving ? 'Salvando…' : editing ? 'Salvar' : 'Salvar extra'}</button></div>}>
+    <form id="extra-form-submit" onSubmit={submit} className="space-y-5">
+      {!editing ? <div className="flex gap-3 rounded-xl bg-[#eef8e9] p-4 text-sm text-primary"><span className="mt-0.5 text-lg">◷</span><span><strong className="block">Período extra</strong><span className="text-text-muted">Esta informação será considerada ao gerar novas escalas.</span></span></div> : null}
+      {editing ? <ProfessionalSelect label="Profissional" required value={form.substitutoId} onChange={(value) => set('substitutoId', value)} professionals={eligibleProfessionals} /> : null}
+      <FieldSelect label="Motivo" required value={form.motivo} onChange={(value) => set('motivo', value)}><option value="">Selecione o motivo</option>{reasons.map(([value, label]) => <option key={value} value={value}>{value === 'ferias' ? 'Cobertura de férias' : label}</option>)}</FieldSelect>
+      {!editing && form.motivo !== 'reforco' ? <ProfessionalSelect label="Quem será coberto" required value={form.cobertoId ?? ''} onChange={(value) => set('cobertoId', value)} professionals={professionals} /> : null}
+      <div className="grid gap-5"><label className="block text-sm font-semibold text-text">Data <span className="text-danger">*</span><input aria-label="Data *" required type="date" value={form.data} onChange={(event) => set('data', event.target.value)} className={compactClass} /></label><FieldSelect label="Turno" required value={form.opcao} onChange={(value) => set('opcao', value as ExtraOption)}><option value="12d">Diurno · 07–19h</option><option value="12n">Noturno · 19–07h</option><option value="24h">24h · 07–07h</option></FieldSelect></div>
+      {!editing ? <div className="grid gap-5"><FieldSelect label="Setor" required value={form.setorId} onChange={(value) => set('setorId', value)}><option value="">Selecione o setor</option>{sectors.map((sector) => <option key={sector.id} value={sector.id}>{sector.name}</option>)}</FieldSelect><FieldSelect label="Categoria" required value={form.funcao} onChange={(value) => set('funcao', value as ExtraInput['funcao'])}><option value="enfermeiro">Enfermeiro</option><option value="tecnico">Técnico</option></FieldSelect></div> : null}
+      {!editing ? <ProfessionalSelect label="Profissional" required value={form.substitutoId} onChange={(value) => set('substitutoId', value)} professionals={eligibleProfessionals} /> : null}
+      {!editing ? <label className="block text-sm font-semibold text-text">Observação<textarea value={form.observacao ?? ''} onChange={(event) => set('observacao', event.target.value)} maxLength={500} rows={3} placeholder="Adicione um contexto para a coordenação" className={`${inputClass} resize-none`} /></label> : null}
+      {!editing ? <p className="flex gap-3 rounded-xl bg-[#eef8e9] p-4 text-sm leading-relaxed text-primary"><span className="text-lg">✓</span><span><strong className="block">Atualização automática</strong><span className="text-text-muted">Plantões já publicados não serão alterados. A regra será aplicada aos próximos rascunhos.</span></span></p> : null}
     </form>
   </Drawer>
 }
@@ -88,8 +96,5 @@ export function CancelExtraDrawer({ extra, onClose, onCancelled }: { extra: Sche
 }
 
 export function RpaDrawer({ onClose, onCreated }: { onClose: () => void; onCreated: (professional: Professional) => Promise<void> | void }) {
-  const [form, setForm] = useState({ name: '', cpf: '', email: '', coren: '', formation: 'Enfemeiro' as Professional['formation'] })
-  const [saving, setSaving] = useState(false); const [error, setError] = useState('')
-  const submit = async (event: FormEvent) => { event.preventDefault(); setSaving(true); setError(''); try { const created = await createProfessional({ ...form, bond: 'RPA', status: true }); await onCreated(created) } catch (cause) { setError(cause instanceof Error ? cause.message : 'Não foi possível cadastrar o RPA.'); setSaving(false) } }
-  return <Drawer id="rpa-form" title="Cadastrar RPA" description="Reutiliza o cadastro único de profissionais." onClose={onClose} closeDisabled={saving} footer={<div className="flex items-center justify-end gap-2">{error ? <p role="alert" className="mr-auto text-xs font-semibold text-danger">{error}</p> : null}<button type="button" onClick={onClose} disabled={saving} className="rounded-xl border border-border px-4 py-2.5 text-xs font-bold">Cancelar</button><button form="rpa-form-submit" type="submit" disabled={saving} className="rounded-xl bg-primary px-4 py-2.5 text-xs font-bold text-white">{saving ? 'Cadastrando…' : 'Cadastrar RPA'}</button></div>}><form id="rpa-form-submit" onSubmit={submit} className="space-y-4"><label className="block text-xs font-semibold text-text">Nome completo *<input required value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} className={inputClass} /></label><label className="block text-xs font-semibold text-text">CPF *<input required value={form.cpf} onChange={(event) => setForm({ ...form, cpf: event.target.value })} className={inputClass} /></label><label className="block text-xs font-semibold text-text">E-mail *<input required type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} className={inputClass} /></label><label className="block text-xs font-semibold text-text">COREN *<input required value={form.coren} onChange={(event) => setForm({ ...form, coren: event.target.value })} className={inputClass} /></label><label className="block text-xs font-semibold text-text">Formação *<select value={form.formation} onChange={(event) => setForm({ ...form, formation: event.target.value as Professional['formation'] })} className={inputClass}><option value="Enfemeiro">Enfermeiro</option><option value="Técnico">Técnico</option></select></label></form></Drawer>
+  return <RpaFormModal onClose={onClose} onCreated={onCreated} />
 }

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Search } from '../../components/icons'
+import { Plus, Search } from '../../components/icons'
 import { listScales, type ScaleDetail } from '../../services/scales'
 import { listSectors } from '../../services/sectors'
 import { listProfessionals } from '../../services/professionals'
@@ -7,7 +7,6 @@ import {
   listarExtras,
   obterExtra,
   obterResumoExtras,
-  type ExtraLinkStatus,
   type ExtraReason,
   type ExtraSituation,
   type ExtrasPage as ExtrasPageResult,
@@ -24,15 +23,7 @@ const REASONS: Array<{ value: string; label: string }> = [
   { value: 'outro', label: 'Outros' },
 ]
 
-const SITUATIONS: Array<{ value: ExtraSituation; label: string }> = [
-  { value: 'programado', label: 'Programados' },
-  { value: 'cancelado', label: 'Cancelados' },
-]
-
 const reasonLabel = (reason: ExtraReason) => REASONS.find((item) => item.value === reason)?.label ?? reason
-const optionLabel = (option: ScheduledExtra['opcao']) => ({ '12d': '12h diurno', '12n': '12h noturno', '24h': '24h' })[option]
-const situationLabel = (situation: ExtraSituation) => situation === 'programado' ? 'Programado' : 'Cancelado'
-const linkLabel = (status: ExtraLinkStatus) => ({ sem_escala: 'Sem escala', pendente_conciliacao: 'Pendente de conciliação', vinculado: 'Vinculado à escala' })[status]
 
 function monthLabel(year: number, month: number) {
   const value = new Date(Date.UTC(year, month - 1, 1)).toLocaleDateString('pt-BR', { month: 'long', timeZone: 'UTC' })
@@ -42,6 +33,10 @@ function monthLabel(year: number, month: number) {
 function formatCivilDate(value: string) {
   const [year, month, day] = value.split('-')
   return day && month && year ? `${day}/${month}/${year}` : value
+}
+
+function shiftLabel(value: ScheduledExtra['opcao']) {
+  return ({ '12d': '07h—19h', '12n': '19h—07h', '24h': '07h—07h' })[value]
 }
 
 function personName(value: ScheduledExtra['substitutoId'] | ScheduledExtra['cobertoId']) {
@@ -65,7 +60,7 @@ function ExtraCard({ extra, onEdit, onCancel }: { extra: ScheduledExtra; onEdit:
   const substitute = personName(extra.substitutoId) ?? 'Profissional não informado'
   const covered = personName(extra.cobertoId)
   const bond = typeof extra.substitutoId === 'object' ? extra.substitutoId.tipoVinculo?.toUpperCase() : undefined
-  return <article className={`flex min-w-0 flex-col rounded-2xl border bg-white p-4 shadow-(--shadow-soft) ${extra.situacao === 'cancelado' ? 'border-border opacity-75' : 'border-l-4 border-l-warning'}`}>
+  return <article className={`flex min-w-0 flex-col rounded-2xl border bg-white p-4 shadow-(--shadow-soft) ${extra.situacao === 'cancelado' ? 'border-border opacity-75' : 'border-l-4 border-l-warning shadow-[-5px_0_12px_rgba(201,135,0,0.2),0_8px_24px_rgba(22,29,24,0.06)]'}`}>
     <div className="flex items-start justify-between gap-3">
       <div className="min-w-0">
         <span className="inline-flex rounded-md bg-warning px-2 py-1 text-[9px] font-bold uppercase tracking-wide text-warning-text">Extra programado</span>
@@ -76,15 +71,12 @@ function ExtraCard({ extra, onEdit, onCancel }: { extra: ScheduledExtra; onEdit:
       </div>
       {bond ? <span className="shrink-0 rounded-md bg-neutral px-2 py-1 text-[9px] font-bold text-text-muted">{bond}</span> : null}
     </div>
-    <div className="mt-4 grid gap-2 rounded-xl bg-card-header p-3 text-[11px] text-text-muted sm:grid-cols-2">
-      <span>◷ {formatCivilDate(extra.data)} · {optionLabel(extra.opcao)}</span>
+    <div className="mt-4 grid gap-2 rounded-xl bg-card-header p-3 text-[10px] text-text-muted">
+      <span>▣ {formatCivilDate(extra.data)} · {shiftLabel(extra.opcao)}</span>
       <span>⌂ {sectorName(extra.setorId)}</span>
-      <span>Função: {extra.funcao === 'enfermeiro' ? 'Enfermeiro' : 'Técnico'}</span>
-      <span>{reasonLabel(extra.motivo)}</span>
     </div>
     <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-      <span className={`rounded-md px-2 py-1 text-[10px] font-semibold ${extra.situacao === 'cancelado' ? 'bg-neutral text-text-muted' : 'bg-highlight text-primary'}`}>{situationLabel(extra.situacao)}</span>
-      <span className="text-[10px] font-medium text-text-muted">{linkLabel(extra.statusVinculo)}</span>
+      <span className={`rounded-md px-2 py-1 text-[10px] font-semibold ${extra.situacao === 'cancelado' ? 'bg-neutral text-text-muted' : 'bg-highlight text-primary'}`}>{extra.situacao === 'cancelado' ? 'Cancelado' : reasonLabel(extra.motivo)}</span>
     </div>
     {extra.situacao === 'programado' ? <div className="mt-3 border-t border-border pt-3">{extra.escalaStatus === 'publicada' || extra.escalaStatus === 'finalizada' ? <p className="mb-2 text-right text-[10px] font-semibold text-danger">Escala oficial: revisão autorizada necessária</p> : null}<div className="flex justify-end gap-2"><button type="button" disabled={extra.escalaStatus === 'publicada' || extra.escalaStatus === 'finalizada'} onClick={onEdit} className="rounded-lg border border-border px-3 py-2 text-xs font-semibold hover:bg-neutral disabled:cursor-not-allowed disabled:opacity-50">Editar</button><button type="button" disabled={extra.escalaStatus === 'publicada' || extra.escalaStatus === 'finalizada'} onClick={onCancel} className="rounded-lg border border-danger/30 px-3 py-2 text-xs font-semibold text-danger hover:bg-error disabled:cursor-not-allowed disabled:opacity-50">Cancelar</button></div></div> : null}
   </article>
@@ -173,7 +165,7 @@ export function ExtrasPage() {
   return <section className="mx-auto flex min-h-full w-full max-w-7xl flex-col px-5 py-6 sm:px-7 lg:px-10 xl:px-12" aria-labelledby="extras-heading">
     <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
       <div><h1 id="extras-heading" className="text-[28px] font-bold leading-tight tracking-[-0.04em] text-text">Extras programados</h1><p className="mt-2 text-sm text-text-muted">Coberturas planejadas para férias, ausências e reforços.</p></div>
-      <div className="flex flex-wrap items-center justify-end gap-2"><button type="button" onClick={() => setDrawer('rpa')} className="rounded-xl border border-border bg-white px-3 py-2 text-xs font-bold hover:bg-neutral">Cadastrar RPA</button><button type="button" onClick={() => setDrawer('create')} className="rounded-xl bg-primary px-3 py-2 text-xs font-bold text-white hover:brightness-95">Registrar extra</button><button type="button" aria-label="Mês anterior" onClick={() => changeMonth(-1)} className="rounded-xl border border-border bg-white px-3 py-2 text-sm hover:bg-neutral">‹</button><span aria-live="polite" className="min-w-32 text-center text-sm font-semibold text-text">{monthLabel(year, month)} de {year}</span><button type="button" aria-label="Próximo mês" onClick={() => changeMonth(1)} className="rounded-xl border border-border bg-white px-3 py-2 text-sm hover:bg-neutral">›</button></div>
+      <div className="flex flex-wrap items-center justify-end gap-2"><button type="button" onClick={() => setDrawer('rpa')} className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-white px-4 py-2.5 text-xs font-bold hover:bg-neutral"><Plus className="size-4" strokeWidth={2.5} />Cadastrar RPA</button><button type="button" onClick={() => setDrawer('create')} className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2.5 text-xs font-bold text-white hover:brightness-95"><Plus className="size-4" strokeWidth={2.5} />Registrar extra</button><button type="button" aria-label="Mês anterior" onClick={() => changeMonth(-1)} className="rounded-xl border border-border bg-white px-3 py-2.5 text-sm hover:bg-neutral">‹</button><span aria-live="polite" className="min-w-32 text-center text-sm font-semibold text-text">{monthLabel(year, month)} de {year}</span><button type="button" aria-label="Próximo mês" onClick={() => changeMonth(1)} className="rounded-xl border border-border bg-white px-3 py-2.5 text-sm hover:bg-neutral">›</button></div>
     </header>
 
     <section aria-label="Indicadores mensais" className="mb-5 grid overflow-hidden rounded-2xl border border-border bg-white shadow-(--shadow-soft) sm:grid-cols-2 lg:grid-cols-4">
@@ -185,11 +177,10 @@ export function ExtrasPage() {
 
     {coverage !== null && coverage > 0 ? <p className="mb-4 inline-flex w-fit rounded-lg bg-error px-3 py-2 text-xs font-semibold text-danger">⚠ {coverage} posição(ões) descoberta(s)</p> : null}
     <section aria-label="Filtros de extras" className="mb-5 rounded-2xl border border-border bg-white p-3 shadow-(--shadow-soft) sm:p-4">
-      <div className="grid gap-3 lg:grid-cols-[minmax(220px,1fr)_repeat(3,minmax(140px,0.7fr))_auto]">
+      <div className="flex flex-wrap items-center gap-2">
         <label className="flex min-h-11 items-center gap-2 rounded-xl border border-border bg-card-header px-3"><Search className="size-4 shrink-0 text-text-muted" strokeWidth={1.8} /><span className="sr-only">Buscar extras</span><input value={search} onChange={(event) => { setSearch(event.target.value); setPage(1) }} placeholder="Buscar por nome, COREN ou motivo" className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-text-muted" /></label>
-        <label className="flex flex-col justify-center"><span className="sr-only">Setor</span><select aria-label="Filtrar por setor" value={sectorId} onChange={(event) => { setSectorId(event.target.value); setPage(1) }} className="min-h-11 rounded-xl border border-border bg-white px-3 text-sm"><option value="">Todos os setores</option>{sectors.map((sector) => <option key={sector.id} value={sector.id}>{sector.name}</option>)}</select></label>
-        <label className="flex flex-col justify-center"><span className="sr-only">Motivo</span><select aria-label="Filtrar por motivo" value={reason} onChange={(event) => { setReason(event.target.value); setPage(1) }} className="min-h-11 rounded-xl border border-border bg-white px-3 text-sm"><option value="">Todos os motivos</option>{REASONS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
-        <label className="flex flex-col justify-center"><span className="sr-only">Situação</span><select aria-label="Filtrar por situação" value={situation} onChange={(event) => { setSituation(event.target.value as ExtraSituation | ''); setPage(1) }} className="min-h-11 rounded-xl border border-border bg-white px-3 text-sm"><option value="">Todas as situações</option>{SITUATIONS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
+        <button type="button" onClick={() => { setReason(''); setSituation('programado'); setPage(1) }} className={`rounded-lg px-3 py-2 text-[10px] font-semibold ${!reason && situation === 'programado' ? 'bg-highlight text-primary' : 'bg-neutral text-text-muted'}`}>Todos</button>
+        {REASONS.filter((item) => item.value !== 'outro').map((item) => <button key={item.value} type="button" onClick={() => { setReason(item.value); setSituation('programado'); setPage(1) }} className={`rounded-lg px-3 py-2 text-[10px] font-semibold ${reason === item.value ? 'bg-highlight text-primary' : 'bg-neutral text-text-muted'}`}>{item.value === 'ferias' ? 'Férias' : item.label}</button>)}
         {hasFilters ? <button type="button" onClick={clearFilters} className="min-h-11 rounded-xl border border-border px-3 text-xs font-semibold text-text-muted hover:bg-neutral">Limpar filtros</button> : <span />}
       </div>
     </section>
