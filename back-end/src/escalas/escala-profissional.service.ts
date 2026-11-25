@@ -5,7 +5,7 @@ import type { UsuarioAutenticado } from '../common/auth/usuario-autenticado';
 import { Profissional } from '../profissionais/schemas/profissional.schema';
 import { Setor } from '../setores/schemas/setor.schema';
 import { Usuario } from '../usuarios/schemas/usuario.schema';
-import { OrigemCobertura, Escala, Plantao, PlantaoProfissional, VersaoEscala } from './schemas';
+import { OrigemCobertura, Escala, Plantao, PlantaoProfissional, StatusEscala, VersaoEscala } from './schemas';
 
 /** Os horários dos plantões são locais (Fortaleza, UTC-3, sem horário de verão). */
 const OFFSET_LOCAL_MS = 3 * 3_600_000;
@@ -220,7 +220,7 @@ export class EscalaProfissionalService {
   private async carregarMeses(periodos: { ano: number; mes: number }[]): Promise<MesPublicado[]> {
     if (periodos.length === 0) return [];
     const escalas = await this.escalas
-      .find({ $or: periodos.map(({ ano, mes }) => ({ ano, mes })) }, { _id: 1, ano: 1, mes: 1 })
+      .find({ status: { $ne: StatusEscala.EXCLUIDA }, $or: periodos.map(({ ano, mes }) => ({ ano, mes })) }, { _id: 1, ano: 1, mes: 1 })
       .lean()
       .exec();
     if (escalas.length === 0) return [];

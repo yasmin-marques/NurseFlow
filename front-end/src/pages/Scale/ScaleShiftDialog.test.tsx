@@ -1,4 +1,8 @@
-import { describe, expect, it } from 'vitest'
+import { fireEvent, render, screen, within } from '@testing-library/react'
+import { describe, expect, it, vi } from 'vitest'
+import { ScaleShiftDialog } from './ScaleShiftDialog'
+import { listProfessionals } from '../../services/professionals'
+import { listSectors } from '../../services/sectors'
 import {
   assignedLeaderId,
   buildShiftChanges,
@@ -10,6 +14,23 @@ import {
 import { stageShiftChanges } from './review'
 import type { ScheduledShift, ShiftBatchChange } from '../../services/scales'
 import type { Professional } from '../Professionals/types'
+
+vi.mock('../../services/sectors', () => ({
+  listSectors: vi.fn(async () => [{
+    id: 'sector-1',
+    name: 'Setor A',
+    description: '',
+    active: true,
+    minimum: { nurses: 0, technicians: 0 },
+    hasSubsectors: false,
+    subsectors: [],
+    techniciansWithoutSubsector: 0,
+  }]),
+}))
+
+vi.mock('../../services/professionals', () => ({
+  listProfessionals: vi.fn(async () => []),
+}))
 
 const shift: ScheduledShift = {
   id: 'shift-1',
@@ -60,6 +81,118 @@ describe('ScaleShiftDialog technician search', () => {
 })
 
 describe('ScaleShiftDialog day team', () => {
+  it('shows a technician subsetor in the shift editor', async () => {
+    const shiftWithSubsector: ScheduledShift = {
+      ...shift,
+      profissionais: shift.profissionais.map((person) => person.id === 'tech-1'
+        ? { ...person, subsetor: { id: 'sub-a', nome: 'Clínica médica' } }
+        : person),
+    }
+    render(
+      <ScaleShiftDialog
+        scale={{
+          escala: {
+            id: 'scale-1',
+            ano: 2026,
+            mes: 6,
+            status: 'em_revisao',
+            revisao: 2,
+            validacao: null,
+            administradorId: 'admin-1',
+            dataCriacao: '2026-06-01T00:00:00.000Z',
+          },
+          resumo: { plantoes: 1 },
+          cobertura: null,
+          configuracaoUtilizada: null,
+          escopo: null,
+          plantoes: [shiftWithSubsector],
+          pendencias: [],
+          conflitos: [],
+          avisos: [],
+          cargas: [],
+        }}
+        dayShifts={[shiftWithSubsector]}
+        initialDate="2026-06-08"
+        stagedChanges={[]}
+        onClose={() => undefined}
+        onStaged={() => undefined}
+      />,
+    )
+
+    expect(await screen.findByText(/Clínica médica/)).toBeTruthy()
+  })
+
+  it('groups available professionals and shows the assigned technicians in each dynamic subsetor', async () => {
+    vi.mocked(listSectors).mockResolvedValue([{
+      id: 'sector-1',
+      name: 'Setor A',
+      description: '',
+      active: true,
+      minimum: { nurses: 1, technicians: null },
+      hasSubsectors: true,
+      subsectors: [
+        { id: 'sub-a', sectorId: 'sector-1', name: 'Subsetor A', description: '', active: true, minimumTechnicians: 1 },
+        { id: 'sub-b', sectorId: 'sector-1', name: 'Subsetor B', description: '', active: true, minimumTechnicians: 1 },
+      ],
+      techniciansWithoutSubsector: 0,
+    }])
+    vi.mocked(listProfessionals).mockResolvedValue([
+      { id: 'tech-1', name: 'Bianca Silva', formation: 'Técnico', status: true, bond: 'CLT', cpf: '', email: '', coren: '', sectorId: 'sector-1', subsectorId: 'sub-a', subsectorName: 'Clínica médica' },
+      { id: 'tech-a', name: 'Técnica A', formation: 'Técnico', status: true, bond: 'CLT', cpf: '', email: '', coren: '', sectorId: 'sector-1', subsectorId: 'sub-a', subsectorName: 'Subsetor A' },
+      { id: 'tech-b', name: 'Técnico B', formation: 'Técnico', status: true, bond: 'CLT', cpf: '', email: '', coren: '', sectorId: 'sector-1', subsectorId: 'sub-b', subsectorName: 'Subsetor B' },
+      { id: 'nurse-2', name: 'Enfermeira C', formation: 'Enfemeiro', status: true, bond: 'CLT', cpf: '', email: '', coren: '', sectorId: 'sector-1' },
+    ])
+    render(
+      <ScaleShiftDialog
+        scale={{
+          escala: {
+            id: 'scale-1',
+            ano: 2026,
+            mes: 6,
+            status: 'em_revisao',
+            revisao: 2,
+            validacao: null,
+            administradorId: 'admin-1',
+            dataCriacao: '2026-06-01T00:00:00.000Z',
+          },
+          resumo: { plantoes: 1 },
+          cobertura: null,
+          configuracaoUtilizada: null,
+          escopo: null,
+          plantoes: [shift],
+          pendencias: [],
+          conflitos: [],
+          avisos: [],
+          cargas: [],
+        }}
+        dayShifts={[shift]}
+        initialDate="2026-06-08"
+        stagedChanges={[]}
+        onClose={() => undefined}
+        onStaged={() => undefined}
+      />,
+    )
+
+    const distribution = await screen.findByLabelText('Profissionais por subsetor')
+    expect(screen.getByText('Subsetor B')).toBeTruthy()
+    expect(distribution.textContent).toContain('Subsetor ABianca Silva')
+    fireEvent.click(screen.getByRole('button', { name: /Adicionar profissional ao setor/ }))
+
+    const subsetorA = screen.getByRole('button', { name: /Subsetor A/ })
+    expect(subsetorA.getAttribute('aria-expanded')).toBe('false')
+    fireEvent.click(subsetorA)
+    const eligibleA = screen.getByLabelText('Profissionais elegíveis: Subsetor A')
+    expect(within(eligibleA).getByText('Técnica A')).toBeTruthy()
+    expect(within(eligibleA).queryByText('Técnico B')).toBeNull()
+
+    fireEvent.click(subsetorA)
+    expect(screen.queryByLabelText('Profissionais elegíveis: Subsetor A')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: /Subsetor B/ }))
+    const eligibleB = screen.getByLabelText('Profissionais elegíveis: Subsetor B')
+    expect(within(eligibleB).getByText('Técnico B')).toBeTruthy()
+    expect(within(eligibleB).queryByText('Técnica A')).toBeNull()
+  })
+
   const night: ScheduledShift = {
     ...shift,
     id: 'shift-2',

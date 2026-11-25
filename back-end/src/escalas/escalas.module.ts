@@ -4,6 +4,7 @@ import { ConfiguracoesModule } from '../configuracoes/configuracoes.module';
 import { Restricao, RestricaoSchema } from '../restricoes/restricao.schema';
 import { ExtraProgramado, ExtraProgramadoSchema } from '../extras/extras.schema';
 import { Setor, SetorSchema } from '../setores/schemas/setor.schema';
+import { Subsetor, SubsetorSchema } from '../setores/schemas/subsetor.schema';
 import { UsuariosModule } from '../usuarios/usuarios.module';
 import { EscalasController } from './escalas.controller';
 import { EscalasService } from './escalas.service';
@@ -44,6 +45,7 @@ import {
       { name: PlantaoProfissional.name, schema: PlantaoProfissionalSchema },
       { name: VersaoEscala.name, schema: VersaoEscalaSchema },
       { name: Setor.name, schema: SetorSchema },
+      { name: Subsetor.name, schema: SubsetorSchema },
       { name: Restricao.name, schema: RestricaoSchema },
       { name: ExtraProgramado.name, schema: ExtraProgramadoSchema },
     ]),

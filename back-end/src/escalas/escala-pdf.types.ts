@@ -9,11 +9,12 @@ export interface PlantaoPdf {
   horarioFim: string;
   duracaoHoras: number;
   tipo: 'regular' | 'extra';
-  profissionais: { id: string; nome: string; formacao: string; vinculo: string }[];
+  profissionais: { id: string; nome: string; formacao: string; vinculo: string; lideranca?: boolean }[];
 }
 
 export interface VisualizacaoEscalaPdf {
   escala: { id: string; ano: number; mes: number; status: string };
+  chefesGerais: { data: string; id: string; nome: string }[];
   cobertura: ResumoCobertura | null;
   plantoes: PlantaoPdf[];
   pendencias: PendenciaCobertura[];
@@ -32,6 +33,7 @@ export function isVisualizacaoEscalaPdf(value: unknown): value is VisualizacaoEs
   return (
     typeof visualizacao.escala === 'object' &&
     visualizacao.escala !== null &&
+    Array.isArray(visualizacao.chefesGerais) &&
     Array.isArray(visualizacao.plantoes) &&
     Array.isArray(visualizacao.pendencias) &&
     Array.isArray(visualizacao.conflitos) &&

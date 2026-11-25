@@ -10,6 +10,7 @@ import { StatusProfissional } from '../profissionais/profissionais.enums';
 import { Profissional } from '../profissionais/schemas/profissional.schema';
 import { Restricao } from '../restricoes/restricao.schema';
 import { Setor } from '../setores/schemas/setor.schema';
+import { Subsetor } from '../setores/schemas/subsetor.schema';
 import { Administrador } from '../usuarios/schemas/administrador.schema';
 import { Usuario } from '../usuarios/schemas/usuario.schema';
 import type { LotePlantoesDto, PlantaoAlteracaoDto, PlantaoDto } from './dto/plantao.dto';
@@ -97,6 +98,7 @@ export class EscalasService {
     @InjectModel(Usuario.name) private readonly usuarios: Model<Usuario>,
     @InjectModel(Administrador.name) private readonly administradores: Model<Administrador>,
     @InjectModel(Setor.name) private readonly setores: Model<Setor>,
+    @InjectModel(Subsetor.name) private readonly subsetores: Model<Subsetor>,
     @InjectModel(Restricao.name) private readonly restricoes: Model<Restricao>,
     private readonly configuracoes: ConfiguracoesService,
     private readonly auditoria: EscalaAuditoriaService,
@@ -108,17 +110,19 @@ export class EscalasService {
   async obter(id: string) {
     const escala = await this.escalas.findById(id).lean().exec();
     if (!escala) throw new NotFoundException('Escala não encontrada.');
+    if (escala.status === StatusEscala.EXCLUIDA) throw new NotFoundException('Escala não encontrada.');
     return this.snapshots.montarResposta(escala);
   }
 
   async listarPorPeriodo(ano: number, mes: number) {
-    const escala = await this.escalas.findOne({ ano, mes }).lean().exec();
+    const escala = await this.escalas.findOne({ ano, mes, status: { $ne: StatusEscala.EXCLUIDA } }).lean().exec();
     return escala ? [await this.snapshots.montarResposta(escala)] : [];
   }
 
   async listarHistorico(ano: number) {
+    const excluidas = await this.escalas.find({ ano, status: StatusEscala.EXCLUIDA }, { _id: 1 }).lean().exec();
     const versoes = await this.versoes
-      .find({ ano })
+      .find({ ano, escalaId: { $nin: excluidas.map((escala) => escala._id) } })
       .sort({ mes: 1, numero: -1 })
       .lean()
       .exec();
@@ -162,12 +166,13 @@ export class EscalasService {
     const administradorId = await this.administradorDe(usuario.id);
     const configuracao = await this.configuracoes.consultar(periodo.ano, periodo.mes);
     const setoresAtivos = await this.setores.find({ ativo: true }).lean().exec();
+    const setoresComSubsetores = await this.setoresParaCobertura(setoresAtivos);
     const pendencias = calcularPendenciasCobertura({
       ...periodo,
-      setores: setoresAtivos.map((setor) => ({ id: String(setor._id), nome: setor.nome, plantao24h: setor.plantao24h })),
+      setores: setoresComSubsetores,
       alocacoes: [],
     });
-    const cobertura = resumirCobertura({ ...periodo, setores: setoresAtivos, pendencias });
+    const cobertura = resumirCobertura({ ...periodo, setores: setoresComSubsetores, pendencias });
     try {
       const escala = await this.escalas.create({
         ...periodo,
@@ -209,6 +214,56 @@ export class EscalasService {
         throw new ConflictException('A escala deixou de ser um rascunho e não pode ser removida.');
       }
     });
+  }
+
+  async excluirEscalaPublicada(
+    id: string,
+    confirmado: boolean,
+    revisaoEsperada: number,
+    usuario: UsuarioAutenticado,
+  ): Promise<void> {
+    if (!confirmado) throw new ConflictException('A exclusão exige confirmação explícita.');
+    await executarTransacao(this.connection, async (session) => {
+      const escala = await this.escalas.findById(id).session(session).lean().exec();
+      if (!escala) throw new NotFoundException('Escala não encontrada.');
+      this.conferirRevisao(escala.revisao, revisaoEsperada);
+      const estadosComPublicacaoVigente = [
+        StatusEscala.PUBLICADA,
+        StatusEscala.FINALIZADA,
+        StatusEscala.EM_REVISAO,
+        StatusEscala.VALIDADA,
+      ];
+      if (!estadosComPublicacaoVigente.includes(escala.status) || escala.versaoPublicada < 1) {
+        throw new ConflictException('Somente escalas com uma versão publicada vigente podem ser excluídas.');
+      }
+      const versao = await this.versoes
+        .findOne({ escalaId: escala._id })
+        .sort({ numero: -1 })
+        .session(session)
+        .lean()
+        .exec();
+      if (!versao) throw new NotFoundException('A escala publicada não possui uma versão oficial disponível.');
+      const profissionaisIds = profissionaisDoSnapshot(versao.snapshot as Record<string, unknown>);
+      const revisao = escala.revisao + 1;
+      const atualizada = await this.escalas.updateOne(
+        { _id: escala._id, status: escala.status, revisao: revisaoEsperada },
+        { $set: { status: StatusEscala.EXCLUIDA }, $inc: { revisao: 1 } },
+        { session },
+      );
+      if (atualizada.matchedCount !== 1) throw new ConflictException('A escala foi atualizada por outra operação.');
+      await this.auditoria.registrar(
+        [{
+          escalaId: escala._id,
+          revisao,
+          acao: 'escala_excluida',
+          usuarioId: new Types.ObjectId(usuario.id),
+          detalhes: { versaoPublicada: versao.numero, statusAnterior: escala.status },
+        }],
+        { session },
+      );
+      await this.googleAgenda.enfileirar(profissionaisIds, 'publicacao', session);
+    });
+    this.googleAgenda.acionarProcessamento();
   }
 
   async iniciarRevisao(id: string, revisaoEsperada: number, usuario: UsuarioAutenticado) {
@@ -280,6 +335,9 @@ export class EscalasService {
   async obterVersaoOficial(id: string) {
     const escala = await this.escalas.findById(id).lean().exec();
     if (!escala) throw new NotFoundException('Escala não encontrada.');
+    if (escala.status === StatusEscala.EXCLUIDA || escala.versaoPublicada < 1) {
+      throw new NotFoundException('A escala ainda não possui uma versão oficial publicada vigente.');
+    }
     const versao = await this.versoes.findOne({ escalaId: escala._id }).sort({ numero: -1 }).lean().exec();
     if (!versao) throw new NotFoundException('A escala ainda não possui uma versão oficial publicada.');
     return {
@@ -1266,6 +1324,7 @@ export class EscalasService {
           formacao: profissional.formacao,
           tipoVinculo: profissional.tipoVinculo,
           status: profissional.status,
+          subsetorId: profissional.subsetorId ? String(profissional.subsetorId) : null,
         },
         funcao: vinculo.funcao as AlocacaoPlantaoValidacao['funcao'],
         data: plantao.data,
@@ -1288,20 +1347,17 @@ export class EscalasService {
     }
     const escopoAtualizado = { setorIds: [...setorIdsDoEscopo], turnos: [...turnosDoEscopo] };
     const setoresDoEscopo = setores.filter((item) => setorIdsDoEscopo.has(String(item._id)));
+    const setoresComSubsetores = await this.setoresParaCobertura(setoresDoEscopo, session);
     const pendencias = calcularPendenciasCobertura({
       ano: escala.ano,
       mes: escala.mes,
-      setores: setoresDoEscopo.map((item) => ({
-        id: String(item._id),
-        nome: item.nome,
-        plantao24h: item.plantao24h,
-      })),
+      setores: setoresComSubsetores,
       alocacoes,
     });
     const cobertura = resumirCobertura({
       ano: escala.ano,
       mes: escala.mes,
-      setores: setoresDoEscopo,
+      setores: setoresComSubsetores,
       pendencias,
     });
     const configuracao =
@@ -1331,6 +1387,10 @@ export class EscalasService {
         vinculo: profissional.tipoVinculo,
         esperada,
         atribuida: { plantoes24h, plantoes12h },
+        faltam: {
+          plantoes24h: Math.max(0, esperada.plantoes24h - plantoes24h),
+          plantoes12h: Math.max(0, esperada.plantoes12h - plantoes12h),
+        },
         extras,
         limiteExtras: limiteExtrasMensal(profissional.tipoVinculo, configuracao),
       };
@@ -1452,6 +1512,7 @@ export class EscalasService {
           formacao: profissional.formacao,
           tipoVinculo: profissional.tipoVinculo,
           status: profissional.status,
+          subsetorId: profissional.subsetorId ? String(profissional.subsetorId) : null,
         },
       }];
     });
@@ -1476,14 +1537,11 @@ export class EscalasService {
     const setorIdsDoEscopo = new Set(geracao.escopo?.setorIds ?? setores.filter((item) => item.ativo).map((item) => String(item._id)));
     for (const plantao of plantoesProjetados) setorIdsDoEscopo.add(plantao.setorId);
     const setoresDoEscopo = setores.filter((item) => setorIdsDoEscopo.has(String(item._id)));
+    const setoresComSubsetores = await this.setoresParaCobertura(setoresDoEscopo, session);
     const todasPendencias = calcularPendenciasCobertura({
       ano: escala.ano,
       mes: escala.mes,
-      setores: setoresDoEscopo.map((item) => ({
-        id: String(item._id),
-        nome: item.nome,
-        plantao24h: item.plantao24h,
-      })),
+      setores: setoresComSubsetores,
       alocacoes,
     });
     const datasSetoresAfetados = new Set<string>();
@@ -1495,7 +1553,7 @@ export class EscalasService {
       }
     }
     const pendencias = todasPendencias.filter((item) => datasSetoresAfetados.has(`${item.setorId}|${item.data}`));
-    const cobertura = resumirCobertura({ ano: escala.ano, mes: escala.mes, setores: setoresDoEscopo, pendencias: todasPendencias });
+    const cobertura = resumirCobertura({ ano: escala.ano, mes: escala.mes, setores: setoresComSubsetores, pendencias: todasPendencias });
     return { cobertura, pendencias };
   }
 
@@ -1503,6 +1561,30 @@ export class EscalasService {
     const ids = (await this.plantoes.find({ escalaId }, { _id: 1 }).session(session).lean().exec()).map((p) => p._id);
     if (ids.length > 0) await this.relacionados.deleteMany({ plantaoId: { $in: ids } }, { session });
     await this.plantoes.deleteMany({ escalaId }, { session });
+  }
+
+  private async setoresParaCobertura(
+    setores: { _id: Types.ObjectId; nome: string; plantao24h: { enfermeiros: number; tecnicos: number } }[],
+    session?: ClientSession,
+  ) {
+    const consulta = this.subsetores.find(
+      { setorId: { $in: setores.map((setor) => setor._id) }, ativo: true },
+      { nome: 1, setorId: 1, plantao24h: 1 },
+    );
+    if (session) consulta.session(session);
+    const subsetores = await consulta.lean().exec();
+    return setores.map((setor) => ({
+      id: String(setor._id),
+      nome: setor.nome,
+      plantao24h: setor.plantao24h,
+      subsetores: subsetores
+        .filter((subsetor) => String(subsetor.setorId) === String(setor._id))
+        .map((subsetor) => ({
+          id: String(subsetor._id),
+          nome: subsetor.nome,
+          tecnicos: subsetor.plantao24h.tecnicos,
+        })),
+    }));
   }
 
   private async administradorDe(usuarioId: string, session?: ClientSession): Promise<Types.ObjectId> {

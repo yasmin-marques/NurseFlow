@@ -70,6 +70,17 @@ describe('weekly day card presentation', () => {
     expect(markup).not.toContain('Revisar cobertura')
   })
 
+  it('shows the general chief assigned to the date', () => {
+    const markup = renderToStaticMarkup(
+      <WeeklyDayCard
+        date={new Date(2025, 5, 8)}
+        dayScale={{ ...scale, chefesGerais: [{ data: '2025-06-08', id: 'leader-1', nome: 'Ana Ribeiro' }] }}
+      />,
+    )
+
+    expect(markup).toContain('Chefe geral: Ana Ribeiro')
+  })
+
   it.each([
     ['pendência de cobertura', {
       ...scale,
