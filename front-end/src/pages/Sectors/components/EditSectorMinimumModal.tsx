@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { Check, X } from "../../../components/icons";
 import { NumberStepper } from "../../../components/ui/NumberStepper";
 import type { SectorMinimums } from "../../../services/sectors";
 import {

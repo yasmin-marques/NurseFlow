@@ -4,7 +4,12 @@ import { EditSectorMinimumModal } from "./components/EditSectorMinimumModal";
 import { NewSectorModal } from "./components/NewSectorModal";
 import { createSector, listSectors, saveSectorForm, setSectorActive, updateSectorMinimum, type SectorForm, type SectorMinimums } from "../../services/sectors";
 import { minimumSummary, plural } from "./sectorForm";
-import { compactButtonClassName } from "./styles";
+import {
+  editCompactButtonClassName,
+  dangerCompactButtonClassName,
+  successCompactButtonClassName,
+  compactButtonClassName,
+} from "./styles";
 import type { NewSector, Sector } from "./types";
 
 function SectorHeader({ name, description, active }: { name: string; description: string; active: boolean }) {
@@ -130,7 +135,11 @@ export function SectorsPage() {
                                         <p className="text-xs font-semibold uppercase tracking-[0.06em] text-text-muted">Plantão de 24h · 07h às 07h</p>
                                         <p className="mt-1.5 text-sm font-semibold text-text">{minimumSummary(sector)}</p>
                                     </div>
-                                    <button type="button" onClick={() => setEditingMinimum(sector)} className={compactButtonClassName}>
+                                    <button
+                                        type="button"
+                                        onClick={() => setEditingMinimum(sector)}
+                                        className={editCompactButtonClassName}
+                                    >
                                         Editar mínimo
                                     </button>
                                 </div>
@@ -156,15 +165,19 @@ export function SectorsPage() {
                                     </div>
                                 ) : null}
                                 <div className="flex flex-wrap justify-end gap-2 py-3">
-                                    <button type="button" onClick={() => setEditingSector(sector)} className={compactButtonClassName}>
+                                    <button
+                                        type="button"
+                                        onClick={() => setEditingSector(sector)}
+                                        className={editCompactButtonClassName}
+                                        >
                                         Editar setor
                                     </button>
                                     <button
                                         type="button"
                                         disabled={togglingId === sector.id}
                                         onClick={() => toggleActive(sector)}
-                                        className={`${compactButtonClassName} ${sector.active ? "!border-danger/30 text-danger" : "!border-primary/30 text-primary"}`}
-                                    >
+                                        className={sector.active ? dangerCompactButtonClassName : successCompactButtonClassName}
+                                        >
                                         {sector.active ? "Desativar setor" : "Reativar setor"}
                                     </button>
                                 </div>

@@ -249,3 +249,24 @@ export function Download(props: IconProps) {
 }
 
 export type AppIcon = typeof LayoutDashboard
+
+export function Trash2(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M3 6h18" />
+      <path d="M8 6V4h8v2" />
+      <path d="m19 6-1 14H6L5 6" />
+      <path d="M10 11v5" />
+      <path d="M14 11v5" />
+    </Icon>
+  )
+}
+
+export function Undo2(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M9 14 4 9l5-5" />
+      <path d="M4 9h11a5 5 0 0 1 0 10h-1" />
+    </Icon>
+  )
+}

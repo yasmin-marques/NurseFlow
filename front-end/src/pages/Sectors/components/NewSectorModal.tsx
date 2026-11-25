@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { Check, Plus, X } from "../../../components/icons";
+import { Check, Plus, Trash2, Undo2, X } from "../../../components/icons";
 import { NumberStepper } from "../../../components/ui/NumberStepper";
 import type { SectorForm, SubsectorDraft } from "../../../services/sectors";
 import { validateSectorForm } from "../sectorForm";
@@ -7,18 +7,13 @@ import {
     bodyClassName,
     closeButtonClassName,
     compactButtonClassName,
-    dangerLinkButtonClassName,
-    footerClassName,
     headerClassName,
     inputClassName,
     labelClassName,
-    linkButtonClassName,
     overlayClassName,
     panelClassName,
     primaryButtonClassName,
-    secondaryButtonClassName,
-    segmentClassName,
-    segmentedClassName,
+    secondaryButtonClassName
 } from "../styles";
 import type { NewSector, Sector } from "../types";
 
@@ -34,8 +29,11 @@ type NewSectorModalProps = {
 
 const emptySubsector = (): SubsectorDraft => ({ name: "", description: "", minimumTechnicians: 1, active: true });
 
-function QuantityRow({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
-    return (
+function QuantityRow({ title, hint, children }: {
+    title: React.ReactNode;
+    hint?: string;
+    children: React.ReactNode;
+}) {    return (
         <div className="flex min-h-12 items-center justify-between gap-3">
             <div className="min-w-0">
                 <p className="text-[13px] font-semibold text-text">{title}</p>
@@ -48,7 +46,6 @@ function QuantityRow({ title, hint, children }: { title: string; hint?: string; 
 
 export function NewSectorModal({ sector, onClose, onSave, onSaveEdit }: NewSectorModalProps) {
     const isEditing = Boolean(sector);
-    const lockedWithSubsectors = Boolean(sector?.hasSubsectors);
     const [name, setName] = useState(sector?.name ?? "");
     const [description, setDescription] = useState(sector?.description ?? "");
     const [nurses, setNurses] = useState(sector?.minimum.nurses ?? 2);
@@ -64,6 +61,11 @@ export function NewSectorModal({ sector, onClose, onSave, onSaveEdit }: NewSecto
         })),
     );
 
+    const lockedWithSubsectors = Boolean(
+        sector?.hasSubsectors &&
+        subsectors.some((sub) => sub.id && !sub.removed)
+    );
+
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
             if (event.key === "Escape") onClose();
@@ -77,8 +79,13 @@ export function NewSectorModal({ sector, onClose, onSave, onSaveEdit }: NewSecto
 
     const chooseSubsectors = (value: boolean) => {
         if (lockedWithSubsectors && !value) return;
+
         setHasSubsectors(value);
-        if (value && subsectors.filter((sub) => !sub.removed).length === 0) setSubsectors((current) => [...current, emptySubsector()]);
+
+        // Só cria um subsetor inicial quando não existem subsetores anteriores.
+        if (value && subsectors.length === 0) {
+            setSubsectors((current) => [...current, emptySubsector()]);
+        }
     };
 
     const updateSubsector = (index: number, patch: Partial<SubsectorDraft>) =>
@@ -149,7 +156,7 @@ export function NewSectorModal({ sector, onClose, onSave, onSaveEdit }: NewSecto
                     <div className={bodyClassName}>
                         <div>
                             <label className={labelClassName}>
-                                Nome do setor <span className="ml-0.5 text-danger" aria-hidden="true">*</span>
+                                Nome do setor <span className="ml-0.5 text-red-600" aria-hidden="true">*</span>
                                 <input autoFocus value={name} onChange={(event) => setName(event.target.value)} placeholder="Ex.: Setor C" className={inputClassName} />
                             </label>
                         </div>
@@ -164,11 +171,11 @@ export function NewSectorModal({ sector, onClose, onSave, onSaveEdit }: NewSecto
                             <h3 className="text-sm font-bold text-text">Mínimo por plantão de 24h</h3>
                             <p className="text-xs text-text-muted">07h às 07h do dia seguinte</p>
                             <div className="mt-2 divide-y divide-border">
-                                <QuantityRow title="Enfermeiros *">
+                                <QuantityRow title={<>Enfermeiros <span className="text-red-600">*</span></>}>
                                     <NumberStepper value={nurses} onChange={setNurses} label="enfermeiros por plantão de 24 horas" />
                                 </QuantityRow>
                                 {hasSubsectors ? null : (
-                                    <QuantityRow title="Técnicos *">
+                                    <QuantityRow title={<>Técnicos <span className="text-red-600">*</span></>}>
                                         <NumberStepper value={technicians} onChange={setTechnicians} label="técnicos por plantão de 24 horas" />
                                     </QuantityRow>
                                 )}
@@ -177,18 +184,35 @@ export function NewSectorModal({ sector, onClose, onSave, onSaveEdit }: NewSecto
 
                         <section>
                             <div className="flex items-center justify-between gap-3">
-                                <h3 className="text-[13px] font-semibold text-text" id="has-subsectors-label">Este setor possui subsetores?</h3>
-                                <div className={segmentedClassName} role="group" aria-labelledby="has-subsectors-label">
-                                    <button type="button" aria-pressed={!hasSubsectors} disabled={lockedWithSubsectors} onClick={() => chooseSubsectors(false)} className={segmentClassName(!hasSubsectors, lockedWithSubsectors)}>Não</button>
-                                    <button type="button" aria-pressed={hasSubsectors} onClick={() => chooseSubsectors(true)} className={segmentClassName(hasSubsectors)}>Sim</button>
-                                </div>
+                                <h3 className="text-[13px] font-semibold text-text" id="has-subsectors-label">Possui subsetores?</h3>
+                                    <button
+                                        type="button"
+                                        role="switch"
+                                        aria-checked={hasSubsectors}
+                                        aria-labelledby="has-subsectors-label"
+                                        disabled={lockedWithSubsectors}
+                                        onClick={() => chooseSubsectors(!hasSubsectors)}
+                                        className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
+                                            hasSubsectors ? "bg-primary" : "bg-[#d1d5db]"
+                                        } ${
+                                            lockedWithSubsectors
+                                                ? "cursor-not-allowed opacity-50"
+                                                : "cursor-pointer"
+                                        }`}
+                                    >
+                                        <span
+                                            className={`inline-block size-4 rounded-full bg-white shadow-sm transition-transform ${
+                                                hasSubsectors ? "translate-x-[18px]" : "translate-x-0.5"
+                                            }`}
+                                        />
+                                    </button>
                             </div>
                             {lockedWithSubsectors ? (
                                 <p className="mt-1.5 text-xs text-text-muted">Um setor com subsetores não volta a ser um setor sem subsetores.</p>
                             ) : null}
                             {isEditing && hasSubsectors && !lockedWithSubsectors ? (
                                 <p className="mt-1.5 text-xs text-text-muted">
-                                    O mínimo de técnicos passa a ser definido em cada subsetor. Técnicos já vinculados ao setor precisarão ter o subsetor definido.
+                                    O mínimo de técnicos passa a ser definido em cada subsetor.
                                 </p>
                             ) : null}
                         </section>
@@ -197,31 +221,62 @@ export function NewSectorModal({ sector, onClose, onSave, onSaveEdit }: NewSecto
                             <section aria-label="Subsetores" className="space-y-3">
                                 <div className="flex items-center justify-between gap-3">
                                     <h3 className="text-sm font-bold text-text">Subsetores</h3>
-                                    <button type="button" onClick={() => setSubsectors((current) => [...current, emptySubsector()])} className={compactButtonClassName}>
-                                        <Plus className="size-3.5" strokeWidth={2.4} />
+                                    <button
+                                        type="button"
+                                        onClick={() => setSubsectors((current) => [...current, emptySubsector()])}
+                                        className={`${compactButtonClassName} h-7! px-2.5! text-[12px]!`}
+                                    >
+                                        <Plus className="size-3" strokeWidth={2} />
                                         Adicionar subsetor
                                     </button>
                                 </div>
                                 {subsectors.map((sub, index) => sub.removed ? (
                                     <div key={sub.id ?? index} className="flex items-center justify-between gap-3 rounded-xl border border-dashed border-border px-3.5 py-2.5 text-xs text-text-muted">
-                                        <span><b className="text-text">{sub.name}</b> será inativado ao salvar.</span>
-                                        <button type="button" onClick={() => updateSubsector(index, { removed: false })} className={linkButtonClassName}>Desfazer</button>
+                                        <span>
+                                            <b className="text-text">{sub.name}</b> será inativado ao salvar.
+                                        </span>
+
+                                        <button
+                                            type="button"
+                                            onClick={() => updateSubsector(index, { removed: false })}
+                                            aria-label={`Desfazer remoção do subsetor ${sub.name}`}
+                                            title="Desfazer remoção"
+                                            className="shrink-0 rounded-md p-1 text-primary transition-colors hover:bg-green-50"
+                                        >
+                                            <Undo2 className="size-4" />
+                                        </button>
                                     </div>
                                 ) : (
                                     <div key={sub.id ?? index} className={`rounded-xl border border-border p-3.5 ${sub.active ? "bg-white" : "bg-[#f8f9f7]"}`}>
                                         <div className="flex items-center justify-between gap-2">
-                                            <p className="text-xs font-semibold uppercase tracking-[0.06em] text-text-muted">
+                                            <p className="text-[10px] font-semibold uppercase tracking-[0.06em] text-text-muted">
                                                 Subsetor {index + 1}
                                                 {sub.active ? null : <span className="ml-2 rounded-md bg-[#eceeea] px-2 py-0.5 text-[10px]">INATIVO</span>}
                                             </p>
                                             {sub.active ? (
-                                                <button type="button" onClick={() => removeSubsector(index)} aria-label={`Remover subsetor ${sub.name || index + 1}`} className={dangerLinkButtonClassName}>Remover</button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => removeSubsector(index)}
+                                                    aria-label={`Remover subsetor ${sub.name || index + 1}`}
+                                                    title="Remover subsetor"
+                                                    className="rounded-md p-1 text-red-600 transition-colors hover:bg-red-50 hover:text-red-800"
+                                                >
+                                                    <Trash2 className="size-4" />
+                                                </button>
                                             ) : (
-                                                <button type="button" onClick={() => updateSubsector(index, { active: true })} aria-label={`Reativar subsetor ${sub.name}`} className={linkButtonClassName}>Reativar</button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => updateSubsector(index, { removed: false })}
+                                                    aria-label={`Desfazer remoção do subsetor ${sub.name}`}
+                                                    title="Desfazer remoção"
+                                                    className="rounded-md p-1 text-primary transition-colors hover:bg-green-50"
+                                                >
+                                                    <Undo2 className="size-4" />
+                                                </button>
                                             )}
                                         </div>
                                         <label className={`${labelClassName} mt-1`}>
-                                            Nome do subsetor <span className="ml-0.5 text-danger" aria-hidden="true">*</span>
+                                            Nome do subsetor <span className="ml-0.5 text-red-600" aria-hidden="true">*</span>
                                             <input aria-label={`Nome do subsetor ${index + 1}`} value={sub.name} onChange={(event) => updateSubsector(index, { name: event.target.value })} placeholder="Ex.: UTI Adulto" className={inputClassName} />
                                         </label>
                                         <label className={`${labelClassName} mt-3`}>
@@ -229,7 +284,7 @@ export function NewSectorModal({ sector, onClose, onSave, onSaveEdit }: NewSecto
                                             <input aria-label={`Descrição do subsetor ${index + 1}`} value={sub.description} onChange={(event) => updateSubsector(index, { description: event.target.value })} className={inputClassName} />
                                         </label>
                                         <div className="mt-2 border-t border-border pt-1">
-                                            <QuantityRow title="Técnicos (mínimo) *">
+                                            <QuantityRow title={<>Técnicos <span className="text-red-600">*</span></>}>
                                                 <NumberStepper value={sub.minimumTechnicians} onChange={(value) => updateSubsector(index, { minimumTechnicians: value })} label={`técnicos do subsetor ${index + 1}`} />
                                             </QuantityRow>
                                         </div>
@@ -237,16 +292,36 @@ export function NewSectorModal({ sector, onClose, onSave, onSaveEdit }: NewSecto
                                 ))}
                             </section>
                         ) : null}
-                    </div>
+                        <footer className="mt-auto shrink-0 border-t border-border bg-white pt-4">
+                            {error && (
+                                <p
+                                    role="alert"
+                                    className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600"
+                                >
+                                    {error}
+                                </p>
+                            )}
 
-                    <footer className={footerClassName}>
-                        {error ? <p role="alert" className="mr-auto self-center text-xs font-medium text-danger">{error}</p> : null}
-                        <button type="button" onClick={onClose} className={secondaryButtonClassName}>Cancelar</button>
-                        <button type="submit" disabled={saving} className={primaryButtonClassName}>
-                            <Check className="size-4" strokeWidth={2.3} />
-                            {isEditing ? "Salvar alterações" : "Cadastrar setor"}
-                        </button>
-                    </footer>
+                            <div className="flex justify-end gap-3">
+                                <button
+                                    type="button"
+                                    onClick={onClose}
+                                    className={secondaryButtonClassName}
+                                >
+                                    Cancelar
+                                </button>
+
+                                <button
+                                    type="submit"
+                                    disabled={saving}
+                                    className={`${primaryButtonClassName} shrink-0 whitespace-nowrap`}
+                                >
+                                    <Check className="size-4" strokeWidth={2.3} />
+                                    {isEditing ? "Salvar alterações" : "Cadastrar setor"}
+                                </button>
+                            </div>
+                        </footer>
+                    </div>
                 </form>
             </section>
         </div>
