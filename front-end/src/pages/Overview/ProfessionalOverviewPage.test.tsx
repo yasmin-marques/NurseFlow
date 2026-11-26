@@ -64,11 +64,11 @@ describe('professional overview page', () => {
     expect(screen.getByText('Observações')).not.toBeNull()
     expect(screen.getByRole('button', { name: 'Solicitar troca' })).not.toBeNull()
 
-    fireEvent.click(screen.getByRole('button', { name: /Voltar para meus plantões/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Voltar ao início/ }))
     expect(screen.getByRole('heading', { name: 'Olá, Ana.' })).not.toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Ver detalhes' }))
     expect(screen.getByRole('heading', { name: 'Informações do plantão' })).not.toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: /Voltar para meus plantões/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Voltar ao início/ }))
     fireEvent.click(screen.getByRole('button', { name: /Escala geral/ }))
     expect(onNavigate).toHaveBeenCalledWith('escala-geral')
   })

@@ -89,6 +89,23 @@ describe('ExchangesPage accessibility and interaction', () => {
     expect((await screen.findByRole('status')).textContent).toContain('Troca recusada e confirmada pelo servidor.')
   })
 
+  it('keeps the details dropdown closed while loading a decision confirmation', async () => {
+    let resolveDetails: (detail: typeof request) => void = () => {}
+    obterTroca.mockReturnValueOnce(new Promise<typeof request>((resolve) => { resolveDetails = resolve }))
+    const user = userEvent.setup()
+    render(<ExchangesPage />)
+
+    const reject = await screen.findByRole('button', { name: 'Recusar' })
+    const card = reject.closest('li')!
+    await user.click(reject)
+    await waitFor(() => expect(obterTroca).toHaveBeenCalledWith('exchange-1'))
+    expect(within(card).getByRole('button', { name: 'Ver detalhes' }).getAttribute('aria-expanded')).toBe('false')
+
+    resolveDetails(request)
+    await screen.findByRole('dialog', { name: 'Tem certeza que deseja recusar?' })
+    expect(within(card).getByRole('button', { name: 'Ver detalhes' }).getAttribute('aria-expanded')).toBe('false')
+  })
+
   it('recuses without a reason and omits empty reason text from details and history', async () => {
     const user = userEvent.setup()
     render(<ExchangesPage />)
@@ -102,7 +119,7 @@ describe('ExchangesPage accessibility and interaction', () => {
     obterTroca.mockResolvedValueOnce(rejected)
     await user.click(await screen.findByRole('tab', { name: /^Recusadas/ }))
     const card = (await screen.findByText('Recusada pela Coordenação')).closest('li')!
-    await user.click(within(card).getByRole('button', { name: 'Detalhes' }))
+    await user.click(within(card).getByRole('button', { name: 'Ver detalhes' }))
     const details = await within(card).findByRole('region', { name: 'Detalhes da troca' })
     expect(within(details).queryByText(/Motivo da recusa:/)).toBeNull()
     expect(within(details).queryByText(/^Motivo:$/)).toBeNull()
@@ -147,14 +164,11 @@ describe('ExchangesPage accessibility and interaction', () => {
 
     const pendingCard = (await screen.findByRole('button', { name: 'Aprovar' })).closest('li')!
     expect(within(pendingCard).queryByText('Aguardando Coordenação')).toBeNull()
-    expect(within(pendingCard).getAllByRole('button').map((button) => button.textContent)).toEqual(['Detalhes', 'Recusar', 'Aprovar'])
-    const actionGroup = pendingCard.children[0].children[2] as HTMLElement
-    const detailsButton = within(actionGroup).getByRole('button', { name: 'Detalhes' })
+    expect(within(pendingCard).getAllByRole('button').map((button) => button.getAttribute('aria-label') ?? button.textContent)).toEqual(['Ver detalhes', 'Recusar', 'Aprovar'])
+    const actionGroup = pendingCard.children[0].children[1] as HTMLElement
     expect(actionGroup.className).toContain('justify-end')
-    expect(detailsButton.className).toContain('text-[11px]')
-    expect(detailsButton.className).toContain('px-3')
     expect(within(actionGroup).getByRole('button', { name: 'Recusar' }).className).toContain('px-4')
-    await user.click(within(pendingCard).getByRole('button', { name: 'Detalhes' }))
+    await user.click(within(pendingCard).getByText(/Ana Souza/))
     const pendingDetails = await within(pendingCard).findByRole('region', { name: 'Detalhes da troca' })
     expect(within(pendingDetails).getByText('Aguardando Coordenação')).not.toBeNull()
     expect(pendingCard.children[1].contains(pendingDetails)).toBe(true)
@@ -169,7 +183,7 @@ describe('ExchangesPage accessibility and interaction', () => {
     await user.click(within(screen.getByRole('tablist')).getByRole('tab', { name: /^Aprovadas/ }))
     obterTroca.mockResolvedValueOnce({ ...request, status: 'aprovada', decisaoCoordenacao: { resultado: 'aprovada', decididaEm: '2026-11-02T12:00:00Z', justificativa: null } })
     const approvedCard = (await screen.findByText('Solicitação aprovada')).closest('li')!
-    await user.click(within(approvedCard).getByRole('button', { name: 'Detalhes' }))
+    await user.click(within(approvedCard).getByRole('button', { name: 'Ver detalhes' }))
     const approvedDetails = await within(approvedCard).findByRole('region', { name: 'Detalhes da troca' })
     expect(within(approvedDetails).getByText('Solicitação aprovada')).not.toBeNull()
     expect(within(approvedCard).queryByRole('button', { name: 'Aprovar' })).toBeNull()
@@ -178,7 +192,7 @@ describe('ExchangesPage accessibility and interaction', () => {
     await user.click(within(screen.getByRole('tablist')).getByRole('tab', { name: /^Recusadas/ }))
     obterTroca.mockResolvedValueOnce({ ...request, status: 'recusada_pela_coordenacao', decisaoCoordenacao: { resultado: 'recusada', decididaEm: '2026-11-02T12:00:00Z', justificativa: 'Cobertura necessária no setor.' } })
     const rejectedCard = (await screen.findByText('Recusada pela Coordenação')).closest('li')!
-    await user.click(within(rejectedCard).getByRole('button', { name: 'Detalhes' }))
+    await user.click(within(rejectedCard).getByRole('button', { name: 'Ver detalhes' }))
     const rejectedDetails = await within(rejectedCard).findByRole('region', { name: 'Detalhes da troca' })
     expect(within(rejectedDetails).getByText((_, element) => element?.textContent?.replace(/\s+/g, ' ').trim() === 'Motivo da recusa: Cobertura necessária no setor.')).not.toBeNull()
     expect(within(rejectedCard).queryByRole('button', { name: 'Aprovar' })).toBeNull()

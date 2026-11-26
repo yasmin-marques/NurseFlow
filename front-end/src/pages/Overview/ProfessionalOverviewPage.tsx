@@ -70,7 +70,7 @@ function ShiftDetailPage({
   return (
     <div className="mx-auto flex min-h-full w-full max-w-7xl flex-col gap-6 px-5 py-7 sm:px-8 sm:py-8 lg:px-10">
       <button type="button" onClick={onBack} className="w-fit text-sm font-bold text-primary hover:underline">
-        <span aria-hidden="true">‹</span> Voltar para meus plantões
+        <span aria-hidden="true">‹</span> Voltar ao início
       </button>
 
       <section className="flex flex-col gap-6 rounded-2xl border border-border bg-white p-7 shadow-(--shadow-soft) sm:flex-row sm:items-center sm:px-10 sm:py-8">

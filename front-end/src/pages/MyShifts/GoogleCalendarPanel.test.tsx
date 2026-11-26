@@ -36,7 +36,10 @@ describe('GoogleCalendarPanel', () => {
     const redirect = vi.fn()
     render(<GoogleCalendarPanel redirect={redirect} />)
 
-    const sync = await screen.findByRole('button', { name: 'Sincronizar' })
+    const sync = await screen.findByRole('button', { name: 'Sincronizar com o Google Agenda' })
+    expect(sync.textContent).toContain('Google Agenda')
+    expect(sync.className).toContain('bg-[#f2f2ef]')
+    expect(sync.querySelector('svg')).not.toBeNull()
     expect(screen.getByTestId('google-calendar-state').textContent).toContain('Não conectado')
     expect(screen.getAllByRole('button')).toHaveLength(1)
     await userEvent.setup().click(sync)
@@ -46,7 +49,7 @@ describe('GoogleCalendarPanel', () => {
   it('disables the action and explains when the integration is not configured', async () => {
     getGoogleCalendarStatus.mockResolvedValue(status({ configurada: false }))
     render(<GoogleCalendarPanel redirect={vi.fn()} />)
-    expect((await screen.findByRole('button', { name: 'Sincronizar' }) as HTMLButtonElement).disabled).toBe(true)
+    expect((await screen.findByRole('button', { name: 'Sincronizar com o Google Agenda' }) as HTMLButtonElement).disabled).toBe(true)
     expect(screen.getByText(/ainda não foi configurada neste ambiente/)).not.toBeNull()
   })
 
@@ -60,10 +63,10 @@ describe('GoogleCalendarPanel', () => {
     render(<GoogleCalendarPanel redirect={vi.fn()} />)
 
     expect((await screen.findByTestId('google-calendar-state')).textContent).toMatch(/^Google Agenda · Conectado · última sincronização em .* · 1 atualização\(ões\) na fila$/)
-    await userEvent.setup().click(await screen.findByRole('button', { name: 'Dessincronizar' }))
+    await userEvent.setup().click(await screen.findByRole('button', { name: 'Dessincronizar do Google Agenda' }))
     expect((await screen.findByRole('status')).textContent).toContain('eventos já enviados permanecem')
     expect(screen.getByTestId('google-calendar-state').textContent).toContain('Sincronização desativada')
-    expect(screen.getByRole('button', { name: 'Sincronizar' })).not.toBeNull()
+    expect(screen.getByRole('button', { name: 'Sincronizar com o Google Agenda' })).not.toBeNull()
   })
 
   it('asks the professional to reconnect when authorization expired', async () => {
@@ -72,7 +75,7 @@ describe('GoogleCalendarPanel', () => {
     const redirect = vi.fn()
     render(<GoogleCalendarPanel redirect={redirect} />)
     expect((await screen.findByRole('alert')).textContent).toContain('expirou ou foi revogada')
-    await userEvent.setup().click(await screen.findByRole('button', { name: 'Sincronizar' }))
+    await userEvent.setup().click(await screen.findByRole('button', { name: 'Sincronizar com o Google Agenda' }))
     await waitFor(() => expect(redirect).toHaveBeenCalledWith('https://accounts.google.com/auth'))
   })
 

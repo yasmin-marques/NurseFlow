@@ -25,7 +25,7 @@ function Shift({ title, value }: { title: string; value: ShiftChoice | null }) {
 }
 function ConfirmDialog({ action, name, busy, onClose, onConfirm }: { action: 'aceitar' | 'recusar' | 'cancelar'; name: string; busy: boolean; onClose: () => void; onConfirm: () => void }) {
   const descriptions = { aceitar: 'Você aceitará a troca de plantão. A escala só muda após a decisão da Coordenação.', recusar: 'A solicitação será recusada e o solicitante será avisado.', cancelar: 'Você pode solicitar outra troca.' }
-  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget && !busy) onClose() }}><section role="dialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-description" onKeyDown={(e) => { if (e.key === 'Escape' && !busy) { e.preventDefault(); onClose() } if (e.key === 'Tab') { const buttons = e.currentTarget.querySelectorAll<HTMLButtonElement>('button:not(:disabled)'); const first = buttons[0]; const last = buttons[buttons.length - 1]; if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last?.focus() } else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first?.focus() } } }} className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"><h2 id="confirm-title" className="text-lg font-bold text-text">{action === 'aceitar' ? 'Aceitar solicitação?' : action === 'recusar' ? 'Recusar solicitação?' : 'Cancelar solicitação?'}</h2><p id="confirm-description" className="mt-2 text-sm leading-relaxed text-text-muted">{action === 'aceitar' ? descriptions[action] : `${descriptions[action]} ${name}`}</p><div className="mt-6 flex justify-end gap-3"><button autoFocus type="button" disabled={busy} onClick={onClose} className="min-h-11 rounded-lg border border-border px-4 text-sm font-semibold text-text">Não</button><button type="button" disabled={busy} onClick={onConfirm} className={`min-h-11 rounded-lg px-4 text-sm font-bold text-white disabled:opacity-60 ${action === 'recusar' ? 'bg-danger' : action === 'cancelar' ? 'bg-text' : 'bg-primary'}`}>{busy ? 'Processando…' : action === 'aceitar' ? 'Sim, quero aceitar' : action === 'recusar' ? 'Sim, quero recusar' : 'Sim, quero cancelar'}</button></div></section></div>
+  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget && !busy) onClose() }}><section role="dialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-description" onKeyDown={(e) => { if (e.key === 'Escape' && !busy) { e.preventDefault(); onClose() } if (e.key === 'Tab') { const buttons = e.currentTarget.querySelectorAll<HTMLButtonElement>('button:not(:disabled)'); const first = buttons[0]; const last = buttons[buttons.length - 1]; if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last?.focus() } else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first?.focus() } } }} className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"><h2 id="confirm-title" className="text-lg font-bold text-text">{action === 'aceitar' ? 'Aceitar solicitação?' : action === 'recusar' ? 'Recusar solicitação?' : 'Cancelar solicitação?'}</h2><p id="confirm-description" className="mt-2 text-sm leading-relaxed text-text-muted">{action === 'aceitar' ? descriptions[action] : `${descriptions[action]} ${name}`}</p><div className="mt-6 flex justify-end gap-3"><button autoFocus type="button" disabled={busy} onClick={onClose} className="min-h-11 rounded-lg border border-border px-4 text-sm font-semibold text-text">Não</button><button type="button" disabled={busy} onClick={onConfirm} className={`min-h-11 rounded-lg px-4 text-sm font-bold text-white disabled:opacity-60 ${action === 'recusar' || action === 'cancelar' ? 'bg-danger' : 'bg-primary'}`}>{busy ? 'Processando…' : action === 'aceitar' ? 'Sim, quero aceitar' : action === 'recusar' ? 'Sim, quero recusar' : 'Sim, quero cancelar'}</button></div></section></div>
 }
 function ShiftLabel({ value }: { value: ShiftChoice }) { return <span>{date(value.data)} · {value.horarioInicio} — {value.horarioFim} · {value.setor ?? value.setorId} · {value.funcao}</span> }
 
@@ -110,7 +110,19 @@ export function MyExchangesPage({ exchangeId }: { exchangeId?: string | null }) 
             const myDirection = tab === 'recebidas' || (tab === 'historico' && item.direcao === 'recebida')
             return (
               <li key={item.id} className="rounded-xl border border-border bg-white p-3 shadow-(--shadow-soft) sm:p-4">
-                <div className="flex flex-wrap items-center justify-between gap-3">
+                <button
+                  type="button"
+                  aria-label={expanded ? 'Fechar detalhes' : 'Ver detalhes'}
+                  aria-expanded={expanded}
+                  aria-controls={detailsId}
+                  onClick={() => setExpandedExchanges((current) => {
+                    const next = new Set<string>(current)
+                    if (next.has(item.id)) next.delete(item.id)
+                    else next.add(item.id)
+                    return next
+                  })}
+                  className="flex w-full flex-wrap items-center justify-between gap-3 rounded-lg text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                >
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-bold text-text">
                       {tab === 'recebidas'
@@ -124,22 +136,22 @@ export function MyExchangesPage({ exchangeId }: { exchangeId?: string | null }) 
                   <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${statusClasses(item)}`}>
                     {statusLabel(item)}
                   </span>
-                  <button
-                    type="button"
-                    aria-expanded={expanded}
-                    aria-controls={detailsId}
-                    onClick={() => setExpandedExchanges((current) => {
-                      const next = new Set<string>(current)
-                      if (next.has(item.id)) next.delete(item.id)
-                      else next.add(item.id)
-                      return next
-                    })}
-                    className="min-h-9 rounded-lg border border-border px-3 text-xs font-semibold text-primary hover:bg-neutral"
+                  <svg
+                    aria-hidden="true"
+                    viewBox="0 0 20 20"
+                    fill="none"
+                    className={`size-4 shrink-0 text-text-muted transition-transform duration-200 motion-reduce:transition-none ${expanded ? 'rotate-180' : ''}`}
                   >
-                    {expanded ? 'Fechar detalhes' : 'Ver detalhes'}
-                  </button>
-                </div>
-                <div id={detailsId} hidden={!expanded}>
+                    <path d="m5 7.5 5 5 5-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </button>
+                <div
+                  id={detailsId}
+                  aria-hidden={!expanded}
+                  inert={!expanded}
+                  className={`grid overflow-hidden transition-[grid-template-rows] duration-300 ease-in-out motion-reduce:transition-none ${expanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}
+                >
+                  <div className={`min-h-0 overflow-hidden transition-opacity duration-200 motion-reduce:transition-none ${expanded ? 'opacity-100' : 'opacity-0'}`}>
                   <div className="mt-3 grid gap-2 sm:grid-cols-2">
                     {myDirection ? (
                       <>
@@ -190,11 +202,12 @@ export function MyExchangesPage({ exchangeId }: { exchangeId?: string | null }) 
                           dialogOpener.current = event.currentTarget
                           setDialog({ item, action: 'cancelar' })
                         }}
-                        className="min-h-9 rounded-lg border border-danger px-3 text-xs font-bold text-danger"
+                        className="min-h-9 rounded-lg bg-danger px-3 text-xs font-bold text-white hover:brightness-95"
                       >
                         Cancelar solicitação
                       </button>
                     ) : null}
+                  </div>
                   </div>
                 </div>
               </li>

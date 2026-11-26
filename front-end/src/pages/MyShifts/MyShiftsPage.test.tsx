@@ -45,7 +45,7 @@ describe('MyShiftsPage', () => {
     expect(screen.getByText('Ana Ribeiro · Marina Freitas')).not.toBeNull()
     expect(screen.getByText('Outros técnicos')).not.toBeNull()
     expect(screen.getByText('Bruno Lima · Lívia Reis')).not.toBeNull()
-    expect(await screen.findByRole('button', { name: 'Sincronizar' })).not.toBeNull()
+    expect(await screen.findByRole('button', { name: 'Sincronizar com o Google Agenda' })).not.toBeNull()
     expect(screen.getByRole('heading', { name: 'Meus plantões' }).parentElement?.parentElement?.querySelector('button')).not.toBeNull()
     expect(getMyShifts).toHaveBeenCalledTimes(1)
     expect(getMyShifts).toHaveBeenCalledWith('proximos', 1, 50, 2026, 11)
