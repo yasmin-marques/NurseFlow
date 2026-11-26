@@ -67,7 +67,7 @@ export function PublishScaleDialog({ scale, onClose, onPublished }: PublishScale
             <h3 className="text-sm font-bold text-text">{ready ? 'Escala pronta para publicação' : 'Escala com pontos para revisar'}</h3>
             <p className="mt-1 text-[11px] leading-relaxed text-text-muted">
               {ready
-                ? 'Cobertura, quantitativo e restrições foram validados novamente.'
+                ? 'Cobertura e quantitativo foram validados novamente.'
                 : 'Os indicadores abaixo refletem todas as alterações do rascunho atual.'}
             </p>
           </div>
@@ -91,29 +91,10 @@ export function PublishScaleDialog({ scale, onClose, onPublished }: PublishScale
           </p>
         </section>
 
-        {summary.coverageOnly ? (
-          <section className="rounded-xl bg-warning p-4 text-warning-text">
-            <h3 className="text-xs font-bold">⚠ &nbsp;{summary.belowMinimumCount} {summary.belowMinimumCount === 1 ? 'cobertura' : 'coberturas'} abaixo do mínimo</h3>
-            <p className="mt-1 pl-5 text-[11px]">Revise os setores e turnos indicados no calendário.</p>
-          </section>
-        ) : null}
-
-        {!summary.blocked ? (
-          <section className="rounded-xl bg-highlight p-4 text-primary">
-            <h3 className="text-xs font-bold">✓ &nbsp;Sem conflitos de disponibilidade</h3>
-            <p className="mt-1 pl-5 text-[11px]">Status, férias, afastamentos, restrições e descansos validados.</p>
-          </section>
-        ) : (
+        {summary.blocked ? (
           <section role="alert" className="rounded-xl bg-error p-4 text-danger">
             <h3 className="text-xs font-bold">Conflitos que impedem a publicação</h3>
             <ul className="mt-2 space-y-1 text-[11px]">{summary.blockingFindings.map((item, index) => <li key={`${item.tipo}-${index}`}>{item.tipo}: {item.motivo}</li>)}</ul>
-          </section>
-        )}
-
-        {!summary.blocked && summary.notices.length > 0 ? (
-          <section className="rounded-xl bg-warning p-4 text-warning-text">
-            <h3 className="text-xs font-bold">⚠ &nbsp;Avisos considerados na geração</h3>
-            <ul className="mt-2 space-y-1 pl-5 text-[11px]">{summary.notices.map((item, index) => <li key={`${item.tipo}-${index}`}>{item.profissional ? `${item.profissional}: ` : ''}{item.motivo}</li>)}</ul>
           </section>
         ) : null}
 
