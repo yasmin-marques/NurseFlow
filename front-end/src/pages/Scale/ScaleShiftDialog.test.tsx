@@ -1,8 +1,9 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { ScaleShiftDialog } from './ScaleShiftDialog'
 import { listProfessionals } from '../../services/professionals'
 import { listSectors } from '../../services/sectors'
+import * as scalesService from '../../services/scales'
 import {
   assignedLeaderId,
   buildShiftChanges,
@@ -255,5 +256,85 @@ describe('ScaleShiftDialog day team', () => {
 
     const restaged = stageShiftChanges([pending], [], { setorId: 'sector-1', data: '2026-06-08', plantaoIds: ['shift-1', 'shift-2'] })
     expect(restaged).toEqual([])
+  })
+
+  it('requires and sends coverage acknowledgment when removing a professional leaves vacancies', async () => {
+    vi.mocked(listProfessionals).mockResolvedValue([
+      { id: 'nurse-1', name: 'Rafael Rocha', formation: 'Enfemeiro', status: true, bond: 'CLT', cpf: '', email: '', coren: '', sectorId: 'sector-1' },
+      { id: 'tech-1', name: 'Bianca Silva', formation: 'Técnico', status: true, bond: 'CLT', cpf: '', email: '', coren: '', sectorId: 'sector-1' },
+    ])
+    const validate = vi.spyOn(scalesService, 'validateShiftBatch').mockResolvedValue({
+      revisao: 2,
+      valida: true,
+      erros: [],
+      cobertura: { posicoesExigidas: 2, posicoesPreenchidas: 1, percentual: 50 },
+      pendencias: [{
+        setorId: 'sector-1',
+        setor: 'Setor A',
+        data: '2026-06-08',
+        turno: 'diurno',
+        funcao: 'enfermeiros',
+        necessario: 1,
+        alocado: 0,
+        faltam: 1,
+        motivo: 'Abaixo do mínimo',
+      }],
+      requerConfirmacaoCobertura: true,
+    })
+    const onStaged = vi.fn()
+
+    try {
+      render(
+        <ScaleShiftDialog
+          scale={{
+            escala: {
+              id: 'scale-1',
+              ano: 2026,
+              mes: 6,
+              status: 'em_revisao',
+              revisao: 2,
+              validacao: null,
+              administradorId: 'admin-1',
+              dataCriacao: '2026-06-01T00:00:00.000Z',
+            },
+            resumo: { plantoes: 1 },
+            cobertura: null,
+            configuracaoUtilizada: null,
+            escopo: null,
+            plantoes: [shift],
+            pendencias: [],
+            conflitos: [],
+            avisos: [],
+            cargas: [],
+          }}
+          dayShifts={[shift]}
+          initialDate="2026-06-08"
+          stagedChanges={[]}
+          onClose={() => undefined}
+          onStaged={onStaged}
+        />,
+      )
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Remover Rafael Rocha do plantão' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Validar conflitos' }))
+      await screen.findByText(/Estas vagas permanecerão abertas após salvar/)
+
+      const applyButton = screen.getByRole('button', { name: 'Aplicar e salvar' })
+      expect(applyButton.hasAttribute('disabled')).toBe(true)
+      fireEvent.click(screen.getByRole('checkbox', {
+        name: 'Reconheço que a alteração deixará estas vagas de cobertura em aberto.',
+      }))
+      fireEvent.click(applyButton)
+
+      await waitFor(() => expect(onStaged).toHaveBeenCalledWith(
+        [expect.objectContaining({
+          coberturaReconhecida: true,
+          equipe: [{ profissionalId: 'tech-1', funcao: 'tecnico' }],
+        })],
+        expect.objectContaining({ setorId: 'sector-1', data: '2026-06-08' }),
+      ))
+    } finally {
+      validate.mockRestore()
+    }
   })
 })
