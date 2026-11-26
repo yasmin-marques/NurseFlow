@@ -495,7 +495,7 @@ export function ScalePage() {
   }
 
   const startScaleReview = async (scale: ScaleDetail) => {
-    const reviewed = scale.escala.status === 'rascunho'
+    const reviewed = scale.escala.status === 'rascunho' || scale.escala.status === 'publicada'
       ? await startReview(scale.escala.id, scale.escala.revisao)
       : scale
     if (reviewed.escala.status !== 'em_revisao') {
@@ -554,7 +554,7 @@ export function ScalePage() {
   }
 
   const openReview = async () => {
-    if (!matchingScale || matchingScale.escala.status !== 'rascunho') {
+    if (!matchingScale || (matchingScale.escala.status !== 'rascunho' && matchingScale.escala.status !== 'publicada')) {
       setView('week')
       setSelectedDate(calendarDate(year, month - 1, 1))
       return

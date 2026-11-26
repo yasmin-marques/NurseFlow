@@ -1,5 +1,5 @@
 import { renderToStaticMarkup } from 'react-dom/server'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ScalePage, GenerationLoading, ScaleWarnings } from './ScalePage'
@@ -7,6 +7,7 @@ import { ExportScaleDrawer } from './ExportScaleDrawer'
 import { GenerateScaleDialog } from './GenerateScaleDialog'
 import { PublishScaleDialog } from './PublishScaleDialog'
 import type { ScaleDetail } from '../../services/scales'
+import * as scalesService from '../../services/scales'
 
 const pendingScale: ScaleDetail = {
   escala: {
@@ -81,6 +82,39 @@ describe('scale page loading presentation', () => {
     const markup = renderToStaticMarkup(<ScalePage />)
 
     expect(markup).toContain('Montar manualmente')
+  })
+
+  it('starts a review before showing weekly edit actions for a published scale', async () => {
+    const user = userEvent.setup()
+    const now = new Date()
+    const publishedScale: ScaleDetail = {
+      ...pendingScale,
+      escala: {
+        ...pendingScale.escala,
+        ano: now.getFullYear(),
+        mes: now.getMonth() + 1,
+        status: 'publicada',
+        revisao: 3,
+        versaoPublicada: 2,
+      },
+    }
+    const revisionScale: ScaleDetail = {
+      ...publishedScale,
+      escala: { ...publishedScale.escala, status: 'em_revisao', revisao: 4 },
+    }
+    const listScales = vi.spyOn(scalesService, 'listScales').mockResolvedValue([publishedScale])
+    const startReview = vi.spyOn(scalesService, 'startReview').mockResolvedValue(revisionScale)
+
+    try {
+      render(<ScalePage />)
+      await user.click(await screen.findByRole('button', { name: 'Editar escala' }))
+
+      expect(startReview).toHaveBeenCalledWith(publishedScale.escala.id, publishedScale.escala.revisao)
+      expect(await screen.findAllByRole('button', { name: 'Editar' })).not.toHaveLength(0)
+    } finally {
+      listScales.mockRestore()
+      startReview.mockRestore()
+    }
   })
 
   it('stretches monthly day cards across each calendar grid column', () => {
