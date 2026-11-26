@@ -74,6 +74,7 @@ export function ScaleShiftDialog({ scale, dayShifts, focusSectorId, initialDate,
   const [validated, setValidated] = useState(false)
   const [validationSummary, setValidationSummary] = useState('')
   const [coveragePending, setCoveragePending] = useState<CoverageVacancy[]>([])
+  const [coverageAccepted, setCoverageAccepted] = useState(false)
   const [emergencyAccepted, setEmergencyAccepted] = useState(false)
   const [emergencyErrors, setEmergencyErrors] = useState<string[]>([])
   const [emergencyCanApply, setEmergencyCanApply] = useState(false)
@@ -215,6 +216,7 @@ export function ScaleShiftDialog({ scale, dayShifts, focusSectorId, initialDate,
     setValidated(false)
     setValidationSummary('')
     setCoveragePending([])
+    setCoverageAccepted(false)
     setEmergencyAccepted(false)
     setEmergencyErrors([])
     setEmergencyCanApply(false)
@@ -277,6 +279,7 @@ export function ScaleShiftDialog({ scale, dayShifts, focusSectorId, initialDate,
     if (!canValidate) return
     setSaving(true)
     setFormError('')
+    setCoverageAccepted(false)
     try {
       const preview = await validateShiftBatch(
         scale.escala.id,
@@ -314,10 +317,11 @@ export function ScaleShiftDialog({ scale, dayShifts, focusSectorId, initialDate,
   }
 
   const apply = () => {
-    if (!validated) return
+    if (!validated || (coveragePending.length > 0 && !coverageAccepted)) return
     onStaged(
       changes.map((change) => ({
         ...change,
+        ...(coverageAccepted ? { coberturaReconhecida: true } : {}),
         ...(emergencyAccepted ? { forcarConflitos: true } : {}),
       })),
       scope,
@@ -343,7 +347,7 @@ export function ScaleShiftDialog({ scale, dayShifts, focusSectorId, initialDate,
         >
           {saving ? 'Validando...' : 'Validar conflitos'}
         </button>
-        <button type="button" onClick={apply} disabled={saving || !validated} className="rounded-lg bg-primary px-3 py-2 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-50">Aplicar e salvar</button>
+        <button type="button" onClick={apply} disabled={saving || !validated || (coveragePending.length > 0 && !coverageAccepted)} className="rounded-lg bg-primary px-3 py-2 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-50">Aplicar e salvar</button>
       </div>}
     >
       <form id="edit-scale-shift-form" onSubmit={submit} noValidate className="space-y-5">
@@ -575,6 +579,14 @@ export function ScaleShiftDialog({ scale, dayShifts, focusSectorId, initialDate,
                 </li>
               ))}
             </ul>
+            <label className="flex items-start gap-2 text-xs font-semibold text-text">
+              <input
+                type="checkbox"
+                checked={coverageAccepted}
+                onChange={(event) => setCoverageAccepted(event.target.checked)}
+              />
+              Reconheço que a alteração deixará estas vagas de cobertura em aberto.
+            </label>
           </section>
         ) : null}
         {formError ? <p role="alert" className="rounded-xl border border-error bg-error p-2.5 text-xs text-danger whitespace-pre-line">{formError}</p> : null}
