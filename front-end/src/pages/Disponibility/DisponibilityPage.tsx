@@ -85,6 +85,7 @@ export function DisponibilityPage() {
   );
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [recordToRemove, setRecordToRemove] = useState<ListedRecord | null>(null);
   const activeRecords = records[activeCategory];
 
   useEffect(() => {
@@ -143,7 +144,6 @@ export function DisponibilityPage() {
   };
 
   const removeRecord = async (record: ListedRecord) => {
-    if (!window.confirm(`Excluir restrição de ${record.name}?`)) return;
     try {
       await deleteRestriction(record.professionalId, record.id);
       const refreshed = await reload();
@@ -154,6 +154,8 @@ export function DisponibilityPage() {
       );
     } catch (e) {
       setToast(e instanceof Error ? e.message : "Falha ao excluir");
+    } finally {
+      setRecordToRemove(null);
     }
   };
 
@@ -333,7 +335,10 @@ export function DisponibilityPage() {
                           </button>
                           <button
                             type="button"
-                            onClick={() => removeRecord(record)}
+                            onClick={() => {
+                              setToast(null);
+                              setRecordToRemove(record);
+                            }}
                             className="rounded-lg p-2 text-danger transition-colors hover:bg-error"
                             aria-label={`Excluir registro de ${record.name}`}
                           >
@@ -372,7 +377,12 @@ export function DisponibilityPage() {
           onSave={saveRecord}
         />
       ) : null}
-      <Toast message={toast} />
+      <Toast
+        message={recordToRemove ? `Excluir o registro de ${recordToRemove.name}?` : toast}
+        tone={recordToRemove ? "danger" : "default"}
+        action={recordToRemove ? { label: "Excluir", onClick: () => void removeRecord(recordToRemove) } : undefined}
+        secondaryAction={recordToRemove ? { label: "Cancelar", onClick: () => setRecordToRemove(null) } : undefined}
+      />
     </div>
   );
 }
