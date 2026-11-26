@@ -4,12 +4,14 @@ import { UserAvatar } from '../ui/UserAvatar'
 
 type TopBarProps = {
   userInitials?: string
+  includeExchangeNotifications?: boolean
   onMenuClick?: () => void
   onProfileClick?: () => void
 }
 
 export function TopBar({
   userInitials = 'PF',
+  includeExchangeNotifications = true,
   onMenuClick,
   onProfileClick,
 }: TopBarProps) {
@@ -27,7 +29,7 @@ export function TopBar({
       </div>
 
       <div className="flex items-center gap-2">
-        <NotificationCenter />
+        <NotificationCenter includeExchangeNotifications={includeExchangeNotifications} />
         <button
           type="button"
           onClick={onProfileClick}

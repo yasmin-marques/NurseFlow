@@ -184,18 +184,18 @@ function SelectionCard({
       type="button"
       aria-pressed={selected}
       onClick={onClick}
-      className={`relative flex min-h-19.5 w-full flex-col items-start justify-center rounded-xl border px-4 py-3 text-left transition-colors ${
+      className={`relative flex min-h-16 w-full flex-col items-start justify-center rounded-xl border px-3 py-2.5 text-left transition-colors ${
         selected
           ? "border-primary bg-[#f1f7ef] shadow-[inset_0_0_0_1px_rgba(46,120,61,0.12)]"
           : "border-border bg-white hover:border-[#b9cfb6] hover:bg-[#fbfcfa]"
       }`}
     >
       <span
-        className={`text-sm font-semibold ${selected ? "text-primary" : "text-text"}`}
+        className={`text-xs font-semibold ${selected ? "text-primary" : "text-text"}`}
       >
         {title}
       </span>
-      <span className="mt-1 text-xs leading-relaxed text-text-muted">
+      <span className="mt-0.5 text-[11px] leading-relaxed text-text-muted">
         {description}
       </span>
       {selected ? (
@@ -535,25 +535,9 @@ export function AvailabilityFormModal({
           className="flex min-h-0 flex-1 flex-col"
         >
           <div className="flex-1 space-y-5 overflow-y-auto px-5 py-5 sm:px-7 sm:py-6">
-            {category === "restrictions" ? (
-              <InfoCard title="Regra de disponibilidade" icon="clock">
-                Esta informação será considerada ao gerar novas escalas.
-              </InfoCard>
-            ) : category === "externalLinks" ? (
-              <InfoCard title="Vínculo externo">
-                Registre os dados do compromisso para consulta durante a
-                elaboração da escala.
-              </InfoCard>
-            ) : (
-              <InfoCard title="Registro de ausência">
-                O período informado ficará associado ao profissional nesta lista
-                de disponibilidade.
-              </InfoCard>
-            )}
-
             <section className="space-y-4" aria-label="Dados do profissional">
               <h3 className="text-sm font-bold text-text">Profissional</h3>
-              <Field label="Profissional" required error={errors.name}>
+              <Field label="Nome" required error={errors.name}>
                 {record ? (
                   <select
                     value={professionalId}
@@ -694,7 +678,7 @@ export function AvailabilityFormModal({
                             onClick={() =>
                               updateField("shift", () => setShift(option.value))
                             }
-                            className={`flex h-12 items-center justify-center rounded-xl border px-3 text-sm font-semibold transition-colors ${
+                            className={`flex h-11 items-center justify-center rounded-xl border px-3 text-xs font-semibold transition-colors ${
                               isSelected
                                 ? "border-primary bg-[#f1f7ef] text-primary"
                                 : "border-border bg-white text-text-muted hover:border-[#b9cfb6]"
@@ -776,10 +760,7 @@ export function AvailabilityFormModal({
                   ) : null}
                 </section>
 
-                <Field
-                  label="Observação"
-                  hint="Opcional · Contexto adicional destinado à coordenação"
-                >
+                <Field label="Observação">
                   <textarea
                     value={note}
                     onChange={(event) => {
@@ -788,7 +769,7 @@ export function AvailabilityFormModal({
                     }}
                     placeholder="Adicione um contexto para a coordenação"
                     rows={3}
-                    className="mt-1.5 w-full resize-y rounded-xl border border-border bg-white px-3.5 py-3 text-sm text-text placeholder:text-text-muted/70 focus:border-primary focus:ring-2 focus:ring-primary/15"
+                    className="mt-1.5 w-full resize-y rounded-xl border border-border bg-white px-3.5 py-3 text-xs text-text placeholder:text-text-muted/70 focus:border-primary focus:ring-2 focus:ring-primary/15"
                   />
                   {noteEdited && note.length > 300 ? (
                     <p
@@ -800,18 +781,6 @@ export function AvailabilityFormModal({
                   ) : null}
                 </Field>
 
-                <InfoCard title="Resumo da regra">
-                  {ruleType === "unavailableDays"
-                    ? days.length
-                      ? `Indisponível às ${formatDays(days)}.`
-                      : "Selecione os dias em que o profissional estará indisponível."
-                    : shift
-                      ? `Disponível apenas no turno ${formatShiftLabel(shift) || "selecionado"}.`
-                      : "Selecione o turno em que o profissional poderá ser escalado."}{" "}
-                  {validFrom && validTo
-                    ? `Válida de ${formatDate(validFrom)} a ${formatDate(validTo)}.`
-                    : "Informe o período de validade."}
-                </InfoCard>
               </>
             ) : null}
 
@@ -959,7 +928,7 @@ export function AvailabilityFormModal({
                   </Field>
                 </section>
 
-                <Field label="Observação" hint="Opcional">
+                <Field label="Observação">
                   <textarea
                     value={note}
                     onChange={(event) => {
@@ -968,7 +937,7 @@ export function AvailabilityFormModal({
                     }}
                     placeholder="Informações adicionais sobre o vínculo"
                     rows={3}
-                    className="mt-1.5 w-full resize-y rounded-xl border border-border bg-white px-3.5 py-3 text-sm text-text placeholder:text-text-muted/70 focus:border-primary focus:ring-2 focus:ring-primary/15"
+                    className="mt-1.5 w-full resize-y rounded-xl border border-border bg-white px-3.5 py-3 text-xs text-text placeholder:text-text-muted/70 focus:border-primary focus:ring-2 focus:ring-primary/15"
                   />
                   {noteEdited && note.length > 300 ? (
                     <p
@@ -1065,7 +1034,7 @@ export function AvailabilityFormModal({
                     </Field>
                   </div>
                 </section>
-                <Field label="Observação ou justificativa" hint="Opcional">
+                <Field label="Observação ou justificativa">
                   <textarea
                     value={note}
                     onChange={(event) => {
@@ -1074,7 +1043,7 @@ export function AvailabilityFormModal({
                     }}
                     placeholder="Adicione informações adicionais, se necessário"
                     rows={3}
-                    className="mt-1.5 w-full resize-y rounded-xl border border-border bg-white px-3.5 py-3 text-sm text-text placeholder:text-text-muted/70 focus:border-primary focus:ring-2 focus:ring-primary/15"
+                    className="mt-1.5 w-full resize-y rounded-xl border border-border bg-white px-3.5 py-3 text-xs text-text placeholder:text-text-muted/70 focus:border-primary focus:ring-2 focus:ring-primary/15"
                   />
                   {noteEdited && note.length > 300 ? (
                     <p
@@ -1093,10 +1062,22 @@ export function AvailabilityFormModal({
               </>
             ) : null}
 
-            <p className="text-xs text-text-muted">
-              <span className="font-semibold text-danger">*</span> Campos
-              obrigatórios
-            </p>
+            {category === "restrictions" ? (
+              <InfoCard title="Regra de disponibilidade" icon="clock">
+                Esta informação será considerada ao gerar novas escalas.
+              </InfoCard>
+            ) : category === "externalLinks" ? (
+              <InfoCard title="Vínculo externo">
+                Registre os dados do compromisso para consulta durante a
+                elaboração da escala.
+              </InfoCard>
+            ) : (
+              <InfoCard title="Registro de ausência">
+                O período informado ficará associado ao profissional nesta lista
+                de disponibilidade.
+              </InfoCard>
+            )}
+
           </div>
 
           <footer className="flex shrink-0 flex-col-reverse gap-3 border-t border-border bg-white px-5 py-4 sm:flex-row sm:justify-end sm:px-7">

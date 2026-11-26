@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Plus } from "../../components/icons";
+import { Pencil, Plus, Trash2 } from "../../components/icons";
 import { Toast } from "../../components/ui/Toast";
 import { ProfessionalAvatar } from "../../components/ui/ProfessionalAvatar";
 import { ProfessionalStatusIndicator } from "../../components/ui/ProfessionalStatusIndicator";
@@ -326,18 +326,18 @@ export function DisponibilityPage() {
                           <button
                             type="button"
                             onClick={() => editRecord(record)}
-                            className="rounded-lg px-2 py-1 text-sm font-semibold text-primary transition-colors hover:bg-secondary/70"
+                            className="rounded-lg p-2 text-text-muted transition-colors hover:bg-neutral hover:text-text"
                             aria-label={`Editar registro de ${record.name}`}
                           >
-                            Editar
+                            <Pencil className="size-4" strokeWidth={2} />
                           </button>
                           <button
                             type="button"
                             onClick={() => removeRecord(record)}
-                            className="rounded-lg px-2 py-1 text-sm font-semibold text-primary transition-colors hover:bg-secondary/70"
+                            className="rounded-lg p-2 text-danger transition-colors hover:bg-error"
                             aria-label={`Excluir registro de ${record.name}`}
                           >
-                            Excluir
+                            <Trash2 className="size-4" strokeWidth={2} />
                           </button>
                         </div>
                       </td>

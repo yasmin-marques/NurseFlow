@@ -28,7 +28,7 @@ const exchangeRejectionLabel = (notification: ExchangeNotification) =>
       ? 'Cancelada pelo solicitante'
       : 'Recusada'
 
-export function NotificationCenter({ onOpenExchange }: { onOpenExchange?: (id: string) => void }) {
+export function NotificationCenter({ onOpenExchange, includeExchangeNotifications = true }: { onOpenExchange?: (id: string) => void; includeExchangeNotifications?: boolean }) {
   const [open, setOpen] = useState(false)
   const [list, setList] = useState<ScaleNotificationList>({ notificacoes: [], naoLidas: 0 })
   const [exchangeList, setExchangeList] = useState<ExchangeNotificationList>({ notificacoes: [], naoLidas: 0 })
@@ -42,7 +42,12 @@ export function NotificationCenter({ onOpenExchange }: { onOpenExchange?: (id: s
     setLoading(true)
     setError(null)
     try {
-      const [scales, exchanges] = await Promise.all([listScaleNotifications(), listExchangeNotifications()])
+      const [scales, exchanges] = await Promise.all([
+        listScaleNotifications(),
+        includeExchangeNotifications
+          ? listExchangeNotifications()
+          : Promise.resolve({ notificacoes: [], naoLidas: 0 }),
+      ])
       setList(scales)
       setExchangeList(exchanges)
     } catch (reason) {
@@ -54,7 +59,12 @@ export function NotificationCenter({ onOpenExchange }: { onOpenExchange?: (id: s
 
   useEffect(() => {
     let active = true
-    Promise.all([listScaleNotifications(), listExchangeNotifications()])
+    Promise.all([
+      listScaleNotifications(),
+      includeExchangeNotifications
+        ? listExchangeNotifications()
+        : Promise.resolve({ notificacoes: [], naoLidas: 0 }),
+    ])
       .then(([scales, exchanges]) => {
         if (active) { setList(scales); setExchangeList(exchanges) }
       })
@@ -64,7 +74,7 @@ export function NotificationCenter({ onOpenExchange }: { onOpenExchange?: (id: s
     return () => {
       active = false
     }
-  }, [])
+  }, [includeExchangeNotifications])
 
   const markRead = async (notification: ScaleNotification) => {
     setPendingId(notification.id)

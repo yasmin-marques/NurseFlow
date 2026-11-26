@@ -255,7 +255,23 @@ describe('ExtrasService — Validações de Elegibilidade, Disponibilidade, Desc
     );
     await expect(
       service.validar({ ...base, setorId: setorDoSubstituto._id, substitutoId: substituto._id }),
-    ).resolves.toBeDefined();
+    ).resolves.toBeUndefined();
+  });
+
+  it('permite RPA sem setor fixo no setor informado pelo extra', async () => {
+    const setor = await criarSetor();
+    const rpa = await criarProfissional({ setorId: null, tipoVinculo: TipoVinculo.RPA });
+
+    await expect(
+      service.validar({
+        data: '2027-03-05',
+        opcao: ExtraOpcao.DOZE_DIA,
+        setorId: setor._id,
+        funcao: 'enfermeiro',
+        substitutoId: rpa._id,
+        motivo: 'reforco',
+      }),
+    ).resolves.toBeUndefined();
   });
 
   // 4. Substituto igual ao coberto

@@ -6,12 +6,12 @@ import type { FormationType, Professional } from '../Professionals/types'
 type Props = { onClose: () => void; onCreated: (professional: Professional) => Promise<void> | void }
 type Form = { name: string; cpf: string; email: string; coren: string; formation: FormationType; status: boolean }
 
-const input = 'mt-1.5 h-11 w-full rounded-xl border border-border bg-[#f7f8f6] px-3.5 text-[11px] text-text outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15'
+const input = 'mt-1.5 h-11 w-full rounded-xl border border-border bg-white px-3.5 text-sm text-text outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15'
 
 function Choice({ title, description, selected, onClick }: { title: string; description: string; selected: boolean; onClick: () => void }) {
-  return <button type="button" aria-pressed={selected} onClick={onClick} className={`relative flex min-h-[62px] items-center gap-2 rounded-xl border px-3 py-2 text-left ${selected ? 'border-primary bg-[#f1f7ef]' : 'border-transparent bg-white hover:bg-card-header'}`}>
+  return <button type="button" aria-pressed={selected} onClick={onClick} className={`relative flex min-h-[62px] items-center gap-2 rounded-xl border px-4 py-3 text-left ${selected ? 'border-primary bg-[#f1f7ef]' : 'border-border bg-white hover:bg-[#fbfcfa]'}`}>
     <span className={`size-2 shrink-0 rounded-full ${selected ? 'bg-primary' : 'bg-[#a4ada2]'}`} />
-    <span className="min-w-0 flex-1"><span className="block text-[11px] font-bold text-text">{title}</span><span className="mt-0.5 block text-[9px] leading-tight text-text-muted">{description}</span></span>
+    <span className="min-w-0 flex-1"><span className="block text-sm font-semibold text-text">{title}</span><span className="mt-1 block text-xs leading-relaxed text-text-muted">{description}</span></span>
     {selected ? <Check className="size-4 shrink-0 text-primary" strokeWidth={2.5} /> : null}
   </button>
 }

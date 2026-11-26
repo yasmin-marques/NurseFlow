@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Plus, Search } from "../../components/icons";
+import { AlertTriangle, Plus, Search } from "../../components/icons";
 import { listScales, type ScaleDetail } from "../../services/scales";
 import { listSectors } from "../../services/sectors";
 import { listProfessionals } from "../../services/professionals";
@@ -73,14 +73,14 @@ function Indicator({
 }) {
   return (
     <article className="min-w-0 border-b border-border px-4 py-4 last:border-b-0 sm:border-b-0 sm:border-r sm:px-5 sm:last:border-r-0">
-      <p className="text-[9px] font-bold uppercase tracking-[0.12em] text-text-muted">
+      <p className="text-xs font-semibold uppercase tracking-[0.06em] text-text-muted">
         {label}
       </p>
       <p className="mt-2 text-2xl font-bold tracking-tight text-text">
         {value}
       </p>
       {detail ? (
-        <p className="mt-1 text-[11px] text-text-muted">{detail}</p>
+        <p className="mt-1 text-xs text-text-muted">{detail}</p>
       ) : null}
     </article>
   );
@@ -104,17 +104,17 @@ function ExtraCard({
       : undefined;
   return (
     <article
-      className={`flex min-w-0 flex-col p-4 pl-5 shadow-(--shadow-soft) ${accentCardClass(extra.situacao === "cancelado" ? "neutral" : "warning", "rounded-2xl")} ${extra.situacao === "cancelado" ? "opacity-75" : ""}`}
+      className={`flex min-w-0 flex-col p-4 pl-5 ${extra.situacao === "cancelado" ? "shadow-(--shadow-soft)" : "shadow-[inset_5px_0_0_#7b4b12,0_8px_24px_rgba(22,29,24,0.06)]"} ${accentCardClass(extra.situacao === "cancelado" ? "neutral" : "warning", "rounded-2xl")} ${extra.situacao === "cancelado" ? "opacity-75" : ""}`}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <span className="inline-flex rounded-md bg-warning px-2 py-1 text-[9px] font-bold uppercase tracking-wide text-warning-text">
+            <span className="inline-flex rounded-lg bg-warning px-2.5 py-1 text-xs font-semibold uppercase tracking-wide text-warning-text">
             Extra programado
           </span>
           <div className="mt-3 flex min-w-0 items-center gap-2">
             <span
               aria-hidden
-              className="flex size-9 shrink-0 items-center justify-center rounded-full bg-secondary text-[11px] font-bold text-primary"
+              className="flex size-10 shrink-0 items-center justify-center rounded-full bg-secondary text-xs font-bold text-primary"
             >
               {substitute
                 .split(/\s+/)
@@ -127,19 +127,19 @@ function ExtraCard({
               <h3 className="truncate text-sm font-bold text-text">
                 {substitute}
               </h3>
-              <p className="truncate text-[11px] text-text-muted">
+              <p className="truncate text-xs text-text-muted">
                 {covered ? `Cobre ${covered}` : "Reforço de equipe"}
               </p>
             </div>
           </div>
         </div>
         {bond ? (
-          <span className="shrink-0 rounded-md bg-neutral px-2 py-1 text-[9px] font-bold text-text-muted">
+          <span className="shrink-0 rounded-lg bg-neutral px-2.5 py-1 text-xs font-semibold text-text-muted">
             {bond}
           </span>
         ) : null}
       </div>
-      <div className="mt-4 grid gap-2 rounded-xl bg-card-header p-3 text-[10px] text-text-muted">
+      <div className="mt-4 grid gap-2 rounded-xl bg-card-header p-3.5 text-sm text-text-muted">
         <span>
           ▣ {formatCivilDate(extra.data)} · {shiftLabel(extra.opcao)}
         </span>
@@ -147,7 +147,7 @@ function ExtraCard({
       </div>
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
         <span
-          className={`rounded-md px-2 py-1 text-[10px] font-semibold ${extra.situacao === "cancelado" ? "bg-neutral text-text-muted" : "bg-highlight text-primary"}`}
+          className={`rounded-lg px-2.5 py-1 text-xs font-semibold ${extra.situacao === "cancelado" ? "bg-neutral text-text-muted" : "bg-highlight text-primary"}`}
         >
           {extra.situacao === "cancelado"
             ? "Cancelado"
@@ -158,7 +158,7 @@ function ExtraCard({
         <div className="mt-3 border-t border-border pt-3">
           {extra.escalaStatus === "publicada" ||
           extra.escalaStatus === "finalizada" ? (
-            <p className="mb-2 text-right text-[10px] font-semibold text-danger">
+            <p className="mb-2 text-right text-xs font-semibold text-danger">
               Escala oficial: revisão autorizada necessária
             </p>
           ) : null}
@@ -170,7 +170,7 @@ function ExtraCard({
                 extra.escalaStatus === "finalizada"
               }
               onClick={onEdit}
-              className="rounded-lg border border-border px-3 py-2 text-xs font-semibold hover:bg-neutral disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-lg border border-border px-3 py-2.5 text-sm font-semibold hover:bg-neutral disabled:cursor-not-allowed disabled:opacity-50"
             >
               Editar
             </button>
@@ -181,7 +181,7 @@ function ExtraCard({
                 extra.escalaStatus === "finalizada"
               }
               onClick={onCancel}
-              className="rounded-lg border border-danger/30 px-3 py-2 text-xs font-semibold text-danger hover:bg-error disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-lg border border-danger/30 px-3 py-2.5 text-sm font-semibold text-danger hover:bg-error disabled:cursor-not-allowed disabled:opacity-50"
             >
               Cancelar
             </button>
@@ -282,10 +282,13 @@ export function ExtrasPage() {
   }, [load, retry]);
 
   const coverage = useMemo(() => {
-    if (!scales.length) return null;
-    return (
-      scales[0].pendencias.length || scales[0].resumo.vagasDescobertas || 0
+    const scale = scales[0];
+    if (!scale) return null;
+    const faltantes = scale.pendencias.reduce(
+      (total, item) => total + (typeof item.faltam === "number" ? item.faltam : 0),
+      0,
     );
+    return faltantes || scale.resumo.vagasDescobertas || 0;
   }, [scales]);
 
   const changeMonth = (offset: number) => {
@@ -332,11 +335,11 @@ export function ExtrasPage() {
             Coberturas planejadas para férias, ausências e reforços.
           </p>
         </div>
-        <div className="flex flex-wrap items-center justify-end gap-2">
+        <div className="flex flex-wrap items-center justify-start gap-3 sm:justify-end">
           <button
             type="button"
             onClick={() => setDrawer("rpa")}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-white px-4 py-2.5 text-xs font-bold hover:bg-neutral"
+            className="order-2 inline-flex h-11 items-center gap-2 rounded-xl border border-[#d9e7d6] bg-white px-4 text-sm font-semibold text-primary hover:bg-secondary/40"
           >
             <Plus className="size-4" strokeWidth={2.5} />
             Cadastrar RPA
@@ -344,33 +347,35 @@ export function ExtrasPage() {
           <button
             type="button"
             onClick={() => setDrawer("create")}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2.5 text-xs font-bold text-white hover:brightness-95"
+            className="order-3 inline-flex h-11 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-white hover:brightness-95"
           >
             <Plus className="size-4" strokeWidth={2.5} />
             Registrar extra
           </button>
-          <button
-            type="button"
-            aria-label="Mês anterior"
-            onClick={() => changeMonth(-1)}
-            className="rounded-xl border border-border bg-white px-3 py-2.5 text-sm hover:bg-neutral"
-          >
-            ‹
-          </button>
-          <span
-            aria-live="polite"
-            className="min-w-32 text-center text-sm font-semibold text-text"
-          >
-            {monthLabel(year, month)} de {year}
-          </span>
-          <button
-            type="button"
-            aria-label="Próximo mês"
-            onClick={() => changeMonth(1)}
-            className="rounded-xl border border-border bg-white px-3 py-2.5 text-sm hover:bg-neutral"
-          >
-            ›
-          </button>
+          <div className="order-1 inline-flex h-11 items-center gap-2 rounded-xl border border-[#d9e7d6] bg-white p-1.5 shadow-(--shadow-soft)">
+            <button
+              type="button"
+              aria-label="Mês anterior"
+              onClick={() => changeMonth(-1)}
+              className="flex size-8 items-center justify-center rounded-lg text-lg font-semibold text-text hover:bg-neutral"
+            >
+              ‹
+            </button>
+            <span
+              aria-live="polite"
+              className="min-w-32 whitespace-nowrap px-1 text-center text-sm font-bold text-text"
+            >
+              {monthLabel(year, month)} de {year}
+            </span>
+            <button
+              type="button"
+              aria-label="Próximo mês"
+              onClick={() => changeMonth(1)}
+              className="flex size-8 items-center justify-center rounded-lg text-lg font-semibold text-text hover:bg-neutral"
+            >
+              ›
+            </button>
+          </div>
         </div>
       </header>
 
@@ -405,69 +410,72 @@ export function ExtrasPage() {
       </section>
 
       {coverage !== null && coverage > 0 ? (
-        <p className="mb-4 inline-flex w-fit rounded-lg bg-error px-3 py-2 text-xs font-semibold text-danger">
-          ⚠ {coverage} posição(ões) descoberta(s)
+        <p
+          role="alert"
+          className="mb-4 inline-flex w-fit items-center gap-2 rounded-lg bg-error px-3 py-2 text-xs font-semibold text-danger"
+        >
+          <AlertTriangle className="size-4 shrink-0" strokeWidth={2.2} />
+          {coverage} plantões descobertos
         </p>
       ) : null}
-      <section
-        aria-label="Filtros de extras"
-        className="mb-5 rounded-2xl border border-border bg-white p-3 shadow-(--shadow-soft) sm:p-4"
-      >
-        <div className="flex flex-wrap items-center gap-2">
-          <label className="flex min-h-11 items-center gap-2 rounded-xl border border-border bg-card-header px-3">
-            <Search
-              className="size-4 shrink-0 text-text-muted"
-              strokeWidth={1.8}
-            />
-            <span className="sr-only">Buscar extras</span>
-            <input
-              value={search}
-              onChange={(event) => {
-                setSearch(event.target.value);
-                setPage(1);
-              }}
-              placeholder="Buscar por nome, COREN ou motivo"
-              className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-text-muted"
-            />
-          </label>
-          <button
-            type="button"
-            onClick={() => {
-              setReason("");
-              setSituation("programado");
+      <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-start">
+        <label className="flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-xl border border-border bg-white px-3 shadow-(--shadow-soft)">
+          <Search
+            className="size-4 shrink-0 text-text-muted"
+            strokeWidth={1.8}
+          />
+          <span className="sr-only">Buscar extras</span>
+          <input
+            value={search}
+            onChange={(event) => {
+              setSearch(event.target.value);
               setPage(1);
             }}
-            className={`rounded-lg px-3 py-2 text-[10px] font-semibold ${!reason && situation === "programado" ? "bg-highlight text-primary" : "bg-neutral text-text-muted"}`}
-          >
-            Todos
-          </button>
-          {REASONS.filter((item) => item.value !== "outro").map((item) => (
+            placeholder="Buscar por nome, COREN ou motivo"
+            className="min-w-0 flex-1 bg-transparent text-xs outline-none placeholder:text-text-muted"
+          />
+        </label>
+        <section aria-label="Filtros de extras" className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
             <button
-              key={item.value}
               type="button"
               onClick={() => {
-                setReason(item.value);
+                setReason("");
                 setSituation("programado");
                 setPage(1);
               }}
-              className={`rounded-lg px-3 py-2 text-[10px] font-semibold ${reason === item.value ? "bg-highlight text-primary" : "bg-neutral text-text-muted"}`}
+              className={`rounded-lg px-3 py-2 text-xs font-semibold ${!reason && situation === "programado" ? "bg-highlight text-primary" : "bg-neutral text-text-muted"}`}
             >
-              {item.value === "ferias" ? "Férias" : item.label}
+              Todos
             </button>
-          ))}
-          {hasFilters ? (
-            <button
-              type="button"
-              onClick={clearFilters}
-              className="min-h-11 rounded-xl border border-border px-3 text-xs font-semibold text-text-muted hover:bg-neutral"
-            >
-              Limpar filtros
-            </button>
-          ) : (
-            <span />
-          )}
-        </div>
-      </section>
+            {REASONS.filter((item) => item.value !== "outro").map((item) => (
+              <button
+                key={item.value}
+                type="button"
+                onClick={() => {
+                  setReason(item.value);
+                  setSituation("programado");
+                  setPage(1);
+                }}
+                className={`rounded-lg px-3 py-2 text-xs font-semibold ${reason === item.value ? "bg-highlight text-primary" : "bg-neutral text-text-muted"}`}
+              >
+                {item.value === "ferias" ? "Férias" : item.label}
+              </button>
+            ))}
+            {hasFilters ? (
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="min-h-11 rounded-xl border border-border px-3 text-xs font-semibold text-text-muted hover:bg-neutral"
+              >
+                Limpar filtros
+              </button>
+            ) : (
+              <span />
+            )}
+          </div>
+        </section>
+      </div>
 
       {error ? (
         <div
@@ -522,18 +530,14 @@ export function ExtrasPage() {
           </div>
           <nav
             aria-label="Paginação de extras"
-            className="mt-6 flex flex-wrap items-center justify-between gap-3"
+            className="mt-6 flex flex-wrap items-center justify-end gap-3"
           >
-            <p className="text-xs text-text-muted">
-              {result.total} registro(s) · página {result.pagina} de{" "}
-              {Math.max(1, result.totalPaginas)}
-            </p>
-            <div className="flex gap-2">
+            <div className="flex gap-3">
               <button
                 type="button"
                 disabled={result.pagina <= 1}
                 onClick={() => setPage((value) => Math.max(1, value - 1))}
-                className="rounded-lg border border-border px-3 py-2 text-xs font-semibold disabled:opacity-40"
+                className="rounded-lg border border-border px-4 py-3 text-sm font-semibold disabled:opacity-40"
               >
                 Anterior
               </button>
@@ -541,7 +545,7 @@ export function ExtrasPage() {
                 type="button"
                 disabled={result.pagina >= result.totalPaginas}
                 onClick={() => setPage((value) => value + 1)}
-                className="rounded-lg border border-border px-3 py-2 text-xs font-semibold disabled:opacity-40"
+                className="rounded-lg border border-border px-4 py-3 text-sm font-semibold disabled:opacity-40"
               >
                 Próxima
               </button>

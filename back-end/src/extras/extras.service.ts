@@ -530,8 +530,12 @@ export class ExtrasService {
         erros: [{ regra: 'setor_inativo', campo: 'setorId', mensagem: msg }],
       });
     }
-    // Setor fixo: o substituto só pode ser escalado no setor do seu cadastro.
-    if (!substituto.setorId || !setor._id.equals(substituto.setorId)) {
+    // Profissionais RPA não têm setor fixo e podem atuar no setor informado no extra.
+    // Para concursados e CLT, o extra continua limitado ao setor do cadastro.
+    if (
+      substituto.tipoVinculo !== TipoVinculo.RPA &&
+      (!substituto.setorId || !setor._id.equals(substituto.setorId))
+    ) {
       const msg = substituto.setorId
         ? 'O substituto pertence a outro setor e não pode ser escalado neste setor (setor fixo).'
         : 'O substituto não possui setor fixo cadastrado e não pode ser escalado.';

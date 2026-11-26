@@ -45,6 +45,7 @@ function scaleStatusLabel(status: ScaleDetail['escala']['status']) {
     validada: 'validada para publicação',
     publicada: 'publicada',
     finalizada: 'finalizada',
+    excluida: 'excluída',
   }
   return labels[status]
 }

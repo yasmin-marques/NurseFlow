@@ -175,6 +175,16 @@ export function Bell(props: IconProps) {
   )
 }
 
+export function AlertTriangle(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="m12 3 10 18H2L12 3Z" />
+      <path d="M12 9v4" />
+      <path d="M12 17h.01" />
+    </Icon>
+  )
+}
+
 export function BellOff(props: IconProps) {
   return (
     <Icon {...props}>
@@ -245,6 +255,15 @@ export function Check(props: IconProps) {
   return (
     <Icon {...props}>
       <path d="M20 6 9 17l-5-5" />
+    </Icon>
+  )
+}
+
+export function Pencil(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L8 18l-4 1 1-4Z" />
     </Icon>
   )
 }

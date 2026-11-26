@@ -23,7 +23,7 @@ describe('ExtrasPage', () => {
       calls.push(url)
       if (url.includes('/setores')) return resposta([])
       if (url.includes('/extras/resumo')) return resposta(summary)
-      if (url.includes('/escalas')) return resposta([{ pendencias: [{ id: 'vaga-1' }], resumo: { vagasDescobertas: 1 }, plantoes: [] }])
+      if (url.includes('/escalas')) return resposta([{ pendencias: [{ faltam: 2 }], resumo: { vagasDescobertas: 1 }, plantoes: [] }])
       return resposta(page)
     }))
 
@@ -32,7 +32,7 @@ describe('ExtrasPage', () => {
     expect(await screen.findByText('Carla Santos')).toBeTruthy()
     expect(screen.getByText('36h')).toBeTruthy()
     expect(screen.getByText(/Emergência/)).toBeTruthy()
-    expect(screen.getByText('1', { exact: true })).toBeTruthy()
+    expect(screen.getByRole('alert').textContent).toContain('2 plantões descobertos')
 
     fireEvent.change(screen.getByPlaceholderText('Buscar por nome, COREN ou motivo'), { target: { value: 'Carla' } })
     await waitFor(() => expect(calls.some((url) => url.includes('busca=Carla'))).toBe(true))

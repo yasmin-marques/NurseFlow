@@ -184,7 +184,7 @@ export function ExtraShiftDrawer({ onClose, onSave }: ExtraShiftDrawerProps) {
 
           <label className="block text-[11px] font-semibold text-text">
             Observação
-            <textarea maxLength={500} value={observation} onChange={(event) => setObservation(event.target.value)} placeholder="Adicione um contexto para a coordenação" className="mt-1.5 min-h-14 w-full resize-y rounded-xl border border-border bg-white px-3 py-2.5 text-xs text-text outline-none focus:border-primary focus:ring-2 focus:ring-primary/15" />
+            <textarea maxLength={500} value={observation} onChange={(event) => setObservation(event.target.value)} placeholder="Adicione um contexto para a coordenação" className="mt-3 min-h-14 w-full resize-y rounded-xl border border-border bg-white px-3 py-2.5 text-xs text-text outline-none placeholder:text-text-muted focus:border-primary focus:ring-2 focus:ring-primary/15" />
           </label>
 
           {requiresCoverageConfirmation ? (
