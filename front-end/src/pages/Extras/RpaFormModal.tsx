@@ -3,8 +3,8 @@ import { Check, X } from '../../components/icons'
 import { createProfessional } from '../../services/professionals'
 import type { FormationType, Professional } from '../Professionals/types'
 
-type Props = { onClose: () => void; onCreated: (professional: Professional) => Promise<void> | void }
-type Form = { name: string; cpf: string; email: string; coren: string; formation: FormationType; status: boolean }
+type Props = { sectors: Array<{ id: string; name: string }>; onClose: () => void; onCreated: (professional: Professional) => Promise<void> | void }
+type Form = { name: string; cpf: string; email: string; coren: string; formation: FormationType; status: boolean; sectorId: string }
 
 const input = 'mt-1.5 h-11 w-full rounded-xl border border-border bg-white px-3.5 text-sm text-text outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15'
 
@@ -16,8 +16,8 @@ function Choice({ title, description, selected, onClick }: { title: string; desc
   </button>
 }
 
-export function RpaFormModal({ onClose, onCreated }: Props) {
-  const [form, setForm] = useState<Form>({ name: '', cpf: '', email: '', coren: '', formation: 'Enfemeiro', status: true })
+export function RpaFormModal({ sectors, onClose, onCreated }: Props) {
+  const [form, setForm] = useState<Form>({ name: '', cpf: '', email: '', coren: '', formation: 'Enfemeiro', status: true, sectorId: '' })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const set = <K extends keyof Form>(key: K, value: Form[K]) => setForm((current) => ({ ...current, [key]: value }))
@@ -43,6 +43,7 @@ export function RpaFormModal({ onClose, onCreated }: Props) {
         <label className="block text-[11px] font-semibold text-text">E-mail <span className="text-danger">*</span><input required type="email" value={form.email} onChange={(event) => set('email', event.target.value)} placeholder="Digite o e-mail do profissional" className={input} /></label>
         <p className="rounded-xl bg-warning px-3.5 py-2 text-[10px] leading-relaxed text-warning-text"><strong>Recomendação:</strong> Para profissionais de faixa etária mais avançada, recomenda-se informar um e-mail durante o cadastro para facilitar o acesso e a recuperação da conta.</p>
         <label className="block text-[11px] font-semibold text-text">COREN <span className="text-danger">*</span><input required value={form.coren} onChange={(event) => set('coren', event.target.value)} placeholder="123.456" className={input} /></label>
+        <label className="block text-[11px] font-semibold text-text">Setor <span className="text-danger">*</span><select required value={form.sectorId} onChange={(event) => set('sectorId', event.target.value)} className={input}><option value="">Selecione o setor do profissional</option>{sectors.map((sector) => <option key={sector.id} value={sector.id}>{sector.name}</option>)}</select></label>
         <section><h3 className="text-[11px] font-semibold text-text">Status do profissional <span className="text-danger">*</span></h3><div className="mt-2 grid grid-cols-2 gap-1.5 rounded-xl bg-[#f3f5f1] p-1.5"><Choice title="Desativado" description="Não participa de novas escalas" selected={!form.status} onClick={() => set('status', false)} /><Choice title="Ativo" description="Disponível para participar das escalas" selected={form.status} onClick={() => set('status', true)} /></div></section>
         <section><h3 className="text-[11px] font-semibold text-text">Tipo de formação <span className="text-danger">*</span></h3><div className="mt-2 grid grid-cols-2 gap-1.5 rounded-xl bg-[#f3f5f1] p-1.5"><Choice title="Enfermeiro" description="Graduação em enfermagem" selected={form.formation === 'Enfemeiro'} onClick={() => set('formation', 'Enfemeiro')} /><Choice title="Técnico" description="Formação em nível técnico" selected={form.formation === 'Técnico'} onClick={() => set('formation', 'Técnico')} /></div></section>
       </div><footer className="flex justify-end gap-2 border-t border-border px-5 py-4">{error ? <p role="alert" className="mr-auto self-center text-[11px] font-semibold text-danger">{error}</p> : null}<button type="button" onClick={onClose} disabled={saving} className="rounded-xl border border-border px-4 py-2.5 text-xs font-bold text-text hover:bg-card-header">Cancelar</button><button type="submit" disabled={saving} className="rounded-xl bg-primary px-4 py-2.5 text-xs font-bold text-white shadow-md hover:brightness-95">{saving ? 'Cadastrando…' : 'Cadastrar RPA'}</button></footer></form>

@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsEmail, IsEnum, IsMongoId, IsOptional, IsString, Length, MaxLength, MinLength, ValidateIf } from 'class-validator';
+import { IsEmail, IsEnum, IsMongoId, IsOptional, IsString, Length, MaxLength, MinLength } from 'class-validator';
 import { somenteDigitos } from '../../common/utils/cpf';
 import { normalizarEspacos } from '../../common/utils/text';
 import { IsCpf } from '../../common/validators/is-cpf.validator';
@@ -37,11 +37,9 @@ export class CreateProfissionalDto {
   @IsEnum(TipoVinculo, { message: 'Tipo de vínculo inválido' })
   tipoVinculo: TipoVinculo;
 
-  @ApiProperty({ required: false, description: 'Setor fixo do profissional. Não se aplica a RPA, que pode atuar no setor do extra.' })
-  @ValidateIf((dto: CreateProfissionalDto) => dto.tipoVinculo !== TipoVinculo.RPA)
+  @ApiProperty({ description: 'Setor fixo do profissional (id de um setor ativo). Ele só poderá ser escalado neste setor.' })
   @IsMongoId({ message: 'Setor inválido' })
-  @IsOptional()
-  setorId?: string;
+  setorId: string;
 
   @ApiPropertyOptional({
     nullable: true,

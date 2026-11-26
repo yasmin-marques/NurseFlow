@@ -585,6 +585,7 @@ export function ExtrasPage() {
       ) : null}
       {drawer === "rpa" ? (
         <RpaDrawer
+          sectors={sectors}
           onClose={() => setDrawer(null)}
           onCreated={async (professional) => {
             setProfessionals((current) => [

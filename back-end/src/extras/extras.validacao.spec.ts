@@ -258,7 +258,7 @@ describe('ExtrasService — Validações de Elegibilidade, Disponibilidade, Desc
     ).resolves.toBeUndefined();
   });
 
-  it('permite RPA sem setor fixo no setor informado pelo extra', async () => {
+  it('rejeita profissional sem setor fixo, inclusive RPA', async () => {
     const setor = await criarSetor();
     const rpa = await criarProfissional({ setorId: null, tipoVinculo: TipoVinculo.RPA });
 
@@ -271,7 +271,7 @@ describe('ExtrasService — Validações de Elegibilidade, Disponibilidade, Desc
         substitutoId: rpa._id,
         motivo: 'reforco',
       }),
-    ).resolves.toBeUndefined();
+    ).rejects.toThrow(/não possui setor fixo/);
   });
 
   // 4. Substituto igual ao coberto

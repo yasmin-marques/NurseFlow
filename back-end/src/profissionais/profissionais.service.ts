@@ -99,17 +99,13 @@ export class ProfissionaisService {
       undefined,
       session,
     );
-    const setor = dto.setorId
-      ? await this.exigirSetorAtivo(dto.setorId, session)
-      : null;
-    const subsetorId = setor
-      ? await this.resolverSubsetor(
-          dto.formacao,
-          setor,
-          dto.subsetorId,
-          session,
-        )
-      : null;
+    const setor = await this.exigirSetorAtivo(dto.setorId, session);
+    const subsetorId = await this.resolverSubsetor(
+      dto.formacao,
+      setor,
+      dto.subsetorId,
+      session,
+    );
 
     const senha = await this.hashSenhaPadrao();
     const usuario = await this.usuariosService.criar(
@@ -131,7 +127,7 @@ export class ProfissionaisService {
         coren: dto.coren,
         formacao: dto.formacao,
         tipoVinculo: dto.tipoVinculo,
-        setorId: setor?._id ?? null,
+        setorId: setor._id,
         subsetorId,
         status,
         desativadoEm:
@@ -143,7 +139,7 @@ export class ProfissionaisService {
       return this.paraResposta(
         profissional,
         usuario,
-        setor?.nome ?? null,
+        setor.nome,
         await this.nomeDoSubsetor(subsetorId, session),
       );
     } catch (erro) {

@@ -95,6 +95,6 @@ export function CancelExtraDrawer({ extra, onClose, onCancelled }: { extra: Sche
   return <Drawer id="cancel-extra" title="Cancelar extra" description="O registro será preservado no histórico." onClose={onClose} closeDisabled={saving} footer={<div className="flex items-center justify-end gap-2">{error ? <p role="alert" className="mr-auto text-xs font-semibold text-danger">{error}</p> : null}<button type="button" onClick={onClose} disabled={saving} className="rounded-xl border border-border px-4 py-2.5 text-xs font-bold">Voltar</button><button form="cancel-extra-form" type="submit" disabled={saving} className="rounded-xl bg-danger px-4 py-2.5 text-xs font-bold text-white">{saving ? 'Cancelando…' : 'Confirmar cancelamento'}</button></div>}><form id="cancel-extra-form" onSubmit={submit} className="space-y-4"><p className="rounded-xl bg-neutral p-3 text-sm text-text">O extra de <strong>{extra.data}</strong> ficará cancelado, não entrará nos indicadores ativos e não será apagado.</p><label className="block text-xs font-semibold text-text">Justificativa *<textarea required value={justificativa} onChange={(event) => setJustificativa(event.target.value)} maxLength={500} rows={5} className={inputClass} /></label></form></Drawer>
 }
 
-export function RpaDrawer({ onClose, onCreated }: { onClose: () => void; onCreated: (professional: Professional) => Promise<void> | void }) {
-  return <RpaFormModal onClose={onClose} onCreated={onCreated} />
+export function RpaDrawer({ sectors, onClose, onCreated }: { sectors: ExtraSector[]; onClose: () => void; onCreated: (professional: Professional) => Promise<void> | void }) {
+  return <RpaFormModal sectors={sectors} onClose={onClose} onCreated={onCreated} />
 }
