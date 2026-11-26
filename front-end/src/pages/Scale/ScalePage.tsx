@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { type ReactNode, useEffect, useState } from 'react'
 import { createDraft, exportScalePdf, listScales, saveShiftBatch, startReview, validateScale, validateShiftBatch, type ShiftBatchChange, type ScaleDetail } from '../../services/scales'
 import { GenerateScaleDialog } from './GenerateScaleDialog'
 import { ExportScaleDrawer } from './ExportScaleDrawer'
@@ -14,6 +14,7 @@ import { WeeklyDayCard } from './WeeklyDayCard'
 import { MonthPeriodNavigation, monthLabel } from './MonthPeriodNavigation'
 
 const WEEKDAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
+const WARNING_PAGE_SIZE = 10
 
 function statusStyle(state: ReturnType<typeof dayIndicators>['state']) {
   return coverageSurfaceClass(state)
@@ -61,23 +62,145 @@ function WorkflowCard({ scale, onGenerate, onCreateManual, creatingManual, manua
       <button type="button" onClick={onGenerate} className="rounded-xl bg-primary px-5 py-3 text-sm font-bold text-white hover:brightness-95">Configurar geração</button>
     </div> : <div className="flex flex-wrap gap-2 px-5 pb-5">
       {!published ? <>
-        <button type="button" onClick={onReview} className="rounded-lg border border-border px-3 py-2 text-xs font-semibold text-text hover:bg-neutral">Editar escala</button>
+        <button type="button" onClick={onReview} className="rounded-lg border border-border bg-neutral px-3 py-2 text-xs font-semibold text-text-muted hover:bg-border">Editar escala</button>
         <button type="button" onClick={onGenerate} className="rounded-lg border border-border px-3 py-2 text-xs font-semibold text-text hover:bg-neutral">Gerar novamente</button>
         <button type="button" disabled={saving || stagedCount === 0} onClick={onSave} className="rounded-lg border border-primary px-3 py-2 text-xs font-semibold text-primary disabled:cursor-not-allowed disabled:opacity-50">{saving ? 'Salvando...' : 'Salvar alterações'}</button>
         {canValidate ? <button type="button" disabled={saving || validating} onClick={onValidateAndPublish} className="rounded-lg bg-primary px-3 py-2 text-xs font-bold text-white hover:brightness-95 disabled:opacity-50">{validating ? 'Validando...' : 'Validar e publicar'}</button> : null}
       </> : <>
-        <button type="button" onClick={onReview} className="rounded-lg border border-border px-3 py-2 text-xs font-semibold text-text">Editar escala</button>
-        <button type="button" onClick={onExcludePublished} className="rounded-lg border border-danger/50 px-3 py-2 text-xs font-semibold text-danger hover:bg-error">Excluir escala publicada</button>
+        <button type="button" onClick={onReview} className="rounded-lg border border-border bg-neutral px-3 py-2 text-xs font-semibold text-text-muted hover:bg-border">Editar escala</button>
+        <button type="button" onClick={onExcludePublished} className="rounded-lg border border-danger bg-danger px-3 py-2 text-xs font-semibold text-white hover:bg-danger/90">Excluir escala publicada</button>
       </>}
-      {!published && hasPublication ? <button type="button" onClick={onExcludePublished} className="rounded-lg border border-danger/50 px-3 py-2 text-xs font-semibold text-danger hover:bg-error">Excluir escala publicada</button> : null}
+      {!published && hasPublication ? <button type="button" onClick={onExcludePublished} className="rounded-lg border border-danger bg-danger px-3 py-2 text-xs font-semibold text-white hover:bg-danger/90">Excluir escala publicada</button> : null}
     </div>}
   </section>
 }
 
-export function WorkloadSummary({ scale }: { scale: ScaleDetail }) {
-  if ((scale.escala.versaoPublicada ?? 0) > 0 && scale.escala.status !== 'excluida') return null
+interface RestWarning {
+  id: string
+  profissional: string
+  descricao: string
+}
 
-  const pending = scale.cargas.flatMap((carga) => {
+function findRestWarnings(scale: ScaleDetail): RestWarning[] {
+  const warnings = scale.conflitos.flatMap((finding, index) => {
+    const profissional = finding.profissional ?? finding.profissionalId
+    return finding.tipo.includes('DESCANSO') && profissional
+      ? [{
+          id: `${finding.profissionalId ?? profissional}-${finding.tipo}-${index}`,
+          profissional,
+          descricao: finding.motivo,
+        }]
+      : []
+  })
+  const schedules = new Map<string, {
+    profissional: string
+    shifts: Array<{ data: string; inicio: string; duracao: number; inicioMs: number }>
+  }>()
+
+  for (const shift of scale.plantoes) {
+    for (const profissional of shift.profissionais) {
+      const start = Date.parse(`${shift.data}T${shift.horarioInicio}:00Z`)
+      const schedule = schedules.get(profissional.id) ?? { profissional: profissional.nome, shifts: [] }
+      schedule.shifts.push({
+        data: shift.data,
+        inicio: shift.horarioInicio,
+        duracao: shift.duracaoHoras,
+        inicioMs: start,
+      })
+      schedules.set(profissional.id, schedule)
+    }
+  }
+
+  for (const [profissionalId, schedule] of schedules) {
+    schedule.shifts.sort((a, b) => a.inicioMs - b.inicioMs)
+    for (let index = 0; index < schedule.shifts.length - 1; index += 1) {
+      const anterior = schedule.shifts[index]
+      const seguinte = schedule.shifts[index + 1]
+      const parDiurnoNoturno =
+        anterior.data === seguinte.data &&
+        anterior.duracao === 12 &&
+        anterior.inicio === '07:00' &&
+        seguinte.duracao === 12 &&
+        seguinte.inicio === '19:00'
+      if (parDiurnoNoturno) continue
+
+      const descansoMinimo = anterior.duracao >= 24 ? 72 : 36
+      const descansoDisponivel =
+        (seguinte.inicioMs - anterior.inicioMs) / 3_600_000 - anterior.duracao
+      if (descansoDisponivel >= descansoMinimo) continue
+
+      warnings.push({
+        id: `${profissionalId}-${anterior.data}-${anterior.inicio}-${seguinte.data}-${seguinte.inicio}`,
+        profissional: schedule.profissional,
+        descricao: `Folga de ${descansoDisponivel}h entre plantões de ${anterior.data} ${anterior.inicio} e ${seguinte.data} ${seguinte.inicio}; mínimo de ${descansoMinimo}h.`,
+      })
+    }
+  }
+
+  return warnings
+}
+
+function formatWarningDate(data: string) {
+  const [ano, mes, dia] = data.split('-')
+  return `${dia}/${mes}/${ano}`
+}
+
+function PaginatedWarningList<T>({
+  label,
+  items,
+  getKey,
+  renderItem,
+}: {
+  label: string
+  items: T[]
+  getKey: (item: T, index: number) => string
+  renderItem: (item: T) => ReactNode
+}) {
+  const [currentPage, setCurrentPage] = useState(0)
+  const pageCount = Math.ceil(items.length / WARNING_PAGE_SIZE)
+  const page = Math.min(currentPage, pageCount - 1)
+  const pageItems = items.slice(page * WARNING_PAGE_SIZE, (page + 1) * WARNING_PAGE_SIZE)
+
+  return (
+    <div className="bg-white p-4">
+      <ul className="space-y-2">
+        {pageItems.map((item, index) => (
+          <li key={getKey(item, index)} className="text-xs text-warning-text">
+            {renderItem(item)}
+          </li>
+        ))}
+      </ul>
+      {pageCount > 1 ? (
+        <nav aria-label={`Paginação: ${label}`} className="mt-3 flex items-center justify-between gap-3 border-t border-border pt-3">
+          <button
+            type="button"
+            aria-label={`Página anterior: ${label}`}
+            disabled={page === 0}
+            onClick={() => setCurrentPage(page - 1)}
+            className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-text-muted hover:bg-neutral disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Anterior
+          </button>
+          <span aria-live="polite" className="text-xs text-text-muted">Página {page + 1} de {pageCount}</span>
+          <button
+            type="button"
+            aria-label={`Próxima página: ${label}`}
+            disabled={page >= pageCount - 1}
+            onClick={() => setCurrentPage(page + 1)}
+            className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-text-muted hover:bg-neutral disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Próxima
+          </button>
+        </nav>
+      ) : null}
+    </div>
+  )
+}
+
+export function ScaleWarnings({ scale }: { scale: ScaleDetail }) {
+  if (scale.escala.status === 'publicada' || scale.escala.status === 'finalizada') return null
+
+  const pendingWorkloads = scale.cargas.flatMap((carga) => {
     const faltam24h = carga.faltam?.plantoes24h ?? Math.max(0, carga.esperada.plantoes24h - carga.atribuida.plantoes24h)
     const faltam12h = carga.faltam?.plantoes12h ?? Math.max(0, carga.esperada.plantoes12h - carga.atribuida.plantoes12h)
     const falta = [
@@ -86,19 +209,63 @@ export function WorkloadSummary({ scale }: { scale: ScaleDetail }) {
     ].filter(Boolean)
     return falta.length > 0 ? [{ id: carga.profissionalId, nome: carga.profissional, falta }] : []
   })
+  const restWarnings = findRestWarnings(scale)
+  const vacancies = scale.pendencias
+  const warningCount = pendingWorkloads.length + restWarnings.length + vacancies.length
 
-  if (pending.length === 0) return null
+  if (warningCount === 0) return null
   return (
-    <section aria-label="Pendências de carga horária" className="rounded-2xl border border-warning bg-warning/20 px-5 py-4">
-      <h3 className="text-sm font-bold text-text">Profissionais abaixo da carga regular</h3>
-      <ul className="mt-2 space-y-1">
-        {pending.map((item) => (
-          <li key={item.id} className="text-xs text-warning-text">
-            <span className="font-semibold">{item.nome}:</span> faltam {item.falta.join(' e ')}.
-          </li>
-        ))}
-      </ul>
-    </section>
+    <details aria-label="Avisos da escala" className="overflow-hidden rounded-2xl border border-warning bg-white">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 bg-warning/20 px-5 py-4 text-sm font-bold text-warning-text">
+        <span>Avisos da escala</span>
+        <span className="rounded-full bg-warning px-2.5 py-1 text-xs">{warningCount} {warningCount === 1 ? 'aviso' : 'avisos'}</span>
+      </summary>
+      <div className="grid gap-3 border-t border-warning p-4">
+        {pendingWorkloads.length > 0 ? (
+          <details className="overflow-hidden rounded-xl border border-warning/50">
+            <summary className="cursor-pointer list-none bg-warning/10 px-4 py-3 text-xs font-bold text-warning-text">
+              Profissionais abaixo da carga regular ({pendingWorkloads.length})
+            </summary>
+            <PaginatedWarningList
+              label="profissionais abaixo da carga regular"
+              items={pendingWorkloads}
+              getKey={(item) => item.id}
+              renderItem={(item) => <><span className="font-semibold">{item.nome}:</span> faltam {item.falta.join(' e ')}.</>}
+            />
+          </details>
+        ) : null}
+
+        {restWarnings.length > 0 ? (
+          <details className="overflow-hidden rounded-xl border border-warning/50">
+            <summary className="cursor-pointer list-none bg-warning/10 px-4 py-3 text-xs font-bold text-warning-text">
+              Profissionais com alerta de descanso ({restWarnings.length})
+            </summary>
+            <PaginatedWarningList
+              label="profissionais com alerta de descanso"
+              items={restWarnings}
+              getKey={(warning) => warning.id}
+              renderItem={(warning) => <><span className="font-semibold">{warning.profissional}:</span> {warning.descricao}</>}
+            />
+          </details>
+        ) : null}
+
+        {vacancies.length > 0 ? (
+          <details className="overflow-hidden rounded-xl border border-warning/50">
+            <summary className="cursor-pointer list-none bg-warning/10 px-4 py-3 text-xs font-bold text-warning-text">
+              Setores abaixo do mínimo por dia ({vacancies.length})
+            </summary>
+            <PaginatedWarningList
+              label="setores abaixo do mínimo por dia"
+              items={vacancies}
+              getKey={(vacancy, index) => `${vacancy.setorId}-${vacancy.data}-${vacancy.turno}-${vacancy.funcao}-${index}`}
+              renderItem={(vacancy) => <><span className="font-semibold">{vacancy.setor}{vacancy.subsetor ? ` · ${vacancy.subsetor}` : ''}:</span>{' '}
+                {formatWarningDate(vacancy.data)} · {vacancy.turno === '24h' ? '24h' : vacancy.turno === 'diurno' ? 'Diurno' : 'Noturno'} ·{' '}
+                {vacancy.funcao === 'enfermeiros' ? 'enfermeiros' : 'técnicos'}; faltam {vacancy.faltam}.</>}
+            />
+          </details>
+        ) : null}
+      </div>
+    </details>
   )
 }
 
@@ -421,7 +588,7 @@ export function ScalePage() {
       </header>
 
       <WorkflowCard scale={matchingScale} onGenerate={() => setShowGenerateDialog(true)} onCreateManual={() => void createManualDraft()} creatingManual={creatingManual} manualCreationDisabled={loading || generationInProgress} onReview={() => void openReview()} onValidateAndPublish={() => void validateAndPublish()} onExcludePublished={() => setShowRemovePublishedDialog(true)} stagedCount={stagedChanges.length} onSave={() => void saveStagedChanges()} saving={savingBatch} validating={validating} changesSaved={changesSaved} />
-      {!loading && !generationInProgress && matchingScale ? <WorkloadSummary scale={matchingScale} /> : null}
+      {!loading && !generationInProgress && matchingScale ? <ScaleWarnings scale={matchingScale} /> : null}
 
       {error ? (
         <div role="alert" className="flex flex-col gap-3 rounded-2xl border border-error bg-error p-4 text-sm text-danger sm:flex-row sm:items-center sm:justify-between">
@@ -537,16 +704,15 @@ export function ScalePage() {
           onClose={() => setShowGenerateDialog(false)}
           onGenerated={async (draft) => {
             setShowGenerateDialog(false)
+            replaceScale(draft)
+            setSelectedDate(calendarDate(draft.escala.ano, draft.escala.mes - 1, 1))
+            setView('week')
+            setError('')
+            setGenerationInProgress(false)
             try {
               const reviewed = await startScaleReview(draft)
               replaceScale(reviewed)
-              setSelectedDate(calendarDate(reviewed.escala.ano, reviewed.escala.mes - 1, 1))
-              setView('week')
-              setError('')
             } catch (cause: unknown) {
-              replaceScale(draft)
-              setSelectedDate(calendarDate(draft.escala.ano, draft.escala.mes - 1, 1))
-              setView('month')
               setError(`Escala gerada como rascunho, mas não foi possível iniciar a revisão: ${cause instanceof Error ? cause.message : 'erro desconhecido.'}`)
             }
           }}
