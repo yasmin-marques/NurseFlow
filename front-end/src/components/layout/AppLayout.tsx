@@ -40,7 +40,8 @@ export function AppLayout({
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <TopBar
           userInitials={user?.initials}
-          includeExchangeNotifications={!user?.isCoordination}
+          includeExchangeNotifications={user?.isCoordination === true}
+          coordinationNotifications={user?.isCoordination === true}
           onMenuClick={() => setMenuOpen(true)}
           onProfileClick={onProfileClick}
         />

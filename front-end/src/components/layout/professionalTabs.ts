@@ -1,4 +1,4 @@
-export type ProfessionalTabId = 'inicio' | 'meus-plantoes' | 'escala-geral' | 'trocas'
+export type ProfessionalTabId = 'inicio' | 'meus-plantoes' | 'escala-geral' | 'trocas' | 'notificacoes'
 
 export const PROFESSIONAL_TABS: { id: ProfessionalTabId; label: string }[] = [
   { id: 'inicio', label: 'Início' },

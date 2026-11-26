@@ -1035,7 +1035,7 @@ describe('Geração automática de escalas (e2e)', () => {
       const notificacoesEnfermeiro = await http.get('/notificacoes/escalas').set(auth(tokenEnf)).expect(200);
       expect(notificacoesEnfermeiro.body).toMatchObject({ naoLidas: 1, notificacoes: [expect.objectContaining({ versao: 1 })] });
       expect((await http.get('/notificacoes/escalas').set(auth(tokenTecnico)).expect(200)).body.notificacoes).toEqual([]);
-      expect((await http.get('/notificacoes/escalas').set(auth(tokenCoord)).expect(200)).body.notificacoes).toEqual([]);
+      expect((await http.get('/notificacoes/escalas').set(auth(tokenCoord)).expect(200)).body).toMatchObject({ naoLidas: 1, notificacoes: [expect.objectContaining({ versao: 1 })] });
       expect(
         (await http.get(`/notificacoes/escalas/${id}/versoes/1`).set(auth(tokenEnf)).expect(200)).body.snapshot.visualizacao.escala.id,
       ).toBe(id);

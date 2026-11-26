@@ -12,12 +12,13 @@ type ProfessionalLayoutProps = {
   onNavigate: (id: ProfessionalTabId) => void
   onProfileClick: () => void
   onOpenExchange?: (id: string) => void
+  onOpenNotifications?: () => void
   user: { name: string; role: string; initials: string }
   children: ReactNode
 }
 
 /** Shell do Enfermeiro/Técnico: navegação no topo, sem as áreas de gestão da Coordenação. */
-export function ProfessionalLayout({ activeTab, onNavigate, onProfileClick, onOpenExchange, user, children }: ProfessionalLayoutProps) {
+export function ProfessionalLayout({ activeTab, onNavigate, onProfileClick, onOpenExchange, onOpenNotifications, user, children }: ProfessionalLayoutProps) {
   const [incomingCount, setIncomingCount] = useState<number | null>(null)
   const [countError, setCountError] = useState(false)
   const refreshCount = useCallback(() => {
@@ -73,7 +74,7 @@ export function ProfessionalLayout({ activeTab, onNavigate, onProfileClick, onOp
           </nav>
 
           <div className="ml-auto flex items-center gap-3">
-            <NotificationCenter onOpenExchange={onOpenExchange} />
+            <NotificationCenter onOpenExchange={onOpenExchange} onOpenNotifications={onOpenNotifications} />
             <button
               type="button"
               onClick={onProfileClick}

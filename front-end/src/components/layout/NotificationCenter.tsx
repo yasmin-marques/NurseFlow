@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Bell } from '../icons'
+import { Bell, ChevronRight } from '../icons'
 import {
   getNotifiedScaleVersion,
   listScaleNotifications,
@@ -28,7 +28,7 @@ const exchangeRejectionLabel = (notification: ExchangeNotification) =>
       ? 'Cancelada pelo solicitante'
       : 'Recusada'
 
-export function NotificationCenter({ onOpenExchange, includeExchangeNotifications = true }: { onOpenExchange?: (id: string) => void; includeExchangeNotifications?: boolean }) {
+export function NotificationCenter({ onOpenExchange, onOpenNotifications, includeExchangeNotifications = true, coordinationMode = false }: { onOpenExchange?: (id: string) => void; onOpenNotifications?: () => void; includeExchangeNotifications?: boolean; coordinationMode?: boolean }) {
   const [open, setOpen] = useState(false)
   const [list, setList] = useState<ScaleNotificationList>({ notificacoes: [], naoLidas: 0 })
   const [exchangeList, setExchangeList] = useState<ExchangeNotificationList>({ notificacoes: [], naoLidas: 0 })
@@ -55,7 +55,7 @@ export function NotificationCenter({ onOpenExchange, includeExchangeNotification
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [includeExchangeNotifications])
 
   useEffect(() => {
     let active = true
@@ -75,6 +75,12 @@ export function NotificationCenter({ onOpenExchange, includeExchangeNotification
       active = false
     }
   }, [includeExchangeNotifications])
+
+  useEffect(() => {
+    const onNotificationsUpdated = () => { void reload() }
+    window.addEventListener('nurseflow:notifications-updated', onNotificationsUpdated)
+    return () => window.removeEventListener('nurseflow:notifications-updated', onNotificationsUpdated)
+  }, [reload])
 
   const markRead = async (notification: ScaleNotification) => {
     setPendingId(notification.id)
@@ -141,6 +147,10 @@ export function NotificationCenter({ onOpenExchange, includeExchangeNotification
   }
 
   const toggle = () => {
+    if (onOpenNotifications) {
+      onOpenNotifications()
+      return
+    }
     const next = !open
     setOpen(next)
     setSelectedVersion(null)
@@ -232,7 +242,7 @@ export function NotificationCenter({ onOpenExchange, includeExchangeNotification
               {!loading && list.notificacoes.length === 0 && exchangeList.notificacoes.length === 0 ? (
                 <p className="px-1 py-5 text-sm text-text-muted">Você não tem notificações de escala.</p>
               ) : null}
-              {exchangeList.notificacoes.length > 0 ? <section aria-labelledby="exchange-notifications-title" className="mb-4"><h3 id="exchange-notifications-title" className="border-b border-border py-2 text-xs font-bold uppercase tracking-wide text-text-muted">Trocas</h3><ul>{exchangeList.notificacoes.map((notification) => <li key={notification.id} className={`border-b border-border px-1 py-3 ${notification.lidaEm ? '' : exchangeRejectionNotification(notification) ? 'bg-danger/10' : 'bg-secondary/30'}`}><p className="text-sm font-semibold text-text">{exchangeRejectionNotification(notification) ? exchangeRejectionLabel(notification) : notification.titulo}</p><p className={`mt-1 text-xs leading-relaxed ${exchangeRejectionNotification(notification) ? 'text-danger' : 'text-text-muted'}`}>{notification.mensagem}</p><time className="mt-2 block text-[11px] text-text-muted" dateTime={notification.criadaEm}>{formatDateTime.format(new Date(notification.criadaEm))}</time><div className="mt-2 flex flex-wrap gap-3"><button type="button" onClick={() => { onOpenExchange?.(notification.solicitacaoId); setOpen(false) }} className="text-xs font-semibold text-primary hover:underline">Abrir solicitação</button>{!notification.lidaEm ? <button type="button" disabled={pendingId === notification.id} onClick={() => void markExchangeRead(notification)} className="text-xs font-semibold text-text-muted hover:underline">{pendingId === notification.id ? 'Atualizando...' : 'Marcar como lida'}</button> : null}</div></li>)}</ul></section> : null}
+              {exchangeList.notificacoes.length > 0 ? <section aria-labelledby="exchange-notifications-title" className="mb-4"><h3 id="exchange-notifications-title" className={coordinationMode ? 'sr-only' : 'border-b border-border py-2 text-xs font-bold uppercase tracking-wide text-text-muted'}>Trocas</h3><ul>{exchangeList.notificacoes.map((notification) => <li key={notification.id} className={`border-b border-border px-1 ${coordinationMode ? 'py-4' : 'py-3'} ${notification.lidaEm ? '' : exchangeRejectionNotification(notification) ? 'bg-danger/10' : 'bg-secondary/30'}`}><div className="flex items-start justify-between gap-3"><div><p className="text-sm font-semibold text-text">{exchangeRejectionNotification(notification) ? exchangeRejectionLabel(notification) : notification.titulo}</p><p className={`mt-1 text-xs leading-relaxed ${exchangeRejectionNotification(notification) ? 'text-danger' : 'text-text-muted'}`}>{notification.mensagem}</p><time className="mt-2 block text-[11px] text-text-muted" dateTime={notification.criadaEm}>{formatDateTime.format(new Date(notification.criadaEm))}</time></div>{coordinationMode ? <ChevronRight className="mt-1 size-4 shrink-0 text-text-muted" strokeWidth={1.8} /> : null}</div>{!coordinationMode ? <div className="mt-2 flex flex-wrap gap-3"><button type="button" onClick={() => { onOpenExchange?.(notification.solicitacaoId); setOpen(false) }} className="text-xs font-semibold text-primary hover:underline">Abrir solicitação</button>{!notification.lidaEm ? <button type="button" disabled={pendingId === notification.id} onClick={() => void markExchangeRead(notification)} className="text-xs font-semibold text-text-muted hover:underline">{pendingId === notification.id ? 'Atualizando...' : 'Marcar como lida'}</button> : null}</div> : null}</li>)}</ul></section> : null}
               <ul>
                 {list.notificacoes.map((notification) => (
                   <li
@@ -248,11 +258,12 @@ export function NotificationCenter({ onOpenExchange, includeExchangeNotification
                           {formatDateTime.format(new Date(notification.criadoEm))}
                         </time>
                       </div>
-                      {!notification.lidaEm ? (
-                        <span className="mt-1 size-2 shrink-0 rounded-full bg-primary" aria-hidden />
-                      ) : null}
+                      <div className="flex shrink-0 items-start gap-3">
+                        {!notification.lidaEm ? <span className="mt-1 size-2 rounded-full bg-primary" aria-hidden /> : null}
+                        {coordinationMode ? <ChevronRight className="size-4 text-text-muted" strokeWidth={1.8} /> : null}
+                      </div>
                     </div>
-                    <div className="mt-3 flex flex-wrap gap-3">
+                    {!coordinationMode ? <div className="mt-3 flex flex-wrap gap-3">
                       <button
                         type="button"
                         onClick={() => void viewScale(notification)}
@@ -271,7 +282,7 @@ export function NotificationCenter({ onOpenExchange, includeExchangeNotification
                           {pendingId === notification.id ? 'Atualizando...' : 'Marcar como lida'}
                         </button>
                       ) : null}
-                    </div>
+                    </div> : null}
                   </li>
                 ))}
               </ul>

@@ -22,6 +22,7 @@ import { api } from './services/api'
 import { ExtrasPage } from './pages/Extras/ExtrasPage'
 import { HistoryPage } from './pages/History/HistoryPage'
 import { MyExchangesPage } from './pages/Exchanges/MyExchangesPage'
+import { NotificationsPage } from './pages/Notifications/NotificationsPage'
 
 function App() {
   const [user, setUser] = useState<SessionUser | null>(null)
@@ -95,6 +96,7 @@ function App() {
           activeTab={professionalTab}
           onNavigate={setProfessionalTab}
           onOpenExchange={(id) => { setExchangeIdToOpen(id); setProfessionalTab('trocas') }}
+          onOpenNotifications={() => setProfessionalTab('notificacoes')}
           onProfileClick={openProfile}
           user={{ name: user.nome, role, initials }}
         >
@@ -110,6 +112,8 @@ function App() {
             <GeneralSchedulePage />
           ) : professionalTab === 'trocas' && ['enfermeiro', 'tecnico'].includes(user.perfil) ? (
             <MyExchangesPage exchangeId={exchangeIdToOpen} />
+          ) : professionalTab === 'notificacoes' ? (
+            <NotificationsPage onOpenExchange={(id) => { setExchangeIdToOpen(id); setProfessionalTab('trocas') }} />
           ) : professionalTab === 'trocas' ? (
             <section className="mx-auto w-full max-w-5xl px-5 py-10 sm:px-8">
               <h1 className="text-3xl font-bold tracking-tight text-text">Trocas</h1>

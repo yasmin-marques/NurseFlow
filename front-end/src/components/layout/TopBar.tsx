@@ -5,6 +5,7 @@ import { UserAvatar } from '../ui/UserAvatar'
 type TopBarProps = {
   userInitials?: string
   includeExchangeNotifications?: boolean
+  coordinationNotifications?: boolean
   onMenuClick?: () => void
   onProfileClick?: () => void
 }
@@ -12,6 +13,7 @@ type TopBarProps = {
 export function TopBar({
   userInitials = 'PF',
   includeExchangeNotifications = true,
+  coordinationNotifications = false,
   onMenuClick,
   onProfileClick,
 }: TopBarProps) {
@@ -29,7 +31,7 @@ export function TopBar({
       </div>
 
       <div className="flex items-center gap-2">
-        <NotificationCenter includeExchangeNotifications={includeExchangeNotifications} />
+        <NotificationCenter includeExchangeNotifications={includeExchangeNotifications} coordinationMode={coordinationNotifications} />
         <button
           type="button"
           onClick={onProfileClick}

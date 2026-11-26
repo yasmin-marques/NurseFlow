@@ -6,7 +6,7 @@ import type { UsuarioAutenticado } from '../common/auth/usuario-autenticado';
 import { ParseObjectIdPipe } from '../common/pipes/parse-object-id.pipe';
 import { MinhasTrocasService } from './minhas-trocas.service';
 
-@ApiTags('Notificações de troca') @ApiBearerAuth() @Perfis(Perfil.ENFERMEIRO, Perfil.TECNICO) @Controller('notificacoes/trocas')
+@ApiTags('Notificações de troca') @ApiBearerAuth() @Perfis(Perfil.ENFERMEIRO, Perfil.TECNICO, Perfil.COORDENACAO) @Controller('notificacoes/trocas')
 export class NotificacoesTrocasController {
   constructor(private readonly service: MinhasTrocasService) {}
   @Get() listar(@UsuarioAtual() usuario: UsuarioAutenticado) { return this.service.listarNotificacoes(usuario); }

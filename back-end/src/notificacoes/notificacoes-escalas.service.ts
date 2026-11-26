@@ -93,6 +93,7 @@ export class NotificacoesEscalaService {
     mes: number,
     snapshotAtual: SnapshotEscala,
     snapshotAnterior: Record<string, unknown> | undefined,
+    coordenadorUsuarioId: Types.ObjectId,
     session: ClientSession,
   ): Promise<void> {
     const atuais = this.alocacoesPorProfissional(snapshotAtual);
@@ -104,8 +105,6 @@ export class NotificacoesEscalaService {
           (id) => JSON.stringify(atuais.get(id) ?? []) !== JSON.stringify(anteriores.get(id) ?? []),
         )
       : [...atuais.keys()];
-    if (profissionaisAfetados.length === 0) return;
-
     const profissionais = await this.profissionais
       .find({ _id: { $in: profissionaisAfetados.map((id) => new Types.ObjectId(id)) } }, { usuarioId: 1 })
       .session(session)
@@ -122,8 +121,10 @@ export class NotificacoesEscalaService {
           .lean()
           .exec()
       : [];
-    const destinatarios = usuariosNotificados.map((item) => String(item._id));
-    if (destinatarios.length === 0) return;
+    const destinatarios = [...new Set([
+      ...usuariosNotificados.map((item) => String(item._id)),
+      String(coordenadorUsuarioId),
+    ])];
 
     const eventKey = `escala:${String(escalaId)}:versao:${numero}`;
     await this.notificacoes.insertMany(

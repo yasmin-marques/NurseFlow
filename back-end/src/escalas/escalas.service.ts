@@ -486,6 +486,7 @@ export class EscalasService {
         escala.mes,
         snapshot,
         versaoAnterior?.snapshot,
+        new Types.ObjectId(usuario.id),
         session,
       );
       // Mesma transação da publicação: a tarefa só existe se a versão oficial foi confirmada. Não depende do Google.

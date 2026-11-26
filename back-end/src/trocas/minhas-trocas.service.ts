@@ -8,6 +8,7 @@ import { Profissional } from '../profissionais/schemas/profissional.schema';
 import { StatusProfissional } from '../profissionais/profissionais.enums';
 import { Escala, EventoTrocaProfissional, NotificacaoTroca, Plantao, PlantaoProfissional, SolicitacaoTroca, StatusEscala, StatusTroca, VersaoEscala } from '../escalas/schemas';
 import { Usuario } from '../usuarios/schemas/usuario.schema';
+import { Administrador } from '../usuarios/schemas/administrador.schema';
 import { Setor } from '../setores/schemas/setor.schema';
 import type { UsuarioAutenticado } from '../common/auth/usuario-autenticado';
 import { CriarMinhaTrocaDto, ListarMinhasTrocasDto } from './dto/minhas-trocas.dto';
@@ -34,6 +35,7 @@ export class MinhasTrocasService {
     @InjectConnection() private readonly connection: Connection,
     @InjectModel(Profissional.name) private readonly profissionais: Model<Profissional>,
     @InjectModel(Usuario.name) private readonly usuarios: Model<Usuario>,
+    @InjectModel(Administrador.name) private readonly administradores: Model<Administrador>,
     @InjectModel(Escala.name) private readonly escalas: Model<Escala>,
     @InjectModel(VersaoEscala.name) private readonly versoes: Model<VersaoEscala>,
     @InjectModel(Plantao.name) private readonly plantoes: Model<Plantao>,
@@ -52,13 +54,14 @@ export class MinhasTrocasService {
   }
 
   async listarNotificacoes(usuario: UsuarioAutenticado) {
-    await this.profissionalDoUsuario(usuario);
+    if (usuario.perfil !== Perfil.COORDENACAO) await this.profissionalDoUsuario(usuario);
     const itens = await this.notificacoes.find({ destinatarioId: new Types.ObjectId(usuario.id) }).sort({ createdAt: -1, _id: -1 }).limit(50).lean().exec();
     return { notificacoes: itens.map((item) => ({ id: String(item._id), solicitacaoId: String(item.solicitacaoId), eventKey: item.eventKey, titulo: item.titulo, mensagem: item.mensagem, criadaEm: item.createdAt, lidaEm: item.lidaEm ?? null })), naoLidas: itens.filter((item) => !item.lidaEm).length };
   }
 
   async marcarNotificacaoLida(usuario: UsuarioAutenticado, id: string) {
-    await this.profissionalDoUsuario(usuario); this.validarObjectId(id);
+    if (usuario.perfil !== Perfil.COORDENACAO) await this.profissionalDoUsuario(usuario);
+    this.validarObjectId(id);
     const result = await this.notificacoes.findOneAndUpdate({ _id: new Types.ObjectId(id), destinatarioId: new Types.ObjectId(usuario.id) }, { $set: { lidaEm: new Date() } }, { new: true }).lean().exec();
     if (!result) throw new NotFoundException('Notificação não encontrada.');
     return { id: String(result._id), lidaEm: result.lidaEm };
@@ -231,6 +234,10 @@ export class MinhasTrocasService {
       if (validacao.impedimentos.length) throw new UnprocessableEntityException({ message: 'A troca não é elegível.', impedimentos: validacao.impedimentos });
       await this.registrarEvento(session, usuario, profissional._id, doc._id, dto.operacaoId, 'solicitada', 'nova', StatusTroca.AGUARDANDO_RESPOSTA, { vinculoSolicitanteId: String(a.vinculo._id), vinculoSolicitadoId: String(b.vinculo._id), versaoOficialEsperada: dto.versaoOficialEsperada });
       await this.notificar(session, doc._id, String(destinatario.usuarioId), `solicitacao:${doc._id}`, 'Nova solicitação de troca', 'Você recebeu uma solicitação de troca de plantão.');
+      const coordenacoes = await this.administradores.find({}).select('usuarioId').session(session).lean().exec();
+      for (const coordenacao of coordenacoes) {
+        await this.notificar(session, doc._id, String(coordenacao.usuarioId), `solicitacao:${doc._id}`, 'Nova solicitação de troca', `${usuario.nome ?? 'Um profissional'} enviou uma solicitação de troca.`);
+      }
     });
     return this.detalhe(id, usuario);
   }
