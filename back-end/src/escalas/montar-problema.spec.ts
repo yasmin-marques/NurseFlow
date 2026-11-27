@@ -76,7 +76,7 @@ describe('configurações vigentes → problema de otimização', () => {
     );
     expect(problema.dias_mes).toBe(31);
     const [c, l, r] = problema.profissionais;
-    expect([c.carga_24h, c.carga_12h]).toEqual([6, 0]);
+    expect([c.carga_24h, c.carga_12h]).toEqual([6, 1]);
     expect([l.carga_24h, l.carga_12h]).toEqual([8, 0]);
     expect([r.carga_24h, r.carga_12h]).toEqual([0, 0]); // RPA: sem carga fixa
     expect([c.max_extras, l.max_extras, r.max_extras]).toEqual([2, 2, 2]);
@@ -93,7 +93,7 @@ describe('configurações vigentes → problema de otimização', () => {
     });
     const { problema } = montarProblema(entrada([prof('c', TipoVinculo.CONCURSADO), prof('l', TipoVinculo.CLT)], { configuracao: cfg }));
     const [c, l] = problema.profissionais;
-    expect([c.carga_24h, c.carga_12h, c.max_extras]).toEqual([5, 0, 4]);
+    expect([c.carga_24h, c.carga_12h, c.max_extras]).toEqual([5, 2, 4]);
     expect([l.carga_24h, l.carga_12h, l.max_extras]).toEqual([7, 0, 1]);
     expect(c.max_plantoes).toBe(0);
   });

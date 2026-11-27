@@ -106,7 +106,9 @@ export function validarEntrada(
   else if (e.setores.every((s) => quantitativoTotal(s) === 0)) {
     erros.push('Nenhum setor ativo possui quantitativo mínimo definido (enfermeiros/técnicos por plantão de 24h).');
   }
-  const ativos = e.profissionais.filter((p) => p.status === StatusProfissional.ATIVO);
+  const ativos = e.profissionais.filter(
+    (p) => p.status === StatusProfissional.ATIVO && p.tipoVinculo !== TipoVinculo.RPA,
+  );
   if (ativos.length === 0) erros.push('Não há profissionais ativos para compor a escala.');
   else if (!ativos.some((p) => p.setorId)) {
     erros.push('Nenhum profissional ativo possui setor fixo cadastrado; defina o setor no cadastro dos profissionais.');
@@ -328,7 +330,14 @@ export function montarProblema(e: EntradaGeracao): ProblemaMontado {
   const ativos: ProfissionalEntrada[] = [];
   for (const p of e.profissionais) {
     if (p.status === StatusProfissional.ATIVO) {
-      if (!p.setorId) {
+      if (p.tipoVinculo === TipoVinculo.RPA) {
+        conflitos.push({
+          tipo: 'PROFISSIONAL_RPA_FORA_GERACAO',
+          profissionalId: p.id,
+          profissional: p.nome,
+          motivo: 'Vínculo RPA: disponível para extras manuais, não participa da geração automática da escala.',
+        });
+      } else if (!p.setorId) {
         conflitos.push({
           tipo: 'PROFISSIONAL_SEM_SETOR',
           profissionalId: p.id,
@@ -412,7 +421,7 @@ export function montarProblema(e: EntradaGeracao): ProblemaMontado {
       formacao: p.formacao,
       vinculo: p.tipoVinculo,
       carga_24h: carga?.plantoes24h ?? 0,
-      carga_12h: 0,
+      carga_12h: carga?.plantoes12h ?? 0,
       max_extras: maxExtras,
       max_plantoes: cfg.limitePlantoes,
       dias_bloqueados: calc.diasBloqueados,
