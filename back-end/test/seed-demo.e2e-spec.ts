@@ -57,7 +57,7 @@ describe("seed de demonstração (e2e)", () => {
     await banco.parar();
   });
 
-  it("cria 76 profissionais com a distribuição aprovada", async () => {
+  it("cria o efetivo mínimo ativo e mantém os perfis inativos de demonstração", async () => {
     await seed();
     const profs = await db.collection("profissionaisDaSaude").find().toArray();
     const por = (campo: string) =>
@@ -65,14 +65,14 @@ describe("seed de demonstração (e2e)", () => {
         (acc, p) => ({ ...acc, [p[campo]]: (acc[p[campo]] ?? 0) + 1 }),
         {},
       );
-    expect(profs).toHaveLength(76);
-    expect(por("formacao")).toEqual({ enfermeiro: 32, tecnico: 44 });
-    expect(por("tipoVinculo")).toEqual({ concursado: 36, clt: 33, rpa: 7 });
+    expect(profs).toHaveLength(46);
+    expect(por("formacao")).toEqual({ enfermeiro: 12, tecnico: 34 });
+    expect(por("tipoVinculo")).toEqual({ concursado: 24, clt: 15, rpa: 7 });
     expect(por("status")).toEqual({
-      ativo: 68,
+      ativo: 39,
       ferias: 3,
       afastado: 3,
-      desativado: 2,
+      desativado: 1,
     });
     for (const p of profs.filter((x) => x.status === "desativado"))
       expect(p.desativadoEm).toBeInstanceOf(Date);
@@ -83,12 +83,12 @@ describe("seed de demonstração (e2e)", () => {
   it("gera CPFs válidos e únicos, e-mails e COREN únicos, e vincula usuários e profissionais", async () => {
     const usuarios = await db.collection("usuarios").find().toArray();
     const profs = await db.collection("profissionaisDaSaude").find().toArray();
-    expect(usuarios).toHaveLength(77); // 76 profissionais + coordenação
+    expect(usuarios).toHaveLength(47); // 46 profissionais + coordenação
     expect(usuarios.every((u) => cpfValido(u.cpf))).toBe(true);
-    expect(new Set(usuarios.map((u) => u.cpf)).size).toBe(77);
-    expect(new Set(usuarios.map((u) => u.email)).size).toBe(77);
+    expect(new Set(usuarios.map((u) => u.cpf)).size).toBe(47);
+    expect(new Set(usuarios.map((u) => u.email)).size).toBe(47);
     expect(usuarios.every((u) => u.email.endsWith(".test"))).toBe(true);
-    expect(new Set(profs.map((p) => p.coren)).size).toBe(76);
+    expect(new Set(profs.map((p) => p.coren)).size).toBe(46);
     expect(PEOPLE.map((p) => p[5])).toEqual([
       ...new Set(PEOPLE.map((p) => p[5])),
     ]);
@@ -110,7 +110,7 @@ describe("seed de demonstração (e2e)", () => {
     const profs = await db.collection("profissionaisDaSaude").find().toArray();
     const ids = new Set(profs.map((p) => String(p._id)));
     const restricoes = await db.collection("restricoes").find().toArray();
-    expect(restricoes).toHaveLength(16);
+    expect(restricoes).toHaveLength(6);
     expect(restricoes.every((r) => ids.has(String(r.profissionalId)))).toBe(
       true,
     );
@@ -144,41 +144,68 @@ describe("seed de demonstração (e2e)", () => {
     }
   });
 
-  it("setores e vínculos refletem as regras de subsetores (mínimos, setor/subsetor dos profissionais)", async () => {
+  it("atribui a carga ativa mínima por setor e sub-setor conforme as cargas dos vínculos", async () => {
     const setores = await db.collection("setores").find().toArray();
     const subsetores = await db.collection("subsetores").find().toArray();
     const profs = await db.collection("profissionaisDaSaude").find().toArray();
     const porNome = new Map(setores.map((s) => [s.nome, s]));
 
-    // Setor com subsetores: mínimo de enfermeiros no setor; técnicos por subsetor (derivado = soma, mesma demanda de antes).
-    const uti = porNome.get("UTI")!;
-    expect(uti).toMatchObject({ possuiSubsetores: true, plantao24h: { enfermeiros: 2, tecnicos: 3 } });
-    const subsDaUti = subsetores.filter((s) => String(s.setorId) === String(uti._id));
-    expect(subsDaUti.map((s) => [s.nome, s.plantao24h.tecnicos]).sort()).toEqual([
-      ["UTI Adulto", 2],
-      ["UTI Intermediária", 1],
+    const internamento = porNome.get("Internamento")!;
+    const emergencia = porNome.get("Emergência")!;
+    expect(setores).toHaveLength(2);
+    expect(internamento).toMatchObject({ possuiSubsetores: true, plantao24h: { enfermeiros: 1, tecnicos: 2 } });
+    expect(emergencia).toMatchObject({ possuiSubsetores: false, plantao24h: { enfermeiros: 1, tecnicos: 3 } });
+    const subsDoInternamento = subsetores.filter((s) => String(s.setorId) === String(internamento._id));
+    expect(subsDoInternamento.map((s) => [s.nome, s.plantao24h.tecnicos]).sort()).toEqual([
+      ["Setor A", 1],
+      ["Setor B", 1],
     ]);
-    // Setores sem subsetores: os dois mínimos no setor.
-    expect(porNome.get("Emergência")).toMatchObject({ possuiSubsetores: false, plantao24h: { enfermeiros: 2, tecnicos: 3 } });
-    expect(porNome.get("Clínica Médica")).toMatchObject({ possuiSubsetores: false, plantao24h: { enfermeiros: 1, tecnicos: 2 } });
     expect(subsetores).toHaveLength(2);
 
-    // Todos os profissionais têm setor; subsetor só para técnicos de setor com subsetores, sempre do próprio setor.
     const subPorId = new Map(subsetores.map((s) => [String(s._id), s]));
     expect(profs.every((p) => p.setorId && porNome.size && [...porNome.values()].some((s) => String(s._id) === String(p.setorId)))).toBe(true);
     for (const p of profs) {
-      const doUti = String(p.setorId) === String(uti._id);
-      if (p.formacao === "tecnico" && doUti) {
-        expect(subPorId.get(String(p.subsetorId))?.setorId).toEqual(uti._id);
+      const doInternamento = String(p.setorId) === String(internamento._id);
+      if (p.formacao === "tecnico" && doInternamento) {
+        expect(subPorId.get(String(p.subsetorId))?.setorId).toEqual(internamento._id);
       } else {
         expect(p.subsetorId).toBeNull();
       }
     }
-    // Os técnicos do UTI se repartem proporcionalmente ao mínimo de cada subsetor (2:1).
-    const tecnicosUti = profs.filter((p) => p.formacao === "tecnico" && String(p.setorId) === String(uti._id));
-    const contagem = (nome: string) => tecnicosUti.filter((p) => subPorId.get(String(p.subsetorId))?.nome === nome).length;
-    expect(contagem("UTI Adulto") + contagem("UTI Intermediária")).toBe(tecnicosUti.length);
-    expect(contagem("UTI Adulto")).toBeGreaterThan(contagem("UTI Intermediária"));
+
+    const ativos = profs.filter((p) => p.status === "ativo");
+    const escalaveis = ativos.filter((p) => p.tipoVinculo !== "rpa");
+    const grupo = (formacao: string, setorId: unknown, subsetorId?: unknown) =>
+      escalaveis.filter((p) =>
+        p.formacao === formacao &&
+        String(p.setorId) === String(setorId) &&
+        (subsetorId === undefined || String(p.subsetorId) === String(subsetorId)),
+      );
+    const vinculos = (profissionais: typeof ativos) =>
+      profissionais.reduce<Record<string, number>>((acc, p) => {
+        acc[p.tipoVinculo] = (acc[p.tipoVinculo] ?? 0) + 1;
+        return acc;
+      }, {});
+    expect(ativos).toHaveLength(39);
+    expect(ativos.filter((p) => p.tipoVinculo === "rpa")).toHaveLength(6);
+    expect(escalaveis).toHaveLength(33);
+    expect(grupo("enfermeiro", internamento._id)).toHaveLength(5);
+    expect(grupo("enfermeiro", emergencia._id)).toHaveLength(5);
+    expect(vinculos(grupo("enfermeiro", internamento._id))).toEqual({ concursado: 2, clt: 3 });
+    expect(vinculos(grupo("enfermeiro", emergencia._id))).toEqual({ concursado: 2, clt: 3 });
+    for (const subsetor of subsDoInternamento) {
+      const tecnicos = grupo("tecnico", internamento._id, subsetor._id);
+      expect(tecnicos).toHaveLength(5);
+      expect(vinculos(tecnicos)).toEqual({ concursado: 2, clt: 3 });
+    }
+    const tecnicosEmergencia = grupo("tecnico", emergencia._id);
+    expect(tecnicosEmergencia).toHaveLength(13);
+    expect(vinculos(tecnicosEmergencia)).toEqual({ concursado: 13 });
+    const idsAtivos = new Set(ativos.map((p) => String(p._id)));
+    const restricoesAtivos = await db.collection("restricoes").countDocuments({
+      profissionalId: { $in: [...idsAtivos].map((id) => new mongoose.Types.ObjectId(id)) },
+    });
+    expect(restricoesAtivos).toBe(0);
   });
 
   it("o diagnóstico de vínculos não encontra pendências na demo", async () => {

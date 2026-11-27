@@ -255,6 +255,59 @@ def test_plantao_12h_regular_cobre_somente_seu_turno_e_satisfaz_carga():
     assert any(d.dia == alocacao.dia and d.turno == turno_nao_coberto for d in sol.descobertos)
 
 
+@pytest.mark.parametrize(("dias", "extras_esperados"), [(28, 0), (30, 6), (31, 9)])
+def test_efetivo_minimo_demo_cobre_mes_com_cargas_dos_vinculos(dias, extras_esperados):
+    internamento = setor("internamento", dia=(1, 1), noite=(1, 1))
+    internamento["subsetores"] = [
+        {"id": "setor-a", "nome": "Setor A", "tecnicos": 1},
+        {"id": "setor-b", "nome": "Setor B", "tecnicos": 1},
+    ]
+    emergencia = setor("emergencia", dia=(1, 3), noite=(1, 3))
+
+    profissionais = []
+
+    def adicionar_grupo(prefixo, formacao, setor_id, subsetor_id=None, concursados=2, clt=3):
+        for i in range(concursados):
+            profissionais.append(
+                prof(
+                    f"{prefixo}-c{i}",
+                    formacao,
+                    c24=6,
+                    c12=1,
+                    extras=1,
+                    setor_id=setor_id,
+                    subsetor_id=subsetor_id,
+                    max_plantoes=12,
+                )
+            )
+        for i in range(clt):
+            profissionais.append(
+                prof(
+                    f"{prefixo}-l{i}",
+                    formacao,
+                    c24=5,
+                    c12=2,
+                    extras=1,
+                    setor_id=setor_id,
+                    subsetor_id=subsetor_id,
+                    max_plantoes=12,
+                )
+            )
+
+    adicionar_grupo("enf-internamento", "enfermeiro", "internamento")
+    adicionar_grupo("enf-emergencia", "enfermeiro", "emergencia")
+    adicionar_grupo("tec-a", "tecnico", "internamento", "setor-a")
+    adicionar_grupo("tec-b", "tecnico", "internamento", "setor-b")
+    adicionar_grupo("tec-emergencia", "tecnico", "emergencia", concursados=13, clt=0)
+
+    sol = resolver(problema(profissionais, [internamento, emergencia], dias=dias, tempo=60))
+
+    assert len(profissionais) == 33
+    assert sol.estatisticas.total_descobertos == 0
+    assert all(c.faltam_24h == 0 and c.faltam_12h == 0 and c.extras <= 1 for c in sol.estatisticas.cargas)
+    assert sum(c.extras for c in sol.estatisticas.cargas) == extras_esperados
+
+
 def test_prioriza_carga_regular_quando_a_cobertura_minima_esta_satisfeita():
     sol = resolver(problema(
         [prof("e1", c24=0, c12=2)],

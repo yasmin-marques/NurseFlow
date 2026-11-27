@@ -1,5 +1,5 @@
 /** Dados fictícios e idempotentes. Uso EXCLUSIVO em ambiente de desenvolvimento. */
-const { MongoClient, ObjectId } = require('mongodb');
+const { MongoClient } = require('mongodb');
 const bcrypt = require('bcryptjs');
 
 const PEOPLE = [
@@ -13,53 +13,100 @@ const PEOPLE = [
   ['henrique', 'Henrique Oliveira Melo', 'tecnico', 'clt', 'afastado', 'CE-10008'],
   ['isabela', 'Isabela Castro Freitas', 'tecnico', 'concursado', 'ativo', 'CE-10009'],
   ['joao', 'João Pedro Barbosa', 'enfermeiro', 'concursado', 'ativo', 'CE-10010'],
-  ['karina', 'Karina Azevedo Lopes', 'enfermeiro', 'clt', 'ativo', 'CE-10011'],
-  ['leonardo', 'Leonardo Teixeira Gomes', 'enfermeiro', 'rpa', 'ativo', 'CE-10012'],
-  ['mariana', 'Mariana Cardoso Braga', 'enfermeiro', 'clt', 'ferias', 'CE-10013'],
-  ['nicolas', 'Nicolas Araujo Prado', 'enfermeiro', 'concursado', 'afastado', 'CE-10014'],
-  ['olivia', 'Olivia Santana Reis', 'enfermeiro', 'rpa', 'afastado', 'CE-10015'],
-  ['paulo', 'Paulo Vinicius Moreira', 'enfermeiro', 'clt', 'ativo', 'CE-10016'],
-  ['quiteria', 'Quiteria Batista Neves', 'enfermeiro', 'concursado', 'desativado', 'CE-10017'],
-  ['rafael', 'Rafael Monteiro Cunha', 'enfermeiro', 'concursado', 'ativo', 'CE-10018'],
+  ['karina', 'Karina Azevedo Lopes', 'tecnico', 'clt', 'ativo', 'CE-10011'],
+  ['leonardo', 'Leonardo Teixeira Gomes', 'tecnico', 'rpa', 'ativo', 'CE-10012'],
+  ['mariana', 'Mariana Cardoso Braga', 'tecnico', 'clt', 'ferias', 'CE-10013'],
+  ['nicolas', 'Nicolas Araujo Prado', 'tecnico', 'concursado', 'afastado', 'CE-10014'],
+  ['olivia', 'Olivia Santana Reis', 'tecnico', 'rpa', 'afastado', 'CE-10015'],
+  ['paulo', 'Paulo Vinicius Moreira', 'tecnico', 'clt', 'ativo', 'CE-10016'],
+  ['quiteria', 'Quiteria Batista Neves', 'tecnico', 'concursado', 'desativado', 'CE-10017'],
+  ['rafael', 'Rafael Monteiro Cunha', 'tecnico', 'concursado', 'ativo', 'CE-10018'],
   ['sandra', 'Sandra Vieira Campos', 'tecnico', 'concursado', 'ativo', 'CE-10019'],
   ['tiago', 'Tiago Carvalho Esteves', 'tecnico', 'clt', 'ativo', 'CE-10020'],
   ['ursula', 'Ursula Medeiros Farias', 'tecnico', 'rpa', 'ativo', 'CE-10021'],
   ['valter', 'Valter Domingos Peixoto', 'tecnico', 'clt', 'ferias', 'CE-10022'],
   ['wanessa', 'Wanessa Pacheco Ramos', 'tecnico', 'rpa', 'ativo', 'CE-10023'],
   ['xavier', 'Xavier Lacerda Siqueira', 'tecnico', 'concursado', 'ativo', 'CE-10024'],
-  ['yara', 'Yara Fontenele Duarte', 'tecnico', 'clt', 'ativo', 'CE-10025'],
-  ['zenilda', 'Zenilda Guimarães Matos', 'tecnico', 'rpa', 'desativado', 'CE-10026'],
-  ['otavio', 'Otavio Brandão Leite', 'tecnico', 'clt', 'ativo', 'CE-10027'],
+  ['yara', 'Yara Fontenele Duarte', 'tecnico', 'concursado', 'ativo', 'CE-10025'],
+  ['zenilda', 'Zenilda Guimarães Matos', 'tecnico', 'rpa', 'ativo', 'CE-10026'],
+  ['otavio', 'Otavio Brandão Leite', 'tecnico', 'concursado', 'ativo', 'CE-10027'],
 ];
 
 /**
- * Efetivo adicional para a geração automática fechar a cobertura mínima dos 3 setores
- * (demanda diária: enfermeiros 5 dia/4 noite; técnicos 8 dia/5 noite) com a carga padrão
- * (concursado 6x24h+1x12h, CLT 5x24h+2x12h) e descanso de 72h/36h. Todos ativos, sem RPA.
+ * Efetivo calculado para 31 dias: quatro postos diários com 5 profissionais cada e
+ * a Emergência com 13 técnicos. Os 13 técnicos concursados usam no máximo 1 extra
+ * cada para cobrir a demanda de 3 profissionais por dia.
  */
 const EXTRA_ENFERMEIROS = [
   'Helena Rangel Moura', 'Igor Vasconcelos Assis', 'Julia Bezerra Tavares', 'Kleber Antunes Lobo',
-  'Larissa Coutinho Vaz', 'Murilo Sampaio Noronha', 'Natalia Figueiredo Brito', 'Osvaldo Quintela Lemos',
-  'Patricia Bastos Meireles', 'Renato Galvao Pontes', 'Simone Aragao Teles', 'Thales Nogueira Rios',
-  'Vanessa Portela Cruz', 'William Cavalcante Dantas', 'Aline Prates Moraes', 'Caio Valadares Seixas',
-  'Debora Lacerda Furtado', 'Elias Montenegro Paiva', 'Flavia Meneses Orlando',
+  'Larissa Coutinho Vaz', 'Murilo Sampaio Noronha', 'Natalia Figueiredo Brito',
 ];
 const EXTRA_TECNICOS = [
   'Gustavo Albuquerque Sa', 'Heloisa Barreto Viana', 'Ivan Camargo Rezende', 'Jessica Dornelas Maia',
   'Kaue Escobar Ventura', 'Lorena Faria Calado', 'Marcelo Gusmao Ibiapina', 'Nayara Holanda Bessa',
   'Orlando Itapemirim Sales', 'Priscila Jardim Nery', 'Ricardo Kruger Lyra', 'Silvia Linhares Macedo',
-  'Tatiane Mourao Nobre', 'Ubirajara Neiva Osorio', 'Viviane Padilha Quaresma', 'Wagner Queiroz Rabelo',
-  'Adriana Sobral Tolentino', 'Bernardo Uchoa Valente', 'Camila Xavier Zagallo', 'Diego Amaral Bittencourt',
-  'Emanuele Cordeiro Falcao', 'Fabio Garcia Honorato', 'Giovana Inacio Jucá', 'Hugo Kerr Lessa',
-  'Ingrid Loureiro Maranhao', 'Jonas Neves Ouriques', 'Karen Pimentel Rosario', 'Luciano Salgado Tamandare',
-  'Monica Teixeira Uchoa', 'Nelson Vilar Wanderley',
 ];
-// Concursado/CLT alternados em proporção 10:9 (enfermeiros) e 16:14 (técnicos).
-const vinculoExtra = (i, nConcursado, total) => (i * nConcursado) % total < nConcursado ? 'concursado' : 'clt';
 const slugOf = (name) => name.split(' ')[0].normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-for (const [lista, formacao, nConcursado] of [[EXTRA_ENFERMEIROS, 'enfermeiro', 10], [EXTRA_TECNICOS, 'tecnico', 16]]) {
+const STAFFING_ASSIGNMENTS = new Map([
+  ['ana', { setor: 'Internamento' }],
+  ['bruno', { setor: 'Emergência' }],
+  ['carla', { setor: 'Emergência' }],
+  ['daniela', { setor: 'Internamento', subsetor: 'Setor A' }],
+  ['eduardo', { setor: 'Internamento', subsetor: 'Setor A' }],
+  ['fernanda', { setor: 'Emergência' }],
+  ['gabriela', { setor: 'Internamento' }],
+  ['henrique', { setor: 'Internamento', subsetor: 'Setor B' }],
+  ['isabela', { setor: 'Internamento', subsetor: 'Setor A' }],
+  ['joao', { setor: 'Internamento' }],
+  ['karina', { setor: 'Internamento', subsetor: 'Setor A' }],
+  ['leonardo', { setor: 'Emergência' }],
+  ['mariana', { setor: 'Internamento', subsetor: 'Setor B' }],
+  ['nicolas', { setor: 'Emergência' }],
+  ['olivia', { setor: 'Emergência' }],
+  ['paulo', { setor: 'Internamento', subsetor: 'Setor B' }],
+  ['quiteria', { setor: 'Emergência' }],
+  ['rafael', { setor: 'Internamento', subsetor: 'Setor B' }],
+  ['sandra', { setor: 'Internamento', subsetor: 'Setor B' }],
+  ['tiago', { setor: 'Internamento', subsetor: 'Setor B' }],
+  ['ursula', { setor: 'Emergência' }],
+  ['valter', { setor: 'Emergência' }],
+  ['wanessa', { setor: 'Emergência' }],
+  ['xavier', { setor: 'Emergência' }],
+  ['yara', { setor: 'Emergência' }],
+  ['zenilda', { setor: 'Emergência' }],
+  ['otavio', { setor: 'Emergência' }],
+]);
+const EXTRA_ASSIGNMENTS = {
+  enfermeiro: [
+    { tipoVinculo: 'clt', setor: 'Internamento' },
+    { tipoVinculo: 'clt', setor: 'Internamento' },
+    { tipoVinculo: 'clt', setor: 'Internamento' },
+    { tipoVinculo: 'concursado', setor: 'Emergência' },
+    { tipoVinculo: 'concursado', setor: 'Emergência' },
+    { tipoVinculo: 'clt', setor: 'Emergência' },
+    { tipoVinculo: 'clt', setor: 'Emergência' },
+  ],
+  tecnico: [
+    { tipoVinculo: 'clt', setor: 'Internamento', subsetor: 'Setor A' },
+    { tipoVinculo: 'clt', setor: 'Internamento', subsetor: 'Setor B' },
+    { tipoVinculo: 'concursado', setor: 'Emergência' },
+    { tipoVinculo: 'concursado', setor: 'Emergência' },
+    { tipoVinculo: 'concursado', setor: 'Emergência' },
+    { tipoVinculo: 'concursado', setor: 'Emergência' },
+    { tipoVinculo: 'concursado', setor: 'Emergência' },
+    { tipoVinculo: 'concursado', setor: 'Emergência' },
+    { tipoVinculo: 'concursado', setor: 'Emergência' },
+    { tipoVinculo: 'concursado', setor: 'Emergência' },
+    { tipoVinculo: 'concursado', setor: 'Emergência' },
+    { tipoVinculo: 'concursado', setor: 'Emergência' },
+  ],
+};
+for (const [lista, formacao] of [[EXTRA_ENFERMEIROS, 'enfermeiro'], [EXTRA_TECNICOS, 'tecnico']]) {
   lista.forEach((name, i) => {
-    PEOPLE.push([slugOf(name), name, formacao, vinculoExtra(i, nConcursado, lista.length), 'ativo', `CE-${10028 + PEOPLE.length - 27}`]);
+    const slug = slugOf(name);
+    const atribuicao = EXTRA_ASSIGNMENTS[formacao][i];
+    PEOPLE.push([slug, name, formacao, atribuicao.tipoVinculo, 'ativo', `CE-${10028 + PEOPLE.length - 27}`]);
+    STAFFING_ASSIGNMENTS.set(slug, atribuicao);
   });
 }
 const DEMO_CONFIGURATIONS = ['2026-10', '2026-11'];
@@ -71,23 +118,6 @@ function defaultLoads() {
       [`clt_${days}`, { plantoes24h: 5, plantoes12h: 2 }],
     ]),
   );
-}
-
-function repartir(total, pesos) {
-  const somaPesos = pesos.reduce((soma, peso) => soma + peso, 0);
-  if (!Number.isInteger(total) || total < 0 || somaPesos <= 0) {
-    throw new Error('Não foi possível distribuir profissionais entre setores.');
-  }
-
-  const cotasExatas = pesos.map((peso) => (total * peso) / somaPesos);
-  const cotas = cotasExatas.map(Math.floor);
-  const restantes = total - cotas.reduce((soma, cota) => soma + cota, 0);
-  const ordemPorResto = cotasExatas
-    .map((cota, indice) => ({ indice, resto: cota - Math.floor(cota) }))
-    .sort((a, b) => b.resto - a.resto || a.indice - b.indice);
-
-  for (let i = 0; i < restantes; i++) cotas[ordemPorResto[i].indice]++;
-  return cotas;
 }
 
 function cpf(base9) {
@@ -144,6 +174,7 @@ async function seed() {
     await admins.updateOne({ usuarioId: admin._id }, { $setOnInsert: { usuarioId: admin._id } }, { upsert: true });
 
     const identities = {};
+    const seededUserIds = [];
     const proHash = await bcrypt.hash(proPassword, 10);
     for (let i = 0; i < PEOPLE.length; i++) {
       const [slug, name, formacao, tipoVinculo, status, coren] = PEOPLE[i];
@@ -154,17 +185,22 @@ async function seed() {
           tentativasFalhasLogin: 0, bloqueadoAte: null, ultimoLoginEm: null, createdAt: ts, updatedAt: ts },
       }, { upsert: true, returnDocument: 'after' });
       if (usuario.tipoUsuario !== 'profissionalDaSaude') throw new Error(`Conflito de perfil para ${email}`);
+      seededUserIds.push(usuario._id);
       const profissional = await profs.findOneAndUpdate({ usuarioId: usuario._id }, {
-        $setOnInsert: { usuarioId: usuario._id, coren, formacao, tipoVinculo, status, subsetorId: null,
-          sincronizaAgenda: false, desativadoEm: status === 'desativado' ? ts : null, createdAt: ts, updatedAt: ts },
+        $set: { coren, formacao, tipoVinculo, status, subsetorId: null,
+          sincronizaAgenda: false },
+        $setOnInsert: { usuarioId: usuario._id, desativadoEm: status === 'desativado' ? ts : null, createdAt: ts, updatedAt: ts },
       }, { upsert: true, returnDocument: 'after' });
+      await profs.updateOne(
+        { _id: profissional._id, desativadoEm: status === 'desativado' ? null : { $ne: null } },
+        { $set: { desativadoEm: status === 'desativado' ? ts : null } },
+      );
       identities[slug] = profissional._id;
     }
 
-    // [nome, descrição, [enf dia, téc dia], [enf noite, téc noite], subsetores]. Setor com subsetores não tem mínimo
-    // próprio de técnicos: cada subsetor tem o seu (UTI: 2 + 1 = 3, a mesma demanda total de antes).
+    // O mínimo é 1 técnico em cada sub-setor do Internamento e 3 na Emergência.
     const setores = [
-      ['Internamento', 'Unidade de Terapia Intensiva', [1, 3], [1, 3], [['Setor A', 'Leitos de terapia intensiva adulto', 3], ['Setor B', 'Cuidados semi-intensivos', 3]]],
+      ['Internamento', 'Unidade de Terapia Intensiva', [1, 1], [1, 1], [['Setor A', 'Leitos de terapia intensiva adulto', 1], ['Setor B', 'Cuidados semi-intensivos', 1]]],
       ['Emergência', 'Pronto atendimento', [1, 3], [1, 3], []],
     ];
     for (const [nome, descricao, dia, noite, subsetores] of setores) {
@@ -172,106 +208,90 @@ async function seed() {
       const tecnicos = possuiSubsetores
         ? subsetores.reduce((soma, [, , minimo]) => soma + minimo, 0)
         : Math.max(dia[1], noite[1]);
-      await db.collection('setores').updateOne({ nome }, { $setOnInsert: {
-        nome, descricao, plantao24h: {
-          enfermeiros: Math.max(dia[0], noite[0]),
-          tecnicos,
-        }, possuiSubsetores, ativo: true, createdAt: ts, updatedAt: ts,
-      } }, { upsert: true });
+      await db.collection('setores').updateOne({ nome }, {
+        $set: {
+          nome, descricao, plantao24h: {
+            enfermeiros: Math.max(dia[0], noite[0]),
+            tecnicos,
+          }, possuiSubsetores, ativo: true,
+        },
+        $setOnInsert: { createdAt: ts, updatedAt: ts },
+      }, { upsert: true });
       if (possuiSubsetores) {
-        // Demo já existente (setor criado antes dos subsetores): adota subsetores e mínimo derivado, sem tocar no resto.
-        await db.collection('setores').updateOne(
-          { nome, possuiSubsetores: { $ne: true } },
-          { $set: { possuiSubsetores: true, 'plantao24h.tecnicos': tecnicos, updatedAt: ts } },
-        );
         const setorDoc = await db.collection('setores').findOne({ nome });
         for (const [nomeSubsetor, descricaoSubsetor, minimo] of subsetores) {
-          await db.collection('subsetores').updateOne({ setorId: setorDoc._id, nome: nomeSubsetor }, { $setOnInsert: {
-            setorId: setorDoc._id, nome: nomeSubsetor, descricao: descricaoSubsetor,
-            plantao24h: { tecnicos: minimo }, ativo: true, createdAt: ts, updatedAt: ts,
-          } }, { upsert: true });
-        }
-      }
-    }
-
-    // Setor fixo: cada profissional demo recebe um unico setor, proporcional a demanda de sua categoria.
-    // So preenche quem ainda nao tem setor (nunca sobrescreve um setor ja definido no cadastro).
-    const setorDocs = await db.collection('setores').find({ nome: { $in: setores.map(([nome]) => nome) } }).toArray();
-    const setorPorNome = new Map(setorDocs.map((s) => [s.nome, s._id]));
-    for (const [formacaoDemo, indiceFuncao] of [['enfermeiro', 0], ['tecnico', 1]]) {
-      const grupo = PEOPLE.filter((pessoa) => pessoa[2] === formacaoDemo);
-      const pesos = setores.map(([, , dia, noite]) => Math.max(dia[indiceFuncao], noite[indiceFuncao]));
-      const cotas = repartir(grupo.length, pesos);
-      let cursor = 0;
-      for (let s = 0; s < setores.length; s++) {
-        for (let k = 0; k < cotas[s]; k++, cursor++) {
-          await profs.updateOne(
-            { _id: identities[grupo[cursor][0]], setorId: { $in: [null] } },
-            { $set: { setorId: setorPorNome.get(setores[s][0]), updatedAt: ts } },
+          await db.collection('subsetores').updateOne(
+            { setorId: setorDoc._id, nome: nomeSubsetor },
+            {
+              $set: { setorId: setorDoc._id, nome: nomeSubsetor, descricao: descricaoSubsetor,
+                plantao24h: { tecnicos: minimo }, ativo: true },
+              $setOnInsert: { createdAt: ts, updatedAt: ts },
+            },
+            { upsert: true },
           );
         }
       }
     }
 
-    // Subsetor dos técnicos de setores com subsetores: repartido proporcionalmente ao mínimo de cada subsetor.
-    // Só preenche quem ainda não tem subsetor. Enfermeiros e técnicos de setor sem subsetores ficam sem subsetor.
-    {
-      const tecnicos = PEOPLE.filter((pessoa) => pessoa[2] === 'tecnico');
-      const cotasTecnicos = repartir(tecnicos.length, setores.map(([, , dia, noite]) => Math.max(dia[1], noite[1])));
-      let cursor = 0;
-      for (let s = 0; s < setores.length; s++) {
-        const [nomeSetor, , , , subsetores] = setores[s];
-        const grupoDoSetor = tecnicos.slice(cursor, cursor + cotasTecnicos[s]);
-        cursor += cotasTecnicos[s];
-        if (subsetores.length === 0) continue;
-        const subsetorDocs = await db.collection('subsetores')
-          .find({ setorId: setorPorNome.get(nomeSetor), nome: { $in: subsetores.map(([nomeSubsetor]) => nomeSubsetor) } }).toArray();
-        const subsetorPorNome = new Map(subsetorDocs.map((sub) => [sub.nome, sub._id]));
-        const cotasSubsetores = repartir(grupoDoSetor.length, subsetores.map(([, , minimo]) => minimo));
-        let posicao = 0;
-        for (let k = 0; k < subsetores.length; k++) {
-          for (let n = 0; n < cotasSubsetores[k]; n++, posicao++) {
-            await profs.updateOne(
-              { _id: identities[grupoDoSetor[posicao][0]], setorId: setorPorNome.get(nomeSetor), subsetorId: { $in: [null] } },
-              { $set: { subsetorId: subsetorPorNome.get(subsetores[k][0]), updatedAt: ts } },
-            );
-          }
-        }
+    const setorDocs = await db.collection('setores').find({ nome: { $in: setores.map(([nome]) => nome) } }).toArray();
+    const setorPorNome = new Map(setorDocs.map((s) => [s.nome, s._id]));
+    const subsetorDocs = await db.collection('subsetores')
+      .find({ setorId: { $in: setorDocs.map((setor) => setor._id) } }).toArray();
+    const subsetorPorChave = new Map(subsetorDocs.map((sub) => [`${String(sub.setorId)}:${sub.nome}`, sub._id]));
+    for (const [slug] of PEOPLE) {
+      const atribuicao = STAFFING_ASSIGNMENTS.get(slug);
+      if (!atribuicao) throw new Error(`Seed sem setor definido para ${slug}.`);
+      const setorId = setorPorNome.get(atribuicao.setor);
+      const subsetorId = atribuicao.subsetor
+        ? subsetorPorChave.get(`${String(setorId)}:${atribuicao.subsetor}`)
+        : null;
+      if (!setorId || (atribuicao.subsetor && !subsetorId)) {
+        throw new Error(`Setor/sub-setor inválido para ${slug}.`);
       }
+      await profs.updateOne(
+        { _id: identities[slug] },
+        { $set: { setorId, subsetorId } },
+      );
     }
 
+    // Desativa contas de profissionais de versões anteriores do seed, sem apagar seu histórico.
+    const demosAntigos = await usuarios.find({
+      _id: { $nin: seededUserIds },
+      email: /@nurseflow\.test$/,
+      tipoUsuario: 'profissionalDaSaude',
+    })
+      .project({ _id: 1 }).toArray();
+    await profs.updateMany(
+      { usuarioId: { $in: demosAntigos.map((usuario) => usuario._id) }, status: { $ne: 'desativado' } },
+      { $set: { status: 'desativado', desativadoEm: ts } },
+    );
+
     for (const chave of DEMO_CONFIGURATIONS) {
-      await db.collection('configuracoes').updateOne({ chave }, { $setOnInsert: {
-        chave,
-        limiteTrocas: 3,
-        maxExtras: 2,
-        limitePlantoes: 12,
-        maxExtrasConcursado: 1,
-        maxExtrasClt: 1,
-        cargas: defaultLoads(),
-        createdAt: ts,
-        updatedAt: ts,
-      } }, { upsert: true });
+      await db.collection('configuracoes').updateOne({ chave }, {
+        $set: {
+          limiteTrocas: 3,
+          maxExtras: 2,
+          limitePlantoes: 12,
+          maxExtrasConcursado: 1,
+          maxExtrasClt: 1,
+          cargas: defaultLoads(),
+        },
+        $setOnInsert: { chave, createdAt: ts, updatedAt: ts },
+      }, { upsert: true });
     }
 
     const restrictions = [
-      ['ana', 'indisponivel', '2026-10-14T00:00:00.000Z', '2026-10-14T23:59:59.999Z', null, 'Indisponível na quarta-feira'],
-      ['bruno', 'vinculo_externo', '2026-10-01T00:00:00.000Z', '2026-10-31T23:59:59.999Z', 2, 'Outro vínculo às terças (sem horário específico)'],
-      ['carla', 'disponivel', '2026-10-16T00:00:00.000Z', '2026-10-16T23:59:59.999Z', null, 'Disponibilidade declarada'],
-      ['daniela', 'ausencia', '2026-10-19T00:00:00.000Z', '2026-10-21T23:59:59.999Z', null, 'Ausência informada'],
-      ['eduardo', 'indisponivel', '2026-10-23T00:00:00.000Z', '2026-10-23T23:59:59.999Z', null, 'Compromisso pessoal'],
-      ['fernanda', 'vinculo_externo', '2026-10-01T00:00:00.000Z', '2026-10-31T23:59:59.999Z', 5, 'Outro vínculo às sextas'],
       ['gabriela', 'ferias', '2026-10-12T00:00:00.000Z', '2026-10-26T23:59:59.999Z', null, 'Férias programadas'],
       ['henrique', 'ausencia', '2026-10-12T00:00:00.000Z', '2026-10-31T23:59:59.999Z', null, 'Afastamento informado'],
-      ['isabela', 'disponivel', '2026-10-18T00:00:00.000Z', '2026-10-18T23:59:59.999Z', null, 'Disponível neste domingo'],
       ['mariana', 'ferias', '2026-10-05T00:00:00.000Z', '2026-10-19T23:59:59.999Z', null, 'Férias programadas'],
       ['valter', 'ferias', '2026-10-19T00:00:00.000Z', '2026-11-02T23:59:59.999Z', null, 'Férias programadas'],
       ['nicolas', 'ausencia', '2026-10-01T00:00:00.000Z', '2026-10-31T23:59:59.999Z', null, 'Afastamento informado'],
       ['olivia', 'ausencia', '2026-10-15T00:00:00.000Z', '2026-11-15T23:59:59.999Z', null, 'Afastamento informado'],
-      ['joao', 'indisponivel', '2026-10-09T00:00:00.000Z', '2026-10-09T23:59:59.999Z', null, 'Compromisso pessoal'],
-      ['tiago', 'vinculo_externo', '2026-10-01T00:00:00.000Z', '2026-10-31T23:59:59.999Z', 3, 'Outro vínculo às quartas'],
-      ['yara', 'indisponivel', '2026-10-28T00:00:00.000Z', '2026-10-28T23:59:59.999Z', null, 'Indisponível neste dia'],
     ];
+    // As restrições de demonstração ficam restritas a profissionais fora do efetivo de cobertura.
+    await db.collection('restricoes').deleteMany({
+      profissionalId: { $in: PEOPLE.filter((pessoa) => pessoa[4] === 'ativo').map((pessoa) => identities[pessoa[0]]) },
+    });
     for (const [slug, tipo, inicio, fim, diaSemana, observacao] of restrictions) {
       const profissionalId = identities[slug];
       await db.collection('restricoes').updateOne({ profissionalId, tipo, inicio: date(inicio), fim: date(fim), observacao }, {
@@ -279,7 +299,7 @@ async function seed() {
           observacao, createdAt: ts, updatedAt: ts },
       }, { upsert: true });
     }
-    console.log(`Seed concluído: 1 coordenação, ${PEOPLE.length} profissionais, 3 setores (UTI com 2 subsetores), 2 configurações mensais e ${restrictions.length} restrições.`);
+    console.log(`Seed concluído: 1 coordenação, ${PEOPLE.length} profissionais, ${setores.length} setores e ${subsetorDocs.length} sub-setores, 2 configurações mensais e ${restrictions.length} restrições.`);
     console.log('Logins: admin@nurseflow.test e <nome>@nurseflow.test; senhas conforme DEMO_ADMIN_PASSWORD/DEMO_PRO_PASSWORD.');
   } finally {
     await client.close();
