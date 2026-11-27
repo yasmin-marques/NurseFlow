@@ -3,6 +3,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { Escala, EscalaSchema, VersaoEscala, VersaoEscalaSchema } from '../escalas/schemas';
 import { Profissional, ProfissionalSchema } from '../profissionais/schemas/profissional.schema';
 import { Setor, SetorSchema } from '../setores/schemas/setor.schema';
+import { Subsetor, SubsetorSchema } from '../setores/schemas/subsetor.schema';
 import { GoogleAgendaController } from './google-agenda.controller';
 import {
   EstadoOauthGoogle,
@@ -28,6 +29,7 @@ import { GoogleCalendarClient, HttpGoogleCalendarClient } from './google-calenda
       { name: Escala.name, schema: EscalaSchema },
       { name: VersaoEscala.name, schema: VersaoEscalaSchema },
       { name: Setor.name, schema: SetorSchema },
+      { name: Subsetor.name, schema: SubsetorSchema },
       { name: Profissional.name, schema: ProfissionalSchema },
     ]),
   ],

@@ -45,7 +45,20 @@ describe('montarEvento', () => {
     const texto = JSON.stringify(evento.corpo);
     expect(texto).not.toContain('segredo');
     expect(texto).toContain('(chefia)');
-    expect(texto).toContain('Plantão extra');
+    expect(texto).toContain('Tipo de plantão: Extra');
+  });
+
+  it('descreve setor, subsetor, tipo e função, nessa ordem', () => {
+    const evento = montarEvento({ ...base, subsetorNome: 'Isolamento', funcao: 'tecnico' });
+    expect(evento.corpo.description).toBe(
+      'Setor: UTI\nSubsetor: Isolamento\nTipo de plantão: Regular\nFunção: Técnico\n\nCriado pelo NurseFlow. Alterações devem ser feitas no NurseFlow.',
+    );
+  });
+
+  it('omite subsetor e tipo quando ausentes', () => {
+    const { description } = montarEvento({ ...base, tipo: undefined }).corpo;
+    expect(description).not.toContain('Subsetor');
+    expect(description).not.toContain('Tipo de plantão');
   });
 
   it('muda o hash quando algo relevante muda e mantém quando nada muda', () => {

@@ -36,7 +36,7 @@ O sistema MUST usar consentimento explícito com acesso offline e escopo `calend
 
 ### Requirement: Sincronizar os plantões oficiais sem duplicatas
 
-O sistema MUST criar ou atualizar um evento por plantão oficial do profissional usando identidade estável (profissional + plantão), com data, início/fim no fuso do sistema (inclusive plantões que terminam no dia seguinte), setor e função, e MUST NOT enviar dados de pacientes, colegas ou observações internas. Repetições, reprocessamentos e execuções paralelas MUST NOT duplicar eventos, e uma tarefa antiga MUST NOT sobrescrever um estado oficial mais recente.
+O sistema MUST criar ou atualizar um evento por plantão oficial do profissional usando identidade estável (profissional + plantão), com data, início/fim no fuso do sistema (inclusive plantões que terminam no dia seguinte), setor, subsetor (quando houver), tipo de plantão (quando disponível) e função, e MUST NOT enviar dados de pacientes, colegas ou observações internas. Repetições, reprocessamentos e execuções paralelas MUST NOT duplicar eventos, e uma tarefa antiga MUST NOT sobrescrever um estado oficial mais recente.
 
 #### Scenario: Sincronização manual
 

@@ -13,9 +13,11 @@ export interface PlantaoParaEvento {
   horarioInicio: string;
   duracaoHoras: number;
   setorNome: string;
+  /** Ausente quando o profissional não tem subsetor no setor do plantão. */
+  subsetorNome?: string;
   funcao: string;
   lideranca: boolean;
-  tipo: string;
+  tipo?: string;
 }
 
 export interface EventoGoogle {
@@ -35,6 +37,8 @@ export interface EventoDesejado {
   fim: Date;
   corpo: EventoGoogle;
 }
+
+const ROTULOS_TIPO: Record<string, string> = { regular: 'Regular', extra: 'Extra' };
 
 const dois = (n: number) => String(n).padStart(2, '0');
 
@@ -78,16 +82,19 @@ export function idEventoGoogle(profissionalId: string, plantaoId: string): strin
 }
 
 /**
- * Monta o evento a partir dos dados oficiais. Só inclui data/horário, setor e função do próprio profissional:
- * nada de pacientes, colegas ou observações internas.
+ * Monta o evento a partir dos dados oficiais. Só inclui data/horário, setor, subsetor, tipo de plantão e função
+ * do próprio profissional: nada de pacientes, colegas ou observações internas. Campos ausentes são omitidos.
  */
 export function montarEvento(plantao: PlantaoParaEvento): EventoDesejado {
   const { inicio, fim } = intervaloDoPlantao(plantao);
   const funcao = plantao.funcao === 'tecnico' ? 'Técnico' : 'Enfermeiro';
+  const tipo = plantao.tipo ? ROTULOS_TIPO[plantao.tipo] : undefined;
   const descricao = [
     `Setor: ${plantao.setorNome}`,
+    ...(plantao.subsetorNome ? [`Subsetor: ${plantao.subsetorNome}`] : []),
+    ...(tipo ? [`Tipo de plantão: ${tipo}`] : []),
     `Função: ${funcao}${plantao.lideranca ? ' (chefia)' : ''}`,
-    ...(plantao.tipo === 'extra' ? ['Plantão extra'] : []),
+    '',
     'Criado pelo NurseFlow. Alterações devem ser feitas no NurseFlow.',
   ].join('\n');
   const corpo: EventoGoogle = {

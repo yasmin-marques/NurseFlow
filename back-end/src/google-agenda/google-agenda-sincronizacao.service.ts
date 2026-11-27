@@ -5,7 +5,9 @@ import { randomUUID } from 'node:crypto';
 import { type ClientSession, Model, Types } from 'mongoose';
 import type { AppConfig } from '../config/configuration';
 import { Escala, PlantaoProfissional, Plantao, StatusEscala, VersaoEscala } from '../escalas/schemas';
+import { Profissional } from '../profissionais/schemas/profissional.schema';
 import { Setor } from '../setores/schemas/setor.schema';
+import { Subsetor } from '../setores/schemas/subsetor.schema';
 import {
   EventoGoogleAgenda,
   IntegracaoGoogleAgenda,
@@ -55,6 +57,8 @@ export class GoogleAgendaSincronizacaoService implements OnModuleInit, OnModuleD
     @InjectModel(Escala.name) private readonly escalas: Model<Escala>,
     @InjectModel(VersaoEscala.name) private readonly versoes: Model<VersaoEscala>,
     @InjectModel(Setor.name) private readonly setores: Model<Setor>,
+    @InjectModel(Subsetor.name) private readonly subsetores: Model<Subsetor>,
+    @InjectModel(Profissional.name) private readonly profissionais: Model<Profissional>,
   ) {}
 
   onModuleInit(): void {
@@ -372,6 +376,7 @@ export class GoogleAgendaSincronizacaoService implements OnModuleInit, OnModuleD
       .lean()
       .exec();
     const nomeSetor = new Map(setores.map((setor) => [String(setor._id), setor.nome]));
+    const subsetor = await this.subsetorDoProfissional(profissionalId);
     for (const { plantao, vinculo } of meus) {
       const evento = montarEvento({
         profissionalId,
@@ -380,13 +385,22 @@ export class GoogleAgendaSincronizacaoService implements OnModuleInit, OnModuleD
         horarioInicio: plantao.horarioInicio ?? '00:00',
         duracaoHoras: plantao.duracaoHoras ?? 0,
         setorNome: nomeSetor.get(String(plantao.setorId)) ?? 'Setor não informado',
+        // O subsetor só vale para plantões do setor ao qual ele pertence.
+        subsetorNome: subsetor && String(subsetor.setorId) === String(plantao.setorId) ? subsetor.nome : undefined,
         funcao: vinculo.funcao ?? 'enfermeiro',
         lideranca: vinculo.lideranca ?? false,
-        tipo: plantao.tipo ?? 'regular',
+        tipo: plantao.tipo,
       });
       if (evento.fim >= corte) desejados.set(evento.plantaoId, evento);
     }
     return desejados;
+  }
+
+  /** Subsetor do cadastro atual do profissional (o plantão não guarda subsetor); nulo quando não há. */
+  private async subsetorDoProfissional(profissionalId: string) {
+    const profissional = await this.profissionais.findById(profissionalId, { subsetorId: 1 }).lean().exec();
+    if (!profissional?.subsetorId) return null;
+    return this.subsetores.findById(profissional.subsetorId, { nome: 1, setorId: 1 }).lean().exec();
   }
 
   // ------------------------------------------------------------------ lock
